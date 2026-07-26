@@ -1,0 +1,113 @@
+{
+  "bundle_key": "supporting_wrong_type_uploaded_as_form_e",
+  "title": "A bill of lading uploaded in place of the Form-E",
+  "description": "A readable, valid bill of lading is uploaded under the form_e slot. It must not satisfy the Form-E requirement.",
+  "injected_defect": "bill of lading uploaded as form_e",
+  "base_scenario": "clean_cotton_tshirts",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_cotton_tshirts/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_cotton_tshirts/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_cotton_tshirts/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_cotton_tshirts/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-002",
+    "destination_country": "China",
+    "shipment_date": "2026-06-29",
+    "pct_code": "6109.1000",
+    "product": "Cotton knitted T-shirts",
+    "invoice_total": "550.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [],
+  "expected_overall_status": "failed",
+  "expected_human_review": false,
+  "expected_required_action": "Upload the correct Form-E / PSW export declaration.",
+  "documents": [
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": true,
+      "expected_detected_type": "bill_of_lading",
+      "expected_state": "type_mismatch",
+      "expected_content_status": "failed",
+      "expected_failed_checks": [
+        "supporting_form_e_or_psw_export_declaration_type"
+      ],
+      "expected_manual_review_checks": [],
+      "expected_required_action": "Upload the correct form e or psw export declaration.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": "SYN-BL-LCGINV2026002",
+        "issue_date": "2026-06-29",
+        "expiry_date": null,
+        "exporter_or_applicant": "Lahore Cotton Garments (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Shanghai Sample Trading Co., Ltd.",
+        "invoice_reference": "LCG-INV-2026-002",
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": "Cotton knitted T-shirts",
+        "destination_country": "China",
+        "issuing_authority": null,
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": "5 CARTONS",
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_wrong_type_uploaded_as_form_e/supporting_form_e_or_psw_export_declaration_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_wrong_type_uploaded_as_form_e/supporting_form_e_or_psw_export_declaration_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "87b57b74-9866-5bbc-94d4-c826fb741387",
+        "scanned": "2ad5e52a-6293-5aee-a889-c3f340351b92"
+      }
+    },
+    {
+      "claimed_document_type": "certificate_of_origin",
+      "uploaded": true,
+      "expected_detected_type": "certificate_of_origin",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-COO-LCGINV2026002",
+        "issue_date": "2026-06-25",
+        "expiry_date": null,
+        "exporter_or_applicant": "Lahore Cotton Garments (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Shanghai Sample Trading Co., Ltd.",
+        "invoice_reference": "LCG-INV-2026-002",
+        "contract_reference": null,
+        "pct_code": "6109.1000",
+        "product_or_commodity": "Cotton knitted T-shirts",
+        "destination_country": "China",
+        "issuing_authority": "Lahore Chamber of Commerce and Industry",
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": "100",
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_wrong_type_uploaded_as_form_e/supporting_certificate_of_origin_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_wrong_type_uploaded_as_form_e/supporting_certificate_of_origin_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "50fca40e-e1e3-5f9a-9b76-f2c13351bd3b",
+        "scanned": "d501c81b-fca2-55fb-9817-8c5faf07ef56"
+      }
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

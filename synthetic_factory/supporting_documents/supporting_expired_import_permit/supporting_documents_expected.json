@@ -1,0 +1,113 @@
+{
+  "bundle_key": "supporting_expired_import_permit",
+  "title": "Importing-country permit that expired before shipment",
+  "description": "The permit is readable and matches the shipment, but its printed expiry date is in the past.",
+  "injected_defect": "import permit expiry date in the past",
+  "base_scenario": "clean_raw_cotton",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_raw_cotton/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_raw_cotton/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_raw_cotton/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_raw_cotton/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+    "buyer": "Al Ain Fibre Trading LLC",
+    "invoice_number": "MRC-INV-2026-014",
+    "destination_country": "United Arab Emirates",
+    "shipment_date": "2026-06-01",
+    "pct_code": "5201.0090",
+    "product": "Raw cotton, other",
+    "invoice_total": "2000.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [],
+  "expected_overall_status": "failed",
+  "expected_human_review": false,
+  "expected_required_action": "Obtain a valid importing-country permit.",
+  "documents": [
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": true,
+      "expected_detected_type": "form_e_or_psw_export_declaration",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-FORME-MRCINV2026014",
+        "issue_date": "2026-05-28",
+        "expiry_date": null,
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Al Ain Fibre Trading LLC",
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": "5201.0090",
+        "product_or_commodity": "Raw cotton, other",
+        "destination_country": "United Arab Emirates",
+        "issuing_authority": null,
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "2000.00",
+        "currency": "USD",
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_expired_import_permit/supporting_form_e_or_psw_export_declaration_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_expired_import_permit/supporting_form_e_or_psw_export_declaration_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "28d32b5a-7cb9-56cc-b02a-a635ffce9da2",
+        "scanned": "839e1a18-f1db-5f96-8e5f-f28a5eee21ed"
+      }
+    },
+    {
+      "claimed_document_type": "importing_country_permit",
+      "uploaded": true,
+      "expected_detected_type": "importing_country_permit",
+      "expected_state": "type_verified",
+      "expected_content_status": "failed",
+      "expected_failed_checks": [
+        "supporting_importing_country_permit_not_expired"
+      ],
+      "expected_manual_review_checks": [],
+      "expected_required_action": "Correct the conflicting supporting document and re-submit.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": "SYN-IMPPERM-MRCINV2026014",
+        "issue_date": "2026-04-17",
+        "expiry_date": "2025-01-31",
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Al Ain Fibre Trading LLC",
+        "invoice_reference": null,
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": "Raw cotton, other",
+        "destination_country": "United Arab Emirates",
+        "issuing_authority": "Ministry of Climate Change and Environment",
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_expired_import_permit/supporting_importing_country_permit_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_expired_import_permit/supporting_importing_country_permit_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "049ee623-969c-5e5e-9c32-e923f7cc3411",
+        "scanned": "87a4fc1f-797d-5112-bc26-e83ac66a4fe2"
+      }
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

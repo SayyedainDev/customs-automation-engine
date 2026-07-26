@@ -1,0 +1,212 @@
+VALIDATED TEXT DERIVATIVE
+The original OCR text remains unchanged in the amendments directory.
+Legal validation is limited to the status and notes shown for each page.
+
+=== Page 1 of 7 ===
+Validation status: manually_verified
+Validation note: Handwritten SRO number and date were read directly from the page image; PCT lists were checked visually.
+
+GOVERNMENT OF PAKISTAN
+MINISTRY OF COMMERCE
+*****
+
+ORDER
+
+Islamabad, the 30th April, 2024
+
+S.R.O. 629(I)/2024. - In exercise of the powers conferred by sub-section (1) of Section 3 of the Import and Exports (Control) Act, 1950 (XXXIX of 1950), the Federal Government is pleased to direct that the following further amendments shall be made in the Export Policy Order 2022, namely:-
+
+In the aforesaid order, -
+
+a) In Schedule-I, in column (1),-
+
+i) against Sr. No. 9, in column (2), for the expression “2844.4000”, the expression “2844.4100, 2844.4200, 2844.4300, 2844.4400” shall be substituted;
+
+ii) against Sr. No. 14, in column (2), for the expression “4407.1900”, the expression “4407.1300, 4407.1400, 4407.2300” shall be substituted; and
+
+iii) against Sr. No. 18, in column (2), for the expression “9701.1000, 9701.9000, 9702.0000, 9703.0000, 9705.0000, 9706.0000”, the expression “9701.2100, 9701.2200, 9701.2900, 9701.9100, 9701.9200, 9701.9900, 9702.1000, 9702.9000, 9703.1000, 9703.9000, 9705.1000, 9705.2100,
+
+=== Page 2 of 7 ===
+Validation status: manually_verified
+Validation note: Compared with the original image. The page visibly prints 2303.4910; it was not changed to 2903.4910. The intended/current code therefore remains legally unclear pending an authoritative correction or corrigendum.
+
+9705.2200, 9705.2900, 9705.3100, 9705.3900, 9706.1000, 9706.9000” shall be substituted;
+
+b) In Appendix-A, in Schedule-I CHEMICALS, in column (1),-
+
+i) against Sr. No. 1, in column (4), for the expression “2931.3910”, the expression “2931.5910” shall be substituted;
+
+ii) against Sr. No. 2, in column (4), for the expression “2931.3920”, the expression “2931.5920” shall be substituted;
+
+iii) against Sr. No. 9, in column (4), for the expression “2931.3930”, the expression “2931.5930” shall be substituted;
+
+iv) against Sr. No. 10, in column (4), for the expression “2931.3940”, the expression “2931.5940” shall be substituted;
+
+v) against Sr. No. 11, in column (4), for the expression “2931.3950”, the expression “2931.5950” shall be substituted;
+
+vi) against Sr. No. 12, in column (4), for the expression “2931.3960”, the expression “2931.5960” shall be substituted;
+
+vii) against Sr. No. 13, in column (4), for the expression “2931.3999”, the expression “2931.5999” shall be substituted; and
+
+viii) against Sr. No. 15, in column (4), for the expression “2931.3999”, the expression “2931.5999” shall be substituted;
+
+c) In Appendix-B, in Schedule-II CHEMICALS, in column (1),-
+
+i) against Sr. No. 2, in column (4), for the expression “2903.3950”, the expression “2303.4910” shall be substituted;
+
+[VALIDATION WARNING: The printed new code is 2303.4910. A proposed value of 2903.4910 conflicts with the source image and has not been marked verified.]
+
+=== Page 3 of 7 ===
+Validation status: OCR_verified
+Validation note: No material OCR defect was flagged during the previous OCR quality review; this page was not part of the seven-page manual visual-validation set.
+
+ii)
+against Sr. No. 4, in column (4), for the expression "2931.3991,
+2931.3100", the expression "2931.5991, 2931.4100" shall be
+substituted; and
+ili) against Sr. No. 9, in column (4), for the expression
+"2933.3950", the expression "2933.3500" shall be substituted;
+d
+In Appendix-C, in Schedule-III CHEMICALS, in column (1),-
+against Sr. No. 10, in column (4), for the expression
+"2970.2100", the expression "2920.2100" shall be substituted;
+e
+In Appendix-G, in column (1),-
+i)
+against Sr. No. 80, in column (2), for the expression
+"0403.1000", the expression "0403.2000" shall be substituted;
+ii)
+against Sr. No. 105,-
+(a)
+in column (2), for the expression "0410.0000", the
+expression
+“0410.1000,0410.9000"
+shall
+be
+substituted; and
+(b)
+in column (3), for the expression "Edible products of
+animal origin, not elsewhere specified or incluged", the
+expression “"Insects and other edible products of animal
+origin, not elsewhere specified or included" shall be
+substituted; and
+iii)
+against Sr. No. 139, in column (3), for the expression
+"Sausage and similar products, of meat, meat offal or blood;
+food preparations based on these products", the expression
+Page 3 of 7
+Moin Ahmed
+Section Officer
+Ministry of Commerce
+uernment of Pakistan
+clamabad
+
+=== Page 4 of 7 ===
+Validation status: OCR_verified
+Validation note: No material OCR defect was flagged during the previous OCR quality review; this page was not part of the seven-page manual visual-validation set.
+
+"Sausages and similar products, of meat, meat offal, blood or
+insects; food preparations based on these products" shall be
+substituted;
+f
+In Appendix-H, in column (1),-
+i)
+against Sr. No. 1, in column (2), for the expression
+"3002.1100", the expression “3822.1100" shall be substituted;
+ii)
+against Sr. No. 8, in column (2), for the expression
+"3006.2000", the expression "3822.1300" shall be substituted;
+ili)
+against Sr. No. 16,-
+(a)
+in column (2), for the expression "3822.0000", the
+expression “3822.1100, 3822.1200, 3822.1300,
+3822.1900, 3822.9000" shall be substituted; and
+(b)
+in column (3), for the expression “Diagnostic or
+laboratory reagents on a backing, prepared diagnostic
+or laboratory reagents whether or not on a backing,
+other than those of heading 30.02 or 30.06; certified
+reference (if diagnostic reagent)", the expression
+"Diagnostic or laboratory reagents on a backing.
+prepared diagnostic or laboratory reagents whether or
+not on a backing, whether or not put up in the form of
+kits, other than those of heading 30.06; certified
+reference materials" shall be suostitutec;
+iv)
+against Sr. No. 20,-
+Pag040f7
+Moin Ahmed
+Section Officer
+
+=== Page 5 of 7 ===
+Validation status: OCR_verified
+Validation note: No material OCR defect was flagged during the previous OCR quality review; this page was not part of the seven-page manual visual-validation set.
+
+(a)
+in column (2), for the expression “4015.1100", the
+expression “4015.1200" shall be substituted; and
+(b)
+in column (3), for the word "Surgical", the words “of
+a kind used for medical, surgical, dental or veterinary
+purposes" shall be substituted;
+against Sr. No. 82, 'in column (2), for the expression
+V
+"9027.8000", the expression "9027.8100, 9027.8900" shall be
+substituted; and
+g) In Appendix-J, in column (I),-
+i)
+against Sr. No. ·25, in column (3), for the expression
+"Cauliflowers and headed broccoli, fresh or chilled", the
+words "Cauliflowers and broccoli" shall be substituted;
+ii)
+against Sr. No. 42, in column (2), for the expression
+"0709.5910", the expression "0709.9100" shall be substituted;
+iii)
+against Sr. No. 43, in column (2), for the expression
+"0709.5990", the expression "0709.5200,
+0709.5300,
+0709.5400, 0709.5500, 0709.5600, 0709.5900" shall be
+substituted;
+iv)
+against Sr. No. 67, in column (2), for the existing entry, the
+expression "0712.3400" shall be substituted;
+against Sr. No. 83, in column (2), for the expression
+"0802.9000", the expression
+"0802.9100, 0802.9200,
+0802.9900" shall be substituted;
+Page 5 of 7
+slamabad
+
+=== Page 6 of 7 ===
+Validation status: manually_verified
+Validation note: PCT sequences were compared with the page image. Serial 342 visibly prints 4413.8200, which may be an official typographical error; no silent normalization to 4418.8200 was made.
+
+vi) against Sr. No. 102, in column (3), for the words “Grapefruit including pomelos”, the words “Grapefruit and pomelos” shall be substituted;
+
+vii) against Sr. No. 137, in column (2), for the expression “0813.4030”, the expression “0802.9100, 0802.9200” shall be substituted;
+
+viii) against Sr. No. 312, in column (2), for the expression “4401.4000”, the expression “4401.4100, 4401.4900” shall be substituted;
+
+ix) against Sr. No. 332, in column (2), for the expression “4418.1000”, the expression “4418.1100, 4418.1900” shall be substituted;
+
+x) against Sr. No. 333, in column (2), for the existing entry, the expression “4418.2100, 4418.2900” shall be substituted;
+
+xi) against Sr. No. 335, in column (2), for the expression “4418.6000”, the expression “4418.3000, 4418.8100, 4418.8200, 4418.8300, 4418.8900” shall be substituted;
+
+xii) against Sr. No. 340, in column (2), for the existing entry, the expression “4418.9200, 4418.8100, 4418.8200, 4418.8300, 4418.8900” shall be substituted;
+
+xiii) against Sr. No. 342, in column (2), for the existing entry, the expression “4418.9200, 4418.8100, 4413.8200, 4418.8300, 4418.8900” shall be substituted; and
+
+[VALIDATION WARNING: Serial 342 visibly prints 4413.8200. Whether 4418.8200 was intended is unclear and requires an authoritative correction or corrigendum.]
+
+=== Page 7 of 7 ===
+Validation status: OCR_verified
+Validation note: No material OCR defect was flagged during the previous OCR quality review; this page was not part of the seven-page manual visual-validation set.
+
+xiv) against Sr. No. 347, in column (2), for the expression
+"4420.1000", the expression "4420.1100, 4420.1900" shal1 be
+substituted.
+F. No. 3(3)/2020-SO (M&I)
+Section Officer (Exp)
+Page 7 of 7

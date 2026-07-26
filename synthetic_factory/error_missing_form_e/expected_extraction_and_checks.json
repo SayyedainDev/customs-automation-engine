@@ -1,0 +1,119 @@
+{
+  "scenario": "Missing Form-E",
+  "scenario_key": "error_missing_form_e",
+  "description": "Otherwise clean T-shirt shipment with the Form-E declaration not provided.",
+  "injected_defect": "Form-E was not uploaded with the shipment.",
+  "pct_codes": [
+    "6109.1000"
+  ],
+  "commercial_invoice": {
+    "exporter_name": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer_name": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-011",
+    "invoice_date": "2026-06-12",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "550.00",
+    "declared_net_weight_total": "75.00",
+    "declared_gross_weight_total": "80.00",
+    "line_items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "unit_price": "5.50",
+        "line_total": "550.00",
+        "net_weight": "75.00",
+        "gross_weight": "80.00"
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "LCG-PL-2026-011",
+    "related_invoice_number": "LCG-INV-2026-011",
+    "destination_country": "China",
+    "declared_net_weight_total": "75.00",
+    "declared_gross_weight_total": "80.00",
+    "items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "net_weight": "75.00",
+        "gross_weight": "80.00",
+        "package_count": "5"
+      }
+    ]
+  },
+  "request": {
+    "shipment_date": "2026-06-16",
+    "letter_of_credit_date": null,
+    "additional_uploaded_document_types": [
+      "certificate_of_origin"
+    ]
+  },
+  "expected_results": {
+    "overall_status": "failed",
+    "items": [
+      {
+        "item_reference": "invoice_line_1",
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "61091000",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "failed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "failed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "failed",
+          "xr_61091000_export_status": "not_applicable",
+          "xr_61091000_licence_required": "not_applicable",
+          "xr_61091000_permit_required": "not_applicable",
+          "xr_61091000_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      }
+    ],
+    "shipment_level_checks": {
+      "sum_line_totals_match_invoice_total": "passed",
+      "invoice_net_weight_total": "passed",
+      "invoice_gross_weight_total": "passed",
+      "packing_net_weight_total": "passed",
+      "packing_gross_weight_total": "passed",
+      "duplicate_invoice_lines": "passed",
+      "duplicate_packing_items": "passed",
+      "items_present_in_both_documents": "passed"
+    }
+  },
+  "expected_note": "Computed by running the real deterministic pipeline (single-line weight fallback, item matching, per-item compliance checks and shipment-level checks) against this scenario's ground-truth extraction, so these statuses reflect the actual application code rather than a hand-written prediction."
+}

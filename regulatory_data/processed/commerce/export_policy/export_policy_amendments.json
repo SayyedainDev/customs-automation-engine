@@ -1,0 +1,1933 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-07-23T00:00:00+05:00",
+  "legal_cutoff_date": "2026-07-23",
+  "validation_scope": "Seven flagged pages manually compared with original images; other pages retain OCR_verified status. Original OCR text was not changed.",
+  "legal_use_status": "blocked_pending_resolution_of_unclear_source_values_and_legal_review",
+  "unclear_fields": [
+    {
+      "document": "SRO 629(I)/2024",
+      "page": 2,
+      "field": "Appendix B Schedule II Chemicals serial 2 new PCT",
+      "printed_value": "2303.4910",
+      "conflicting_proposed_value": "2903.4910",
+      "reason": "Original page visibly prints 2303.4910; intended code cannot be changed without authoritative correction."
+    },
+    {
+      "document": "SRO 629(I)/2024",
+      "page": 6,
+      "field": "Appendix J serial 342 code sequence",
+      "printed_value": [
+        "4418.9200",
+        "4418.8100",
+        "4413.8200",
+        "4418.8300",
+        "4418.8900"
+      ],
+      "reason": "4413.8200 is visibly printed inside a 4418 sequence; intended code cannot be normalized without authoritative correction."
+    },
+    {
+      "document": "SRO 1021(I)/2024",
+      "page": 1,
+      "field": "old Schedule I serial 19 column (4) text",
+      "reason": "The removed text came from predecessor SRO 433(I)/2024, whose original notification was not visually validated in this task."
+    }
+  ],
+  "amendments": [
+    {
+      "record_key": {
+        "value": "epo_561_i_2023",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "sro_number": {
+        "value": "561(I)/2023",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "issue_date": {
+        "value": "2023-05-15",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Paragraph 7, sub-paragraph (5)",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "affected_product_or_subject": {
+        "value": "Exports using the Afghanistan/Central Asian Republics land-route framework",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "affected_pct_codes": {
+        "value": [],
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "old_rule": {
+        "value": "The route list contained Karez at the insertion point.",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "new_rule": {
+        "value": "Insert Angoor Adda after Karez.",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "conditions": {
+        "value": [
+          "Applies when the shipment uses the paragraph 7 route framework."
+        ],
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "source_pages": {
+        "value": [
+          3
+        ],
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "conditional",
+          "reason": "Relevant to textile shipments only when this route is used."
+        },
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The operative page was not part of the seven-page manual set; prior OCR quality review found no material defect."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_561_i_2023_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          3
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_1087_i_2023",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "sro_number": {
+        "value": "1087(I)/2023",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "issue_date": {
+        "value": "2023-08-18",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Paragraph 7(6) and 7(7); Schedule II serial 8, column (4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "affected_product_or_subject": {
+        "value": "Vegetable ghee and cooking oil for the Schedule II change; paragraph 7 change is broader",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "1516.1000",
+          "1516.2010",
+          "1516.2020",
+          "1518.0000"
+        ],
+        "source_page": [
+          {
+            "document": "SRO 544(I)/2022",
+            "page": 15
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Codes are resolved from Schedule II serial 8 in the base order; they are not printed in SRO 1087."
+      },
+      "old_rule": {
+        "value": "Paragraph 7 contained sub-paragraphs (6) and (7), and Schedule II serial 8 contained the quoted Afghanistan-only exclusion.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "new_rule": {
+        "value": "Omit paragraph 7(6) and 7(7) and omit the phrase '(excluding that manufactured in manufacturing bonds and export oriented unites in case of export to Afghanistan only)'.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "conditions": {
+        "value": [
+          "Remaining value-addition, packaging and indigenous-oil conditions in Schedule II serial 8 are not removed by this SRO."
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "not_directly_relevant",
+          "reason": "Product-specific change concerns vegetable ghee/cooking oil."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete page was compared with the original image."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_1087_i_2023_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_629_i_2024",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "sro_number": {
+        "value": "629(I)/2024",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "issue_date": {
+        "value": "2024-04-30",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Schedule I and Appendices A, B, C, G, H and J",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "affected_product_or_subject": {
+        "value": "PCT-code and description transpositions across prohibited and conditional product schedules",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "0403.2000",
+          "0410.1000",
+          "0410.9000",
+          "0709.5200",
+          "0709.5300",
+          "0709.5400",
+          "0709.5500",
+          "0709.5600",
+          "0709.5900",
+          "0709.9100",
+          "0712.3400",
+          "0802.9100",
+          "0802.9200",
+          "0802.9900",
+          "2303.4910",
+          "2844.4100",
+          "2844.4200",
+          "2844.4300",
+          "2844.4400",
+          "2920.2100",
+          "2931.4100",
+          "2931.5910",
+          "2931.5920",
+          "2931.5930",
+          "2931.5940",
+          "2931.5950",
+          "2931.5960",
+          "2931.5991",
+          "2931.5999",
+          "2933.3500",
+          "3822.1100",
+          "3822.1200",
+          "3822.1300",
+          "3822.1900",
+          "3822.9000",
+          "4015.1200",
+          "4401.4100",
+          "4401.4900",
+          "4407.1300",
+          "4407.1400",
+          "4407.2300",
+          "4413.8200",
+          "4418.1100",
+          "4418.1900",
+          "4418.2100",
+          "4418.2900",
+          "4418.3000",
+          "4418.8100",
+          "4418.8200",
+          "4418.8300",
+          "4418.8900",
+          "4418.9200",
+          "4420.1100",
+          "4420.1900",
+          "9027.8100",
+          "9027.8900",
+          "9701.2100",
+          "9701.2200",
+          "9701.2900",
+          "9701.9100",
+          "9701.9200",
+          "9701.9900",
+          "9702.1000",
+          "9702.9000",
+          "9703.1000",
+          "9703.9000",
+          "9705.1000",
+          "9705.2100",
+          "9705.2200",
+          "9705.2900",
+          "9705.3100",
+          "9705.3900",
+          "9706.1000",
+          "9706.9000",
+          "Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, whether or not put up in the form of kits, other than those of heading 30.06; certified reference materials"
+        ],
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "old_rule": {
+        "value": "The prior codes/descriptions are reproduced per change where stated.",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "new_rule": {
+        "value": "Substitute the new codes/descriptions printed in the notification; two apparent source-level code conflicts are blocked from automatic use.",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "conditions": {
+        "value": [
+          "The underlying prohibited/conditional status comes from the parent Schedule or Appendix; SRO 629 primarily changes codes/descriptions."
+        ],
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "source_pages": {
+        "value": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "conditional",
+          "reason": "No direct chapter 50–63 rule found; useful for PCT mapping. Unclear values must not execute."
+        },
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Pages 1, 2 and 6 were manually compared; pages 3, 4, 5 and 7 retain OCR-verified status. Two printed PCT values may be official typographical errors."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_629_i_2024_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      },
+      "changes": {
+        "value": [
+          {
+            "value": {
+              "section": "Schedule I",
+              "serial_number": 9,
+              "old_value": "2844.4000",
+              "new_value_as_printed": [
+                "2844.4100",
+                "2844.4200",
+                "2844.4300",
+                "2844.4400"
+              ]
+            },
+            "source_page": 1,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Schedule I",
+              "serial_number": 14,
+              "old_value": "4407.1900",
+              "new_value_as_printed": [
+                "4407.1300",
+                "4407.1400",
+                "4407.2300"
+              ]
+            },
+            "source_page": 1,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Schedule I",
+              "serial_number": 18,
+              "old_value": [
+                "9701.1000",
+                "9701.9000",
+                "9702.0000",
+                "9703.0000",
+                "9705.0000",
+                "9706.0000"
+              ],
+              "new_value_as_printed": [
+                "9701.2100",
+                "9701.2200",
+                "9701.2900",
+                "9701.9100",
+                "9701.9200",
+                "9701.9900",
+                "9702.1000",
+                "9702.9000",
+                "9703.1000",
+                "9703.9000",
+                "9705.1000",
+                "9705.2100",
+                "9705.2200",
+                "9705.2900",
+                "9705.3100",
+                "9705.3900",
+                "9706.1000",
+                "9706.9000"
+              ]
+            },
+            "source_page": 1,
+            "validation_status": "manually_verified",
+            "validation_note": "List begins on page 1 and continues on page 2; both images were checked."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 1,
+              "old_value": "2931.3910",
+              "new_value_as_printed": "2931.5910"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 2,
+              "old_value": "2931.3920",
+              "new_value_as_printed": "2931.5920"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 9,
+              "old_value": "2931.3930",
+              "new_value_as_printed": "2931.5930"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 10,
+              "old_value": "2931.3940",
+              "new_value_as_printed": "2931.5940"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 11,
+              "old_value": "2931.3950",
+              "new_value_as_printed": "2931.5950"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 12,
+              "old_value": "2931.3960",
+              "new_value_as_printed": "2931.5960"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 13,
+              "old_value": "2931.3999",
+              "new_value_as_printed": "2931.5999"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix A, Schedule I Chemicals",
+              "serial_number": 15,
+              "old_value": "2931.3999",
+              "new_value_as_printed": "2931.5999"
+            },
+            "source_page": 2,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix B, Schedule II Chemicals",
+              "serial_number": 2,
+              "old_value": "2903.3950",
+              "new_value_as_printed": "2303.4910"
+            },
+            "source_page": 2,
+            "validation_status": "unclear",
+            "validation_note": "The source image visibly prints 2303.4910. The requested 2903.4910 conflicts with the original page. Intended/current code requires an authoritative corrigendum or confirmation."
+          },
+          {
+            "value": {
+              "section": "Appendix B, Schedule II Chemicals",
+              "serial_number": 4,
+              "old_value": [
+                "2931.3991",
+                "2931.3100"
+              ],
+              "new_value_as_printed": [
+                "2931.5991",
+                "2931.4100"
+              ]
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page; not part of the seven-page manual set."
+          },
+          {
+            "value": {
+              "section": "Appendix B, Schedule II Chemicals",
+              "serial_number": 9,
+              "old_value": "2933.3950",
+              "new_value_as_printed": "2933.3500"
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page; not part of the seven-page manual set."
+          },
+          {
+            "value": {
+              "section": "Appendix C, Schedule III Chemicals",
+              "serial_number": 10,
+              "old_value": "2970.2100",
+              "new_value_as_printed": "2920.2100"
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "Value retained as printed/OCR-extracted; no silent tariff normalization."
+          },
+          {
+            "value": {
+              "section": "Appendix G",
+              "serial_number": 80,
+              "old_value": "0403.1000",
+              "new_value_as_printed": "0403.2000"
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix G",
+              "serial_number": 105,
+              "old_value": "0410.0000",
+              "new_value_as_printed": [
+                "0410.1000",
+                "0410.9000"
+              ]
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix G",
+              "serial_number": 105,
+              "old_value": "Edible products of animal origin, not elsewhere specified or included",
+              "new_value_as_printed": "Insects and other edible products of animal origin, not elsewhere specified or included"
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "Description substitution."
+          },
+          {
+            "value": {
+              "section": "Appendix G",
+              "serial_number": 139,
+              "old_value": "Sausage and similar products, of meat, meat offal or blood; food preparations based on these products",
+              "new_value_as_printed": "Sausages and similar products, of meat, meat offal, blood or insects; food preparations based on these products"
+            },
+            "source_page": 3,
+            "validation_status": "OCR_verified",
+            "validation_note": "Change continues onto page 4."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 1,
+              "old_value": "3002.1100",
+              "new_value_as_printed": "3822.1100"
+            },
+            "source_page": 4,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 8,
+              "old_value": "3006.2000",
+              "new_value_as_printed": "3822.1300"
+            },
+            "source_page": 4,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 16,
+              "old_value": "3822.0000",
+              "new_value_as_printed": [
+                "3822.1100",
+                "3822.1200",
+                "3822.1300",
+                "3822.1900",
+                "3822.9000"
+              ]
+            },
+            "source_page": 4,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 16,
+              "old_value": "Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, other than those of heading 30.02 or 30.06; certified reference (if diagnostic reagent)",
+              "new_value_as_printed": "Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, whether or not put up in the form of kits, other than those of heading 30.06; certified reference materials"
+            },
+            "source_page": 4,
+            "validation_status": "OCR_verified",
+            "validation_note": "Description substitution."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 20,
+              "old_value": "4015.1100",
+              "new_value_as_printed": "4015.1200"
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 20,
+              "old_value": "Surgical",
+              "new_value_as_printed": "of a kind used for medical, surgical, dental or veterinary purposes"
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "Description substitution."
+          },
+          {
+            "value": {
+              "section": "Appendix H",
+              "serial_number": 82,
+              "old_value": "9027.8000",
+              "new_value_as_printed": [
+                "9027.8100",
+                "9027.8900"
+              ]
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 25,
+              "old_value": "Cauliflowers and headed broccoli, fresh or chilled",
+              "new_value_as_printed": "Cauliflowers and broccoli"
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "Description substitution."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 42,
+              "old_value": "0709.5910",
+              "new_value_as_printed": "0709.9100"
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 43,
+              "old_value": "0709.5990",
+              "new_value_as_printed": [
+                "0709.5200",
+                "0709.5300",
+                "0709.5400",
+                "0709.5500",
+                "0709.5600",
+                "0709.5900"
+              ]
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 67,
+              "old_value": "existing entry",
+              "new_value_as_printed": "0712.3400"
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "The notification does not reproduce the old entry."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 83,
+              "old_value": "0802.9000",
+              "new_value_as_printed": [
+                "0802.9100",
+                "0802.9200",
+                "0802.9900"
+              ]
+            },
+            "source_page": 5,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 102,
+              "old_value": "Grapefruit including pomelos",
+              "new_value_as_printed": "Grapefruit and pomelos"
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 137,
+              "old_value": "0813.4030",
+              "new_value_as_printed": [
+                "0802.9100",
+                "0802.9200"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 312,
+              "old_value": "4401.4000",
+              "new_value_as_printed": [
+                "4401.4100",
+                "4401.4900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 332,
+              "old_value": "4418.1000",
+              "new_value_as_printed": [
+                "4418.1100",
+                "4418.1900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 333,
+              "old_value": "existing entry",
+              "new_value_as_printed": [
+                "4418.2100",
+                "4418.2900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "The old entry is not reproduced; new values read directly."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 335,
+              "old_value": "4418.6000",
+              "new_value_as_printed": [
+                "4418.3000",
+                "4418.8100",
+                "4418.8200",
+                "4418.8300",
+                "4418.8900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "Read directly from the source image."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 340,
+              "old_value": "existing entry",
+              "new_value_as_printed": [
+                "4418.9200",
+                "4418.8100",
+                "4418.8200",
+                "4418.8300",
+                "4418.8900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "manually_verified",
+            "validation_note": "The old entry is not reproduced; new values read directly."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 342,
+              "old_value": "existing entry",
+              "new_value_as_printed": [
+                "4418.9200",
+                "4418.8100",
+                "4413.8200",
+                "4418.8300",
+                "4418.8900"
+              ]
+            },
+            "source_page": 6,
+            "validation_status": "unclear",
+            "validation_note": "The page visibly prints 4413.8200 within a 4418 sequence. Whether 4418.8200 was intended is not verified."
+          },
+          {
+            "value": {
+              "section": "Appendix J",
+              "serial_number": 347,
+              "old_value": "4420.1000",
+              "new_value_as_printed": [
+                "4420.1100",
+                "4420.1900"
+              ]
+            },
+            "source_page": 7,
+            "validation_status": "OCR_verified",
+            "validation_note": "No material OCR defect was flagged on this page."
+          }
+        ],
+        "source_page": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "validation_status": "unclear",
+        "validation_note": "Each change carries its own page-level validation status. Any unclear printed code blocks automatic legal use."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_1021_i_2024",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "sro_number": {
+        "value": "1021(I)/2024",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "issue_date": {
+        "value": "2024-07-11",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Schedule I, serial 19, column (4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "affected_product_or_subject": {
+        "value": "Wheat, wheat flour, fine flour/maida and suji",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "1001.1900",
+          "1001.9900",
+          "1101.0010"
+        ],
+        "source_page": [
+          {
+            "document": "SRO 544(I)/2022",
+            "page": 14
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Codes are resolved from Schedule I serial 19 in the base order."
+      },
+      "old_rule": {
+        "value": "Export of wheat flour manufactured from wheat imported solely for export under the Export Facilitation Scheme, 2021",
+        "source_page": [
+          {
+            "document": "consolidated EPO Version 07",
+            "page": 12
+          }
+        ],
+        "validation_status": "unclear",
+        "validation_note": "The consolidated copy reports that SRO 433(I)/2024 inserted this text, but the original predecessor notification was not part of this visual-validation set."
+      },
+      "new_rule": {
+        "value": "Omit the entry in Schedule I serial 19, column (4).",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "conditions": {
+        "value": [
+          "After omission, no column (4) exception remains in this cited Schedule I row."
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "not_relevant",
+          "reason": "Wheat products are outside the textile MVP."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The handwritten SRO number and operative sentence were read directly from the image."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_1021_i_2024_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_705_i_2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "sro_number": {
+        "value": "705(I)/2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "issue_date": {
+        "value": "2025-04-18",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Schedule I, serial 12, column (4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "affected_product_or_subject": {
+        "value": "Potassium sulphate (K2SO4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "3104.3000"
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "old_rule": {
+        "value": "The insertion point followed the word 'agencies.'.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "new_rule": {
+        "value": "Insert a permission for K2SO4 exports from Gwadar Port by companies manufacturing in Gwadar Free Zone.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "conditions": {
+        "value": [
+          "Export from Gwadar Port",
+          "Company must manufacture in Gwadar Free Zone"
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "not_relevant",
+          "reason": "Outside the textile MVP."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_705_i_2025_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_1727_i_2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "sro_number": {
+        "value": "1727(I)/2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "issue_date": {
+        "value": "2025-09-08",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Appendix G, serials 174–175, 181–186 and 189–198",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "affected_product_or_subject": {
+        "value": "Specified hides, skins, leather and leather waste",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "4102.2110",
+          "4102.2120",
+          "4104.4100",
+          "4104.4900",
+          "4105.1000",
+          "4105.3000",
+          "4106.2100",
+          "4106.2200",
+          "4106.4000",
+          "4106.9100",
+          "4106.9200",
+          "4112.0000",
+          "4113.1000",
+          "4113.9000",
+          "4114.1000",
+          "4114.2000",
+          "4115.1000",
+          "4115.2000"
+        ],
+        "source_page": [
+          {
+            "document": "SRO 544(I)/2022",
+            "pages": [
+              40,
+              41,
+              42
+            ]
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Codes are resolved from the base-order serials; SRO 1727 prints only serial ranges."
+      },
+      "old_rule": {
+        "value": "The cited Appendix G rows and their columns (2), (3) and (4) were present.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "new_rule": {
+        "value": "Omit the cited serials and their entries in columns (2), (3) and (4).",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "conditions": {
+        "value": [
+          "The omission removes these EPO Appendix G entries; it does not prove exemption from separate animal-quarantine legislation."
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "not_relevant",
+          "reason": "Leather/hides are outside the current textile MVP."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete amendment page was compared with the original image; product codes were separately resolved from base-order pages 40–42."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_1727_i_2025_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_1902_i_2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "sro_number": {
+        "value": "1902(I)/2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "issue_date": {
+        "value": "2025-10-02",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Schedule I new serial 22; Appendix G serial 170, column (4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "affected_product_or_subject": {
+        "value": "Donkey hides",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "respective headings",
+          "4101.5090"
+        ],
+        "source_page": [
+          {
+            "document": "SRO 1902(I)/2025",
+            "page": 1
+          },
+          {
+            "document": "SRO 544(I)/2022",
+            "page": 40
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "The new Schedule I row says 'Respective Headings'; 4101.5090 is resolved from Appendix G serial 170."
+      },
+      "old_rule": {
+        "value": "Appendix G serial 170 contained the note 'Donkey hides banned: ECC Decision dated 3-9-2015'.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "new_rule": {
+        "value": "Add conditional Schedule I serial 22 and omit the former donkey-hide ban note from Appendix G serial 170.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "conditions": {
+        "value": [
+          "Allowed only to firms/companies manufacturing in designated, approved and registered donkey slaughterhouses located in Gwadar Free Zone"
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "not_relevant",
+          "reason": "Outside the textile MVP."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "No material OCR defect was flagged; this page was not in the seven-page manual set."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_1902_i_2025_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    },
+    {
+      "record_key": {
+        "value": "epo_2486_i_2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "document_title": {
+        "value": "Further amendment(s) to the Export Policy Order, 2022",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "sro_number": {
+        "value": "2486(I)/2025",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "issuing_authority": {
+        "value": "Government of Pakistan, Ministry of Commerce",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "issue_date": {
+        "value": "2025-12-23",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "effective_date": {
+        "value": null,
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "No separate effective date is stated in the notification; null is preserved rather than inferred."
+      },
+      "parent_document": {
+        "value": "SRO 544(I)/2022 — Export Policy Order, 2022, as amended",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The notification expressly amends the Export Policy Order, 2022."
+      },
+      "schedule_or_section_changed": {
+        "value": "Schedule II, serial 9, column (4)",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "affected_product_or_subject": {
+        "value": "Cotton",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "affected_pct_codes": {
+        "value": [
+          "5201.0000"
+        ],
+        "source_page": [
+          {
+            "document": "SRO 544(I)/2022",
+            "page": 15
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "PCT is resolved from Schedule II serial 9; it is not printed in SRO 2486."
+      },
+      "old_rule": {
+        "value": "Export contract registration with TDAP against 1% security deposit; present evidence with shipping documents plus cotton grading/classification certificate; buyer opens irrevocable LC within 35 days; contracted quantity shipped within 180 days of contract registration; forfeiture for LC/non-performance failures.",
+        "source_page": [
+          {
+            "document": "SRO 544(I)/2022",
+            "page": 15
+          }
+        ],
+        "validation_status": "OCR_verified",
+        "validation_note": "Old column (4) resolved from the base order; SRO 2486 only prints the replacement."
+      },
+      "new_rule": {
+        "value": "Replace column (4) with an SBP deposit/confirmation requirement and LC/180-day shipment/forfeiture conditions.",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "conditions": {
+        "value": [
+          "Security deposit of 1% of contract value with SBP",
+          "Present SBP confirmation before Customs with shipping documents",
+          "Buyer opens an irrevocable letter of credit",
+          "Complete contracted shipment within 180 days thereof",
+          "For non-performance within stipulated time, SBP forfeits deposit proportionate to quantity not shipped"
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "source_pages": {
+        "value": [
+          1
+        ],
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "textile_mvp_relevance": {
+        "value": {
+          "status": "directly_relevant",
+          "reason": "Cotton is in the textile supply chain."
+        },
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "The complete financial and shipment conditions were read directly from the original image."
+      },
+      "validated_text_path": {
+        "value": "processed/commerce/export_policy/validated_text/sro_2486_i_2025_amendment_to_export_policy_order_2022_validated.txt",
+        "source_page": [
+          1
+        ],
+        "validation_status": "manually_verified",
+        "validation_note": "Separate validated derivative; original OCR text remains unchanged for audit."
+      }
+    }
+  ]
+}

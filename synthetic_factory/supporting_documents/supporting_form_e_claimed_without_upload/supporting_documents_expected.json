@@ -1,0 +1,111 @@
+{
+  "bundle_key": "supporting_form_e_claimed_without_upload",
+  "title": "Form-E named in the request but never uploaded",
+  "description": "The caller lists form_e as an uploaded document type but supplies no document UUID. A name is not evidence.",
+  "injected_defect": "form_e claimed as a string with no uploaded file",
+  "base_scenario": "clean_cotton_tshirts",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_cotton_tshirts/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_cotton_tshirts/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_cotton_tshirts/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_cotton_tshirts/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-002",
+    "destination_country": "China",
+    "shipment_date": "2026-06-29",
+    "pct_code": "6109.1000",
+    "product": "Cotton knitted T-shirts",
+    "invoice_total": "550.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [
+    "form_e"
+  ],
+  "expected_overall_status": "failed",
+  "expected_human_review": false,
+  "expected_required_action": "Upload the actual Form-E / PSW export declaration PDF.",
+  "documents": [
+    {
+      "claimed_document_type": "certificate_of_origin",
+      "uploaded": true,
+      "expected_detected_type": "certificate_of_origin",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-COO-LCGINV2026002",
+        "issue_date": "2026-06-25",
+        "expiry_date": null,
+        "exporter_or_applicant": "Lahore Cotton Garments (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Shanghai Sample Trading Co., Ltd.",
+        "invoice_reference": "LCG-INV-2026-002",
+        "contract_reference": null,
+        "pct_code": "6109.1000",
+        "product_or_commodity": "Cotton knitted T-shirts",
+        "destination_country": "China",
+        "issuing_authority": "Lahore Chamber of Commerce and Industry",
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": "100",
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_form_e_claimed_without_upload/supporting_certificate_of_origin_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_form_e_claimed_without_upload/supporting_certificate_of_origin_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "17965017-0d75-50e6-9baa-2ce3b64f5b93",
+        "scanned": "8332db99-700d-58de-a19d-95d5bfd88713"
+      }
+    },
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": false,
+      "expected_detected_type": null,
+      "expected_state": "claimed_only",
+      "expected_content_status": "failed",
+      "expected_failed_checks": [
+        "supporting_form_e_or_psw_export_declaration_uploaded"
+      ],
+      "expected_manual_review_checks": [],
+      "expected_required_action": "Upload the form e or psw export declaration PDF.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": null,
+        "issue_date": null,
+        "expiry_date": null,
+        "exporter_or_applicant": null,
+        "buyer_or_beneficiary": null,
+        "invoice_reference": null,
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": null,
+        "destination_country": null,
+        "issuing_authority": null,
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": null,
+      "scanned_pdf": null,
+      "note": "Deliberately not uploaded: the request names this type but supplies no document UUID."
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

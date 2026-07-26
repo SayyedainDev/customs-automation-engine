@@ -1,0 +1,120 @@
+{
+  "scenario": "Clean cotton-yarn shipment to China",
+  "scenario_key": "clean_cotton_yarn",
+  "description": "Single-line cotton yarn export to China with a certificate of origin under CPFTA.",
+  "injected_defect": null,
+  "pct_codes": [
+    "5205.1100"
+  ],
+  "commercial_invoice": {
+    "exporter_name": "Faisalabad Yarn Spinners (Pvt.) Ltd.",
+    "buyer_name": "Suzhou Textile Import Co., Ltd.",
+    "invoice_number": "FYS-INV-2026-101",
+    "invoice_date": "2026-06-10",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "16000.00",
+    "declared_net_weight_total": "5000.00",
+    "declared_gross_weight_total": "5050.00",
+    "line_items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton yarn",
+        "pct_code": "5205.1100",
+        "quantity": "5000",
+        "unit": "KG",
+        "unit_price": "3.20",
+        "line_total": "16000.00",
+        "net_weight": "5000.00",
+        "gross_weight": "5050.00"
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "FYS-PL-2026-101",
+    "related_invoice_number": "FYS-INV-2026-101",
+    "destination_country": "China",
+    "declared_net_weight_total": "5000.00",
+    "declared_gross_weight_total": "5050.00",
+    "items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton yarn",
+        "pct_code": "5205.1100",
+        "quantity": "5000",
+        "unit": "KG",
+        "net_weight": "5000.00",
+        "gross_weight": "5050.00",
+        "package_count": "50"
+      }
+    ]
+  },
+  "request": {
+    "shipment_date": "2026-06-15",
+    "letter_of_credit_date": null,
+    "additional_uploaded_document_types": [
+      "form_e",
+      "certificate_of_origin"
+    ]
+  },
+  "expected_results": {
+    "overall_status": "passed",
+    "items": [
+      {
+        "item_reference": "invoice_line_1",
+        "product_name": "Cotton yarn",
+        "pct_code": "52051100",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_52051100_export_status": "not_applicable",
+          "xr_52051100_licence_required": "not_applicable",
+          "xr_52051100_permit_required": "not_applicable",
+          "xr_52051100_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      }
+    ],
+    "shipment_level_checks": {
+      "sum_line_totals_match_invoice_total": "passed",
+      "invoice_net_weight_total": "passed",
+      "invoice_gross_weight_total": "passed",
+      "packing_net_weight_total": "passed",
+      "packing_gross_weight_total": "passed",
+      "duplicate_invoice_lines": "passed",
+      "duplicate_packing_items": "passed",
+      "items_present_in_both_documents": "passed"
+    }
+  },
+  "expected_note": "Computed by running the real deterministic pipeline (single-line weight fallback, item matching, per-item compliance checks and shipment-level checks) against this scenario's ground-truth extraction, so these statuses reflect the actual application code rather than a hand-written prediction."
+}

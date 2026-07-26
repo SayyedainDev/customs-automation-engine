@@ -1,0 +1,52 @@
+{
+  "scenario": "Valid single-line cotton T-shirt shipment to China",
+  "commercial_invoice": {
+    "exporter_name": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer_name": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-001",
+    "invoice_date": "2026-07-20",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "550.00",
+    "line_items": [
+      {
+        "line_number": "1",
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "unit_price": "5.50",
+        "line_total": "550.00",
+        "net_weight": "75.00",
+        "gross_weight": "80.00"
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "LCG-PL-2026-001",
+    "related_invoice_number": "LCG-INV-2026-001",
+    "destination_country": "China",
+    "items": [
+      {
+        "line_number": "1",
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "net_weight": "75.00",
+        "gross_weight": "80.00",
+        "package_count": "5"
+      }
+    ]
+  },
+  "expected_cross_document_checks": {
+    "product_name_match": "passed",
+    "quantity_match": "passed",
+    "pct_code_match": "passed",
+    "net_weight_match": "passed",
+    "gross_weight_match": "passed",
+    "line_calculation": "passed",
+    "sum_line_totals_match_invoice_total": "passed"
+  },
+  "expected_note": "Document extraction and cross-document checks should pass. The final legal compliance result may still be manual_review because the current regulatory records intentionally fail closed when legal provenance is incomplete."
+}

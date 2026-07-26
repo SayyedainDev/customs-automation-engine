@@ -1,0 +1,153 @@
+{
+  "bundle_key": "supporting_sbp_confirmation_wrong_deposit_reference",
+  "title": "SBP confirmation pointing at a different deposit receipt",
+  "description": "The confirmation quotes a deposit receipt number that does not match the deposit proof supplied with this shipment.",
+  "injected_defect": "related deposit reference does not match the deposit proof",
+  "base_scenario": "clean_raw_cotton",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_raw_cotton/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_raw_cotton/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_raw_cotton/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_raw_cotton/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+    "buyer": "Al Ain Fibre Trading LLC",
+    "invoice_number": "MRC-INV-2026-014",
+    "destination_country": "United Arab Emirates",
+    "shipment_date": "2026-06-01",
+    "pct_code": "5201.0090",
+    "product": "Raw cotton, other",
+    "invoice_total": "2000.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [],
+  "expected_overall_status": "failed",
+  "expected_human_review": false,
+  "expected_required_action": "Upload the confirmation that references this shipment's deposit.",
+  "documents": [
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": true,
+      "expected_detected_type": "form_e_or_psw_export_declaration",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-FORME-MRCINV2026014",
+        "issue_date": "2026-05-28",
+        "expiry_date": null,
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Al Ain Fibre Trading LLC",
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": "5201.0090",
+        "product_or_commodity": "Raw cotton, other",
+        "destination_country": "United Arab Emirates",
+        "issuing_authority": null,
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "2000.00",
+        "currency": "USD",
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_form_e_or_psw_export_declaration_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_form_e_or_psw_export_declaration_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "3492eab7-4b5b-5685-b9ef-a25bf79fc325",
+        "scanned": "504be561-420b-5b33-8c4f-4c791eed51db"
+      }
+    },
+    {
+      "claimed_document_type": "sbp_deposit_proof",
+      "uploaded": true,
+      "expected_detected_type": "sbp_deposit_proof",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-SBPDEP-MRCINV2026014",
+        "issue_date": "2026-05-28",
+        "expiry_date": null,
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": null,
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": null,
+        "destination_country": null,
+        "issuing_authority": "State Bank of Pakistan",
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "20.00",
+        "currency": "USD",
+        "percentage": "1",
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_sbp_deposit_proof_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_sbp_deposit_proof_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "cd098ff7-89e0-5cc7-aeff-861b07cb0438",
+        "scanned": "b47de704-4a78-5d88-b0d3-31910418ee5c"
+      }
+    },
+    {
+      "claimed_document_type": "sbp_confirmation",
+      "uploaded": true,
+      "expected_detected_type": "sbp_confirmation",
+      "expected_state": "type_verified",
+      "expected_content_status": "failed",
+      "expected_failed_checks": [
+        "supporting_sbp_confirmation_related_deposit_match"
+      ],
+      "expected_manual_review_checks": [],
+      "expected_required_action": "Correct the conflicting supporting document and re-submit.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": "SYN-SBPCONF-MRCINV2026014",
+        "issue_date": "2026-05-28",
+        "expiry_date": null,
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": null,
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": null,
+        "destination_country": null,
+        "issuing_authority": "State Bank of Pakistan",
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": "SYN-SBPDEP-00000000",
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_sbp_confirmation_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_sbp_confirmation_wrong_deposit_reference/supporting_sbp_confirmation_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "a8c9f553-ce15-55ca-a4e3-1e628f709e78",
+        "scanned": "139f2da7-2e2b-54cc-996a-0615439d3637"
+      }
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

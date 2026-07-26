@@ -1,0 +1,113 @@
+{
+  "bundle_key": "supporting_unreadable_document",
+  "title": "Unreadable supporting document",
+  "description": "The uploaded PDF yields no usable text even after OCR. The system must say it could not read it, not guess what it was.",
+  "injected_defect": "supporting document with no recoverable text",
+  "base_scenario": "clean_cotton_tshirts",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_cotton_tshirts/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_cotton_tshirts/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_cotton_tshirts/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_cotton_tshirts/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-002",
+    "destination_country": "China",
+    "shipment_date": "2026-06-29",
+    "pct_code": "6109.1000",
+    "product": "Cotton knitted T-shirts",
+    "invoice_total": "550.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [],
+  "expected_overall_status": "manual_review",
+  "expected_human_review": true,
+  "expected_required_action": "Upload a readable copy of the certificate of origin.",
+  "documents": [
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": true,
+      "expected_detected_type": "form_e_or_psw_export_declaration",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-FORME-LCGINV2026002",
+        "issue_date": "2026-06-25",
+        "expiry_date": null,
+        "exporter_or_applicant": "Lahore Cotton Garments (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Shanghai Sample Trading Co., Ltd.",
+        "invoice_reference": "LCG-INV-2026-002",
+        "contract_reference": null,
+        "pct_code": "6109.1000",
+        "product_or_commodity": "Cotton knitted T-shirts",
+        "destination_country": "China",
+        "issuing_authority": null,
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "550.00",
+        "currency": "USD",
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_unreadable_document/supporting_form_e_or_psw_export_declaration_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_unreadable_document/supporting_form_e_or_psw_export_declaration_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "014ea577-7047-5e1a-8cf1-aaa9380d69f3",
+        "scanned": "f49b193a-b86c-5822-86ab-0d04e728d027"
+      }
+    },
+    {
+      "claimed_document_type": "certificate_of_origin",
+      "uploaded": true,
+      "expected_detected_type": null,
+      "expected_state": "unreadable",
+      "expected_content_status": "manual_review",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [
+        "supporting_certificate_of_origin_readable"
+      ],
+      "expected_required_action": "Confirm the document contents manually.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": null,
+        "issue_date": null,
+        "expiry_date": null,
+        "exporter_or_applicant": null,
+        "buyer_or_beneficiary": null,
+        "invoice_reference": null,
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": null,
+        "destination_country": null,
+        "issuing_authority": null,
+        "bank_name": null,
+        "amount": null,
+        "currency": null,
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_unreadable_document/supporting_certificate_of_origin_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_unreadable_document/supporting_certificate_of_origin_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "caf6aff4-48e3-58e7-9ad5-492e8f95c94d",
+        "scanned": "99dcc95f-9bf3-525d-84a6-ea0804f361d3"
+      }
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

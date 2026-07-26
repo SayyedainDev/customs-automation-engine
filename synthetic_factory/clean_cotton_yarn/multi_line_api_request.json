@@ -1,0 +1,10 @@
+{
+  "commercial_invoice_document_id": "<replace-with-uploaded-invoice-uuid>",
+  "packing_list_document_id": "<replace-with-uploaded-packing-list-uuid>",
+  "shipment_date": "2026-06-15",
+  "letter_of_credit_date": null,
+  "additional_uploaded_document_types": [
+    "form_e",
+    "certificate_of_origin"
+  ]
+}

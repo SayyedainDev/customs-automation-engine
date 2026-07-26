@@ -1,0 +1,114 @@
+{
+  "bundle_key": "supporting_lc_wrong_beneficiary",
+  "title": "Letter of credit issued in favour of a different beneficiary",
+  "description": "The credit is readable and in date, but its beneficiary is not the exporter on the invoice.",
+  "injected_defect": "letter-of-credit beneficiary is not the exporter",
+  "base_scenario": "clean_raw_cotton",
+  "base_scenario_documents": {
+    "commercial_invoice_text": "clean_raw_cotton/synthetic_commercial_invoice_text.pdf",
+    "packing_list_text": "clean_raw_cotton/synthetic_packing_list_text.pdf",
+    "commercial_invoice_scanned": "clean_raw_cotton/synthetic_commercial_invoice_scanned.pdf",
+    "packing_list_scanned": "clean_raw_cotton/synthetic_packing_list_scanned.pdf"
+  },
+  "shipment": {
+    "exporter": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+    "buyer": "Al Ain Fibre Trading LLC",
+    "invoice_number": "MRC-INV-2026-014",
+    "destination_country": "United Arab Emirates",
+    "shipment_date": "2026-06-01",
+    "pct_code": "5201.0090",
+    "product": "Raw cotton, other",
+    "invoice_total": "2000.00",
+    "currency": "USD"
+  },
+  "claimed_only_document_types": [],
+  "expected_overall_status": "failed",
+  "expected_human_review": false,
+  "expected_required_action": "Obtain a letter of credit naming this exporter as beneficiary.",
+  "documents": [
+    {
+      "claimed_document_type": "form_e_or_psw_export_declaration",
+      "uploaded": true,
+      "expected_detected_type": "form_e_or_psw_export_declaration",
+      "expected_state": "shipment_matched",
+      "expected_content_status": "passed",
+      "expected_failed_checks": [],
+      "expected_manual_review_checks": [],
+      "expected_required_action": null,
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": true,
+      "expected_fields": {
+        "document_number": "SYN-FORME-MRCINV2026014",
+        "issue_date": "2026-05-28",
+        "expiry_date": null,
+        "exporter_or_applicant": "Multan Raw Cotton Traders (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Al Ain Fibre Trading LLC",
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": "5201.0090",
+        "product_or_commodity": "Raw cotton, other",
+        "destination_country": "United Arab Emirates",
+        "issuing_authority": null,
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "2000.00",
+        "currency": "USD",
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": null,
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_lc_wrong_beneficiary/supporting_form_e_or_psw_export_declaration_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_lc_wrong_beneficiary/supporting_form_e_or_psw_export_declaration_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "04d6e76a-3fd8-56b7-aeb7-fceb8aa69290",
+        "scanned": "fb1994fd-6219-570b-bcd7-38f29dd84d78"
+      }
+    },
+    {
+      "claimed_document_type": "irrevocable_letter_of_credit",
+      "uploaded": true,
+      "expected_detected_type": "irrevocable_letter_of_credit",
+      "expected_state": "type_verified",
+      "expected_content_status": "failed",
+      "expected_failed_checks": [
+        "supporting_irrevocable_letter_of_credit_exporter_match",
+        "supporting_letter_of_credit_beneficiary_match"
+      ],
+      "expected_manual_review_checks": [],
+      "expected_required_action": "Correct the conflicting supporting document and re-submit.",
+      "expected_authenticity_status": "not_externally_verified",
+      "expected_counts_as_present": false,
+      "expected_fields": {
+        "document_number": "SYN-LC-MRCINV2026014",
+        "issue_date": "2026-01-01",
+        "expiry_date": "2026-07-31",
+        "exporter_or_applicant": "Karachi Cotton Exports (Pvt.) Ltd.",
+        "buyer_or_beneficiary": "Al Ain Fibre Trading LLC",
+        "invoice_reference": "MRC-INV-2026-014",
+        "contract_reference": null,
+        "pct_code": null,
+        "product_or_commodity": null,
+        "destination_country": null,
+        "issuing_authority": null,
+        "bank_name": "Synthetic Test Bank Limited",
+        "amount": "2000.00",
+        "currency": "USD",
+        "percentage": null,
+        "quantity": null,
+        "shipment_deadline": "2026-07-01",
+        "related_reference": null,
+        "treatment_or_inspection": null
+      },
+      "text_pdf": "supporting_documents/supporting_lc_wrong_beneficiary/supporting_irrevocable_letter_of_credit_text.pdf",
+      "scanned_pdf": "supporting_documents/supporting_lc_wrong_beneficiary/supporting_irrevocable_letter_of_credit_scanned.pdf",
+      "scanned_dpi": 150,
+      "placeholder_document_id": {
+        "text": "ee03d5bf-1c5d-52a8-b0e7-92643bd804ad",
+        "scanned": "bda99205-24b0-52c4-92a0-778144194284"
+      }
+    }
+  ],
+  "expected_note": "Hand-declared from this bundle's stated purpose and Pakistan export rules. Produced without importing or calling the compliance engine or the supporting-document verifier, so it can grade them."
+}

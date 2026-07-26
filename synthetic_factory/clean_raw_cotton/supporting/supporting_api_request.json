@@ -1,0 +1,45 @@
+{
+  "commercial_invoice_document_id": "<replace-with-uploaded-invoice-uuid>",
+  "packing_list_document_id": "<replace-with-uploaded-packing-list-uuid>",
+  "supporting_documents": [
+    {
+      "document_type": "form_e_or_psw_export_declaration",
+      "document_id": "<replace-with-uploaded-form_e_or_psw_export_declaration-uuid>"
+    },
+    {
+      "document_type": "sbp_deposit_proof",
+      "document_id": "<replace-with-uploaded-sbp_deposit_proof-uuid>"
+    },
+    {
+      "document_type": "sbp_confirmation",
+      "document_id": "<replace-with-uploaded-sbp_confirmation-uuid>"
+    },
+    {
+      "document_type": "irrevocable_letter_of_credit",
+      "document_id": "<replace-with-uploaded-irrevocable_letter_of_credit-uuid>"
+    },
+    {
+      "document_type": "phytosanitary_certificate",
+      "document_id": "<replace-with-uploaded-phytosanitary_certificate-uuid>"
+    },
+    {
+      "document_type": "importing_country_permit",
+      "document_id": "<replace-with-uploaded-importing_country_permit-uuid>"
+    },
+    {
+      "document_type": "goods_declaration",
+      "document_id": "<replace-with-uploaded-goods_declaration-uuid>"
+    },
+    {
+      "document_type": "bill_of_lading",
+      "document_id": "<replace-with-uploaded-bill_of_lading-uuid>"
+    },
+    {
+      "document_type": "export_contract",
+      "document_id": "<replace-with-uploaded-export_contract-uuid>"
+    }
+  ],
+  "additional_uploaded_document_types": [],
+  "shipment_date": "2026-06-01",
+  "letter_of_credit_date": "2026-01-01"
+}

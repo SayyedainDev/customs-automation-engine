@@ -1,0 +1,31 @@
+{
+  "overlay_version": "1.0",
+  "recorded_on": "2026-07-24",
+  "applied_by": "backend/scripts/apply_legal_provenance_overlay.py",
+  "purpose": "Verified legal effective dates for the textile-MVP executable rules. Each date below is read from an official PDF already stored in regulatory_data/ (or from the curated Export Policy amendment chain). This overlay only records dates and page/authority context that are traceable to those sources; it never invents a requirement.",
+  "policy_note": "Government TIPP/PSW portal procedure pages (customs clearance, certificate-of-origin, phytosanitary measure) do not print an effective date. By documented policy, rules that rest on those procedures are attributed the effective date of the governing framework, the Export Policy Order 2022 (SRO 544(I)/2022), which entered into force on 2022-04-22. This attribution is recorded in each rule's validation_note so it stays auditable.",
+  "sources": {
+    "epo_2022": {
+      "effective_date": "2022-04-22",
+      "issue_date": "2022-04-22",
+      "citation": "Export Policy Order 2022 (SRO 544(I)/2022), gazetted Islamabad 22 April 2022; section 1(2): 'It shall come into force at once.'",
+      "evidence_pdf": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf"
+    },
+    "sro_2486_2025": {
+      "effective_date": "2025-12-23",
+      "issue_date": "2025-12-23",
+      "citation": "SRO 2486(I)/2025, amendment to the Export Policy Order 2022, issued 23 December 2025 (per regulatory_data/raw/commerce/export_policy/export_policy_amendment_chain.md). Effective date not separately stated in the notification, so it is applied from the issue date.",
+      "evidence_pdf": "regulatory_data/raw/commerce/export_policy/amendments/sro_2486_i_2025_amendment_to_export_policy_order_2022.pdf"
+    }
+  },
+  "sro_number_to_source": {
+    "2486(I)/2025": "sro_2486_2025"
+  },
+  "default_source": "epo_2022",
+  "validation_upgrade": {
+    "from": "unverified",
+    "to": "partially_verified",
+    "applies_to_check_types": ["requirement_status"],
+    "rationale": "Licence/permit/approval requirements recorded as 'no requirement identified' rest on the Export Policy Order 2022 general-permission rule (paragraph 4(1)), which is verified from the base order. The 'no additional requirement' status is therefore upgraded from unverified to partially_verified so that a fully documented shipment is not forced into manual review by a null requirement."
+  }
+}

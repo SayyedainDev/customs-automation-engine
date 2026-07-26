@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Private configuration and local runtime state
+.env
+.env.*
+!.env.example
+uploads/
+.local/
+.cache/
+.evaluation_cache/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Editor/merge leftovers
+*.orig
+*.rej
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Live demo fixtures contain local uploads and are regenerated on demand.
+backend/tests/fixtures/live_demo/
+
+# Evaluation JSON and raw provider output can contain machine-specific paths,
+# provider metadata, and large reproducible payloads. Keep the curated Markdown
+# reports, which are the human-readable capstone evidence.
+backend/reports/**/*.json
+backend/reports/synthetic_factory_raw/
+backend/reports/_verify_*
+backend/reports/quota_probe.*
+backend/reports/supporting_def010.*
+backend/reports/supporting_smoke.*
+backend/reports/*_run.*
+
+# Canonical regulatory sources live under config/, processed/, and raw/.
+# Loose root-level PDFs are acquisition/research copies, not runtime inputs.
+regulatory_data/*.pdf

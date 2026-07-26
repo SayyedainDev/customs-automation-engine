@@ -1,0 +1,13 @@
+{
+  "commercial_invoice_document_id": "<replace-with-uploaded-invoice-uuid>",
+  "packing_list_document_id": "<replace-with-uploaded-packing-list-uuid>",
+  "shipment_date": "2026-06-01",
+  "letter_of_credit_date": "2026-01-01",
+  "additional_uploaded_document_types": [
+    "form_e",
+    "phytosanitary_certificate",
+    "sbp_confirmation",
+    "irrevocable_letter_of_credit",
+    "import_permit"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "commercial_invoice_document_id": "<replace-with-uploaded-invoice-uuid>",
+  "packing_list_document_id": "<replace-with-uploaded-packing-list-uuid>",
+  "supporting_documents": [
+    {
+      "document_type": "form_e_or_psw_export_declaration",
+      "document_id": "<replace-with-uploaded-form_e_or_psw_export_declaration-uuid>"
+    },
+    {
+      "document_type": "irrevocable_letter_of_credit",
+      "document_id": "<replace-with-uploaded-irrevocable_letter_of_credit-uuid>"
+    }
+  ],
+  "additional_uploaded_document_types": [],
+  "shipment_date": "2026-06-01",
+  "letter_of_credit_date": "2026-01-01"
+}

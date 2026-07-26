@@ -1,0 +1,71 @@
+{
+  "pct_codes": [
+    "52010090",
+    "52051100",
+    "52094200",
+    "61091000",
+    "63023110"
+  ],
+  "products": [
+    {
+      "pct_code": "52010090",
+      "display_pct_code": "5201.0090",
+      "simple_product_name": "Raw cotton, other",
+      "official_tariff_description": "Cotton, not carded or combed — Other.",
+      "tariff_source_page": 133,
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/"
+    },
+    {
+      "pct_code": "52051100",
+      "display_pct_code": "5205.1100",
+      "simple_product_name": "Cotton yarn",
+      "official_tariff_description": "Cotton yarn (other than sewing thread), containing 85% or more by weight of cotton, not put up for retail sale; single yarn, of uncombed fibres; measuring 714.29 decitex or more (not exceeding 14 metric number).",
+      "tariff_source_page": 133,
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/"
+    },
+    {
+      "pct_code": "52094200",
+      "display_pct_code": "5209.4200",
+      "simple_product_name": "Denim fabric",
+      "official_tariff_description": "Woven fabrics of cotton, containing 85% or more by weight of cotton, weighing more than 200 g/m²; of yarns of different colours; denim.",
+      "tariff_source_page": 137,
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/"
+    },
+    {
+      "pct_code": "61091000",
+      "display_pct_code": "6109.1000",
+      "simple_product_name": "Cotton knitted T-shirts",
+      "official_tariff_description": "T-shirts, singlets and other vests, knitted or crocheted — Of cotton.",
+      "tariff_source_page": 156,
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/"
+    },
+    {
+      "pct_code": "63023110",
+      "display_pct_code": "6302.3110",
+      "simple_product_name": "Cotton bed sheets, mill-made",
+      "official_tariff_description": "Bed linen, table linen, toilet linen and kitchen linen; other bed linen; of cotton; bed sheets, mill-made.",
+      "tariff_source_page": 161,
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "commercial_invoice_document_id": "<replace-with-uploaded-invoice-uuid>",
+  "packing_list_document_id": "<replace-with-uploaded-packing-list-uuid>",
+  "supporting_documents": [
+    {
+      "document_type": "form_e_or_psw_export_declaration",
+      "document_id": "<replace-with-uploaded-form_e_or_psw_export_declaration-uuid>"
+    },
+    {
+      "document_type": "certificate_of_origin",
+      "document_id": "<replace-with-uploaded-certificate_of_origin-uuid>"
+    },
+    {
+      "document_type": "goods_declaration",
+      "document_id": "<replace-with-uploaded-goods_declaration-uuid>"
+    },
+    {
+      "document_type": "bill_of_lading",
+      "document_id": "<replace-with-uploaded-bill_of_lading-uuid>"
+    },
+    {
+      "document_type": "export_contract",
+      "document_id": "<replace-with-uploaded-export_contract-uuid>"
+    }
+  ],
+  "additional_uploaded_document_types": [],
+  "shipment_date": "2026-06-22",
+  "letter_of_credit_date": null
+}

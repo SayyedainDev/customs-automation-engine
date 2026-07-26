@@ -1,0 +1,120 @@
+{
+  "scenario": "Clean cotton bed-sheet shipment to China",
+  "scenario_key": "clean_bedsheets",
+  "description": "Single-line mill-made cotton bed-sheet export to China with a certificate of origin under CPFTA.",
+  "injected_defect": null,
+  "pct_codes": [
+    "6302.3110"
+  ],
+  "commercial_invoice": {
+    "exporter_name": "Faisalabad Home Textiles (Pvt.) Ltd.",
+    "buyer_name": "Hangzhou Home Living Co., Ltd.",
+    "invoice_number": "FHT-INV-2026-305",
+    "invoice_date": "2026-07-01",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "13500.00",
+    "declared_net_weight_total": "1200.00",
+    "declared_gross_weight_total": "1260.00",
+    "line_items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "6302.3110",
+        "quantity": "2000",
+        "unit": "PCS",
+        "unit_price": "6.75",
+        "line_total": "13500.00",
+        "net_weight": "1200.00",
+        "gross_weight": "1260.00"
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "FHT-PL-2026-305",
+    "related_invoice_number": "FHT-INV-2026-305",
+    "destination_country": "China",
+    "declared_net_weight_total": "1200.00",
+    "declared_gross_weight_total": "1260.00",
+    "items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "6302.3110",
+        "quantity": "2000",
+        "unit": "PCS",
+        "net_weight": "1200.00",
+        "gross_weight": "1260.00",
+        "package_count": "60"
+      }
+    ]
+  },
+  "request": {
+    "shipment_date": "2026-07-05",
+    "letter_of_credit_date": null,
+    "additional_uploaded_document_types": [
+      "form_e",
+      "certificate_of_origin"
+    ]
+  },
+  "expected_results": {
+    "overall_status": "passed",
+    "items": [
+      {
+        "item_reference": "invoice_line_1",
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "63023110",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_63023110_export_status": "not_applicable",
+          "xr_63023110_licence_required": "not_applicable",
+          "xr_63023110_permit_required": "not_applicable",
+          "xr_63023110_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      }
+    ],
+    "shipment_level_checks": {
+      "sum_line_totals_match_invoice_total": "passed",
+      "invoice_net_weight_total": "passed",
+      "invoice_gross_weight_total": "passed",
+      "packing_net_weight_total": "passed",
+      "packing_gross_weight_total": "passed",
+      "duplicate_invoice_lines": "passed",
+      "duplicate_packing_items": "passed",
+      "items_present_in_both_documents": "passed"
+    }
+  },
+  "expected_note": "Computed by running the real deterministic pipeline (single-line weight fallback, item matching, per-item compliance checks and shipment-level checks) against this scenario's ground-truth extraction, so these statuses reflect the actual application code rather than a hand-written prediction."
+}

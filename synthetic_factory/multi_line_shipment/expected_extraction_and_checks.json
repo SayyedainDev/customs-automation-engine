@@ -1,0 +1,252 @@
+{
+  "scenario": "Multi-line shipment: T-shirts, denim and bed sheets to China",
+  "scenario_key": "multi_line_shipment",
+  "description": "Three products on one invoice/packing-list pair, each with its own printed weight, confirming per-item matching and that the single-line weight fallback correctly does not fire for a multi-line invoice.",
+  "injected_defect": null,
+  "pct_codes": [
+    "5209.4200",
+    "6109.1000",
+    "6302.3110"
+  ],
+  "commercial_invoice": {
+    "exporter_name": "Punjab Textile Exporters Consortium",
+    "buyer_name": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "PTE-INV-2026-410",
+    "invoice_date": "2026-07-08",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "4825.00",
+    "declared_net_weight_total": "705.00",
+    "declared_gross_weight_total": "730.00",
+    "line_items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "unit_price": "5.50",
+        "line_total": "550.00",
+        "net_weight": "75.00",
+        "gross_weight": "80.00"
+      },
+      {
+        "line_number": 2,
+        "product_name": "Denim fabric",
+        "pct_code": "5209.4200",
+        "quantity": "500",
+        "unit": "MTR",
+        "unit_price": "4.50",
+        "line_total": "2250.00",
+        "net_weight": "450.00",
+        "gross_weight": "460.00"
+      },
+      {
+        "line_number": 3,
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "6302.3110",
+        "quantity": "300",
+        "unit": "PCS",
+        "unit_price": "6.75",
+        "line_total": "2025.00",
+        "net_weight": "180.00",
+        "gross_weight": "190.00"
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "PTE-PL-2026-410",
+    "related_invoice_number": "PTE-INV-2026-410",
+    "destination_country": "China",
+    "declared_net_weight_total": "705.00",
+    "declared_gross_weight_total": "730.00",
+    "items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "net_weight": "75.00",
+        "gross_weight": "80.00",
+        "package_count": "5"
+      },
+      {
+        "line_number": 2,
+        "product_name": "Denim fabric",
+        "pct_code": "5209.4200",
+        "quantity": "500",
+        "unit": "MTR",
+        "net_weight": "450.00",
+        "gross_weight": "460.00",
+        "package_count": "10"
+      },
+      {
+        "line_number": 3,
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "6302.3110",
+        "quantity": "300",
+        "unit": "PCS",
+        "net_weight": "180.00",
+        "gross_weight": "190.00",
+        "package_count": "9"
+      }
+    ]
+  },
+  "request": {
+    "shipment_date": "2026-07-12",
+    "letter_of_credit_date": null,
+    "additional_uploaded_document_types": [
+      "form_e",
+      "certificate_of_origin"
+    ]
+  },
+  "expected_results": {
+    "overall_status": "passed",
+    "items": [
+      {
+        "item_reference": "invoice_line_1",
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "61091000",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_61091000_export_status": "not_applicable",
+          "xr_61091000_licence_required": "not_applicable",
+          "xr_61091000_permit_required": "not_applicable",
+          "xr_61091000_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      },
+      {
+        "item_reference": "invoice_line_2",
+        "product_name": "Denim fabric",
+        "pct_code": "52094200",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_52094200_export_status": "not_applicable",
+          "xr_52094200_licence_required": "not_applicable",
+          "xr_52094200_permit_required": "not_applicable",
+          "xr_52094200_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      },
+      {
+        "item_reference": "invoice_line_3",
+        "product_name": "Cotton bed sheets, mill-made",
+        "pct_code": "63023110",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_63023110_export_status": "not_applicable",
+          "xr_63023110_licence_required": "not_applicable",
+          "xr_63023110_permit_required": "not_applicable",
+          "xr_63023110_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": []
+      }
+    ],
+    "shipment_level_checks": {
+      "sum_line_totals_match_invoice_total": "passed",
+      "invoice_net_weight_total": "passed",
+      "invoice_gross_weight_total": "passed",
+      "packing_net_weight_total": "passed",
+      "packing_gross_weight_total": "passed",
+      "duplicate_invoice_lines": "passed",
+      "duplicate_packing_items": "passed",
+      "items_present_in_both_documents": "passed"
+    }
+  },
+  "expected_note": "Computed by running the real deterministic pipeline (single-line weight fallback, item matching, per-item compliance checks and shipment-level checks) against this scenario's ground-truth extraction, so these statuses reflect the actual application code rather than a hand-written prediction."
+}

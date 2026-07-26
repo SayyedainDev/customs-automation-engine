@@ -1,0 +1,133 @@
+{
+  "scenario": "Single-line T-shirt invoice with weights only as a document total",
+  "scenario_key": "single_line_declared_total_fallback",
+  "description": "The invoice prints Net Weight / Gross Weight only once, as a document-level declared total at the bottom of the page, not on the product line itself. The packing list prints the weight on its line as usual. This exercises the deterministic single_line_declared_total fallback.",
+  "injected_defect": null,
+  "pct_codes": [
+    "6109.1000"
+  ],
+  "commercial_invoice": {
+    "exporter_name": "Lahore Cotton Garments (Pvt.) Ltd.",
+    "buyer_name": "Shanghai Sample Trading Co., Ltd.",
+    "invoice_number": "LCG-INV-2026-001",
+    "invoice_date": "2026-07-20",
+    "currency": "USD",
+    "destination_country": "China",
+    "invoice_total": "550.00",
+    "declared_net_weight_total": "75.00",
+    "declared_gross_weight_total": "80.00",
+    "line_items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "unit_price": "5.50",
+        "line_total": "550.00",
+        "net_weight": null,
+        "gross_weight": null
+      }
+    ]
+  },
+  "packing_list": {
+    "packing_list_number": "LCG-PL-2026-001",
+    "related_invoice_number": "LCG-INV-2026-001",
+    "destination_country": "China",
+    "declared_net_weight_total": "75.00",
+    "declared_gross_weight_total": "80.00",
+    "items": [
+      {
+        "line_number": 1,
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "6109.1000",
+        "quantity": "100",
+        "unit": "PCS",
+        "net_weight": "75.00",
+        "gross_weight": "80.00",
+        "package_count": "5"
+      }
+    ]
+  },
+  "request": {
+    "shipment_date": "2026-07-20",
+    "letter_of_credit_date": null,
+    "additional_uploaded_document_types": [
+      "form_e",
+      "certificate_of_origin"
+    ]
+  },
+  "expected_results": {
+    "overall_status": "passed",
+    "items": [
+      {
+        "item_reference": "invoice_line_1",
+        "product_name": "Cotton knitted T-shirts",
+        "pct_code": "61091000",
+        "match_status": "matched",
+        "match_strategy": "line_reference",
+        "overall_item_status": "passed",
+        "cross_document_checks": {
+          "item_quantity_match": "passed",
+          "item_net_weight_match": "passed",
+          "item_gross_weight_match": "passed",
+          "item_pct_code_match": "passed",
+          "item_line_calculation": "passed"
+        },
+        "phase1_compliance_checks": {
+          "required_fields": "passed",
+          "mvp_pct_support": "passed",
+          "positive_quantity": "passed",
+          "positive_unit_price": "passed",
+          "invoice_line_calculation": "passed",
+          "invoice_total_consistency": "passed",
+          "weight_consistency": "passed",
+          "required_document_commercial_invoice": "passed",
+          "required_document_packing_list": "passed",
+          "required_document_form_e": "passed",
+          "product_licence_requirement": "not_applicable",
+          "product_permit_requirement": "not_applicable",
+          "product_certificate_requirement": "not_applicable",
+          "product_approval_requirement": "not_applicable",
+          "destination_certificate_of_origin": "passed"
+        },
+        "executable_rule_checks": {
+          "xr_common_commercial_invoice": "passed",
+          "xr_common_packing_list": "passed",
+          "xr_common_form_e": "passed",
+          "xr_61091000_export_status": "not_applicable",
+          "xr_61091000_licence_required": "not_applicable",
+          "xr_61091000_permit_required": "not_applicable",
+          "xr_61091000_approval_required": "not_applicable",
+          "xr_coo_china": "passed",
+          "xr_coo_other_destinations": "passed"
+        },
+        "derived_fields": [
+          {
+            "field": "net_weight",
+            "derivation_method": "single_line_declared_total",
+            "original_field_location": "invoice_header_or_total",
+            "value": "75.00"
+          },
+          {
+            "field": "gross_weight",
+            "derivation_method": "single_line_declared_total",
+            "original_field_location": "invoice_header_or_total",
+            "value": "80.00"
+          }
+        ]
+      }
+    ],
+    "shipment_level_checks": {
+      "sum_line_totals_match_invoice_total": "passed",
+      "invoice_net_weight_total": "passed",
+      "invoice_gross_weight_total": "passed",
+      "packing_net_weight_total": "passed",
+      "packing_gross_weight_total": "passed",
+      "duplicate_invoice_lines": "passed",
+      "duplicate_packing_items": "passed",
+      "items_present_in_both_documents": "passed"
+    }
+  },
+  "expected_note": "Computed by running the real deterministic pipeline (single-line weight fallback, item matching, per-item compliance checks and shipment-level checks) against this scenario's ground-truth extraction, so these statuses reflect the actual application code rather than a hand-written prediction."
+}

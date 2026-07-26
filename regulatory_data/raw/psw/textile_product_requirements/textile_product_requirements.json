@@ -1,0 +1,497 @@
+{
+  "schema_version": "1.0",
+  "retrieval_date": "2026-07-23",
+  "scope": {
+    "country": "Pakistan",
+    "trade_flow": "export",
+    "product_focus": "textiles",
+    "pct_codes": [
+      "52010090",
+      "52051100",
+      "52094200",
+      "61091000",
+      "63023110"
+    ]
+  },
+  "interpretation_notes": [
+    "TIPP represents many 8-digit PCT codes with a 12-digit commodity key. The raw-cotton selection 5201.0090 maps to TIPP commodity 520100901000 for raw cotton, other; it must not be confused with a ginned-cotton commodity variant.",
+    "An allowed product can still require normal customs documents. A destination-based certificate of origin is recorded as conditional and does not make the product prohibited or generally restricted.",
+    "The TIPP keyword measure search returned an official portal database error during retrieval. Exact commodity pages, exact measure commodity lists, official procedure pages, and the local official Export Policy Order chain were therefore checked directly.",
+    "Null means the reviewed official sources did not provide or verify the requested value; it does not mean that a requirement can never arise from the destination country, contract, transport mode, province, or a later legal change."
+  ],
+  "common_export_clearance": {
+    "responsible_government_agency": "Federal Board of Revenue — Department of Customs",
+    "procedure": "Customs Clearance Procedure [Export] [Web-Based]",
+    "supporting_documents": [
+      "Commercial invoice",
+      "Packing list",
+      "Form-E",
+      "Bill of Entry, only if imported material was used in production of the export goods",
+      "Export Facilitation Scheme 2021 documentation, only when that scheme is used",
+      "Brand certificate, only when a brand name is declared"
+    ],
+    "fee": {
+      "value": null,
+      "verification_status": "not_stated_on_tipp_procedure"
+    },
+    "processing_time": {
+      "value": null,
+      "verification_status": "not_stated_on_tipp_procedure"
+    },
+    "source_url": "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1",
+    "effective_date": "2022-04-22",
+    "validation_status": "partially_verified"
+  },
+  "conditional_certificate_of_origin": {
+    "applies_to_selected_codes": [
+      "52051100",
+      "52094200",
+      "61091000",
+      "63023110"
+    ],
+    "does_not_list_selected_raw_cotton_commodity": "520100901000",
+    "responsible_government_agency": "Trade Development Authority of Pakistan",
+    "requirement": "Conditional on the destination market, trade agreement, or use of a preferential tariff scheme.",
+    "legal_basis": [
+      "Trade Development Authority of Pakistan Act, 2013",
+      "Pakistan Trade Facilitation Agreements"
+    ],
+    "destination_procedures": [
+      {
+        "destination_or_scheme": "China under CPFTA",
+        "certificate_required": true,
+        "supporting_documents": [
+          "Copy of invoice",
+          "Copy of Goods Declaration",
+          "Bill of Lading — copy and original",
+          "Export contract"
+        ],
+        "fee": "PKR 400 per form",
+        "processing_time": "Minimum 1 hour; maximum 1 day",
+        "source_url": "https://tipp.gov.pk/index.php?id=114&r=searchProcedure%2Fview1",
+        "effective_date": "2022-04-22",
+        "validation_status": "partially_verified"
+      },
+      {
+        "destination_or_scheme": "Other TDAP certificate-of-origin destinations",
+        "certificate_required": true,
+        "supporting_documents": [
+          "Copy of invoice",
+          "Copy of Goods Declaration",
+          "Bill of Lading — copy and original"
+        ],
+        "fee": "PKR 400 per printed form; TIPP states no fee for issuance of the certificate",
+        "processing_time": "Minimum 1 hour; maximum 1 day",
+        "source_url": "https://tipp.gov.pk/index.php?id=115&r=searchProcedure%2Fview1",
+        "effective_date": "2022-04-22",
+        "validation_status": "partially_verified"
+      },
+      {
+        "destination_or_scheme": "GSP/REX registration",
+        "certificate_required": "conditional",
+        "supporting_documents": [
+          "Supporting documents — the TIPP procedure does not specify them further"
+        ],
+        "fee": "N/A",
+        "processing_time": "Minimum 1 hour; maximum 2 hours",
+        "source_url": "https://tipp.gov.pk/index.php?id=116&r=searchProcedure%2Fview1",
+        "effective_date": "2022-04-22",
+        "validation_status": "partially_verified"
+      }
+    ],
+    "measure_source_url": "https://tipp.gov.pk/index.php?id=188&r=searchMeasures%2Fview",
+    "procedure_index_url": "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
+    "effective_date": "2022-04-22",
+    "validation_status": "partially_verified"
+  },
+  "products": [
+    {
+      "pct_code": "52010090",
+      "display_pct_code": "5201.0090",
+      "tipp_commodity_code": "520100901000",
+      "simple_product_name": "Raw cotton, other",
+      "export_status": {
+        "value": "conditional",
+        "verification_status": "verified_from_official_epo_and_tipp_sources",
+        "note": "The selected code is covered by the cotton conditions in Schedule II of the Export Policy Order and by the TIPP phytosanitary-certificate measure."
+      },
+      "responsible_government_agencies": [
+        "Ministry of Commerce",
+        "State Bank of Pakistan",
+        "Federal Board of Revenue — Department of Customs",
+        "Department of Plant Protection"
+      ],
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate licence is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "permit_required": {
+        "value": "conditional",
+        "details": "Import permit from the importing country's National Plant Protection Organization when that organization issues or requires one.",
+        "verification_status": "verified_from_export_policy_order_2022"
+      },
+      "certificate_required": {
+        "value": true,
+        "details": "Phytosanitary Certificate for export or re-export from the Department of Plant Protection. Laboratory testing, inspection or fumigation may be required according to risk channel and product/destination requirements.",
+        "verification_status": "verified_from_tipp_measure_and_procedure"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "SBP confirmation of the deposit is required evidence, but the reviewed source does not label it as an approval."
+      },
+      "supporting_documents": [
+        "Commercial invoice",
+        "Packing list",
+        "Form-E",
+        "Consumption sheet for the DPP phytosanitary procedure",
+        "SBP confirmation of the 1% security deposit, presented to Customs with shipping documents",
+        "Irrevocable letter of credit",
+        "Importing-country NPPO import permit, when required"
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 — SRO 544(I)/2022, Schedule II serial 9",
+        "SRO 2486(I)/2025 — replacement cotton financial and shipment conditions",
+        "Pakistan Plant Quarantine Rules, 2019"
+      ],
+      "conditions": [
+        "Deposit 1% of the contract value with the State Bank of Pakistan.",
+        "Present SBP confirmation to Customs with the shipping documents.",
+        "The buyer must open an irrevocable letter of credit.",
+        "Complete the contracted shipment within 180 days thereof.",
+        "For non-performance within the stipulated time, SBP forfeits the deposit proportionate to the quantity not shipped.",
+        "Obtain the DPP phytosanitary certificate; inspection, sampling, fumigation or laboratory testing may apply according to the assigned risk channel.",
+        "Provide the importing-country NPPO import permit when that country requires or issues one."
+      ],
+      "fee": [
+        {
+          "item": "DPP phytosanitary certificate",
+          "value": "PKR 2,500"
+        },
+        {
+          "item": "Additional fumigation or laboratory charges",
+          "value": null,
+          "verification_status": "amount_not_stated_on_tipp"
+        },
+        {
+          "item": "SBP security deposit",
+          "value": "1% of contract value",
+          "note": "Financial security condition, not a service fee."
+        }
+      ],
+      "processing_time": {
+        "value": "Minimum 1 working day; maximum 3 working days",
+        "applies_to": "DPP phytosanitary certificate",
+        "other_steps": null,
+        "other_steps_verification_status": "not_stated"
+      },
+      "source_urls": [
+        "https://tipp.gov.pk/index.php?id=27934&r=tradeInfo%2Fview",
+        "https://tipp.gov.pk/index.php?id=2&page=80&r=searchMeasures%2Fview",
+        "https://tipp.gov.pk/index.php?id=132&r=searchProcedure%2Fview1",
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://www.commerce.gov.pk/sros/"
+      ],
+      "local_legal_sources": [
+        "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "regulatory_data/raw/commerce/export_policy/amendments/sro_2486_i_2025_amendment_to_export_policy_order_2022.pdf"
+      ],
+      "retrieval_date": "2026-07-23",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Ministry of Commerce"
+    },
+    {
+      "pct_code": "52051100",
+      "display_pct_code": "5205.1100",
+      "tipp_commodity_code": "520511000000",
+      "simple_product_name": "Cotton yarn",
+      "export_status": {
+        "value": "allowed",
+        "verification_status": "verified_with_portal_limitation",
+        "note": "No product-specific prohibition or restriction for this code was identified in the reviewed official TIPP pages or local Export Policy Order chain. General customs clearance and destination-based requirements still apply."
+      },
+      "responsible_government_agencies": [
+        "Federal Board of Revenue — Department of Customs",
+        "Trade Development Authority of Pakistan, when a certificate of origin is required"
+      ],
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate licence is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate permit is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate approval is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "supporting_documents": {
+        "general_export_clearance": [
+          "Commercial invoice",
+          "Packing list",
+          "Form-E",
+          "Bill of Entry if imported material was used",
+          "Export Facilitation Scheme 2021 documentation if the scheme is used",
+          "Brand certificate if a brand name is declared"
+        ],
+        "conditional_certificate_of_origin": "See conditional_certificate_of_origin at the top level."
+      },
+      "legal_basis": [
+        "Export Policy Order, 2022 — general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "conditions": [
+        "Submit the export Single Declaration and normal customs supporting documents.",
+        "Obtain destination- or preference-specific origin documentation when applicable."
+      ],
+      "fee": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "processing_time": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "source_urls": [
+        "https://tipp.gov.pk/index.php?id=18312&r=tradeInfo%2Fview",
+        "https://tipp.gov.pk/index.php?id=188&page=246&r=searchMeasures%2Fview",
+        "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "retrieval_date": "2026-07-23",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Ministry of Commerce"
+    },
+    {
+      "pct_code": "52094200",
+      "display_pct_code": "5209.4200",
+      "tipp_commodity_code": "520942000000",
+      "simple_product_name": "Denim fabric",
+      "export_status": {
+        "value": "allowed",
+        "verification_status": "verified_with_portal_limitation",
+        "note": "No product-specific prohibition or restriction for this code was identified in the reviewed official TIPP pages or local Export Policy Order chain. General customs clearance and destination-based requirements still apply."
+      },
+      "responsible_government_agencies": [
+        "Federal Board of Revenue — Department of Customs",
+        "Trade Development Authority of Pakistan, when a certificate of origin is required"
+      ],
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate licence is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate permit is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate approval is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "supporting_documents": {
+        "general_export_clearance": [
+          "Commercial invoice",
+          "Packing list",
+          "Form-E",
+          "Bill of Entry if imported material was used",
+          "Export Facilitation Scheme 2021 documentation if the scheme is used",
+          "Brand certificate if a brand name is declared"
+        ],
+        "conditional_certificate_of_origin": "See conditional_certificate_of_origin at the top level."
+      },
+      "legal_basis": [
+        "Export Policy Order, 2022 — general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "conditions": [
+        "Submit the export Single Declaration and normal customs supporting documents.",
+        "Obtain destination- or preference-specific origin documentation when applicable."
+      ],
+      "fee": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "processing_time": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "source_urls": [
+        "https://tipp.gov.pk/index.php?id=18387&r=tradeInfo%2Fview",
+        "https://tipp.gov.pk/index.php?id=188&page=253&r=searchMeasures%2Fview",
+        "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "retrieval_date": "2026-07-23",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Ministry of Commerce"
+    },
+    {
+      "pct_code": "61091000",
+      "display_pct_code": "6109.1000",
+      "tipp_commodity_code": "610910000000",
+      "simple_product_name": "Cotton knitted T-shirts",
+      "export_status": {
+        "value": "allowed",
+        "verification_status": "verified_with_portal_limitation",
+        "note": "No product-specific prohibition or restriction for this code was identified in the reviewed official TIPP pages or local Export Policy Order chain. General customs clearance and destination-based requirements still apply."
+      },
+      "responsible_government_agencies": [
+        "Federal Board of Revenue — Department of Customs",
+        "Trade Development Authority of Pakistan, when a certificate of origin is required"
+      ],
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate licence is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate permit is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate approval is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "supporting_documents": {
+        "general_export_clearance": [
+          "Commercial invoice",
+          "Packing list",
+          "Form-E",
+          "Bill of Entry if imported material was used",
+          "Export Facilitation Scheme 2021 documentation if the scheme is used",
+          "Brand certificate if a brand name is declared"
+        ],
+        "conditional_certificate_of_origin": "See conditional_certificate_of_origin at the top level."
+      },
+      "legal_basis": [
+        "Export Policy Order, 2022 — general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "conditions": [
+        "Submit the export Single Declaration and normal customs supporting documents.",
+        "Obtain destination- or preference-specific origin documentation when applicable."
+      ],
+      "fee": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "processing_time": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "source_urls": [
+        "https://tipp.gov.pk/index.php?id=18932&r=tradeInfo%2Fview",
+        "https://tipp.gov.pk/index.php?id=188&page=306&r=searchMeasures%2Fview",
+        "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "retrieval_date": "2026-07-23",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Ministry of Commerce"
+    },
+    {
+      "pct_code": "63023110",
+      "display_pct_code": "6302.3110",
+      "tipp_commodity_code": "630231100000",
+      "simple_product_name": "Cotton bed sheets, mill-made",
+      "export_status": {
+        "value": "allowed",
+        "verification_status": "verified_with_portal_limitation",
+        "note": "No product-specific prohibition or restriction for this code was identified in the reviewed official TIPP pages or local Export Policy Order chain. General customs clearance and destination-based requirements still apply."
+      },
+      "responsible_government_agencies": [
+        "Federal Board of Revenue — Department of Customs",
+        "Trade Development Authority of Pakistan, when a certificate of origin is required"
+      ],
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate licence is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate permit is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission: no separate approval is required for this textile commodity. Recorded by the documented provenance policy (regulatory_data/config/legal_effective_dates.json)."
+      },
+      "supporting_documents": {
+        "general_export_clearance": [
+          "Commercial invoice",
+          "Packing list",
+          "Form-E",
+          "Bill of Entry if imported material was used",
+          "Export Facilitation Scheme 2021 documentation if the scheme is used",
+          "Brand certificate if a brand name is declared"
+        ],
+        "conditional_certificate_of_origin": "See conditional_certificate_of_origin at the top level."
+      },
+      "legal_basis": [
+        "Export Policy Order, 2022 — general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "conditions": [
+        "Submit the export Single Declaration and normal customs supporting documents.",
+        "Obtain destination- or preference-specific origin documentation when applicable."
+      ],
+      "fee": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "processing_time": {
+        "general_customs_clearance": null,
+        "general_customs_clearance_status": "not_stated_on_tipp",
+        "conditional_certificate_of_origin": "See top-level destination procedures."
+      },
+      "source_urls": [
+        "https://tipp.gov.pk/index.php?id=19134&r=tradeInfo%2Fview",
+        "https://tipp.gov.pk/index.php?id=188&page=324&r=searchMeasures%2Fview",
+        "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "retrieval_date": "2026-07-23",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Ministry of Commerce"
+    }
+  ]
+}

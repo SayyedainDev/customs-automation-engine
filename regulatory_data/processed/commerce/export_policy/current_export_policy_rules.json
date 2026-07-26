@@ -1,0 +1,1260 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-23T00:00:00+05:00",
+  "legal_cutoff_date": "2026-07-23",
+  "base_document": {
+    "title": "Export Policy Order, 2022",
+    "sro_number": "544(I)/2022",
+    "issue_date": "2022-04-22",
+    "relative_path": "raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf"
+  },
+  "included_amendments": [
+    "561(I)/2023",
+    "1087(I)/2023",
+    "629(I)/2024",
+    "1021(I)/2024",
+    "705(I)/2025",
+    "1727(I)/2025",
+    "1902(I)/2025",
+    "2486(I)/2025"
+  ],
+  "coverage_note": "This is the current effect of the eight specified amendments on the cited base-order rules. It is not a complete transcription of every rule in the 93-page Export Policy Order or every amendment ever issued.",
+  "legal_use_status": "blocked_pending_legal_review_and_resolution_of_unclear_sro_629_codes",
+  "unresolved_source_conflicts": [
+    {
+      "document": "SRO 629(I)/2024",
+      "page": 2,
+      "field": "Appendix B Schedule II Chemicals serial 2 new PCT",
+      "printed_value": "2303.4910",
+      "conflicting_proposed_value": "2903.4910",
+      "reason": "Original page visibly prints 2303.4910; intended code cannot be changed without authoritative correction."
+    },
+    {
+      "document": "SRO 629(I)/2024",
+      "page": 6,
+      "field": "Appendix J serial 342 code sequence",
+      "printed_value": [
+        "4418.9200",
+        "4418.8100",
+        "4413.8200",
+        "4418.8300",
+        "4418.8900"
+      ],
+      "reason": "4413.8200 is visibly printed inside a 4418 sequence; intended code cannot be normalized without authoritative correction."
+    },
+    {
+      "document": "SRO 1021(I)/2024",
+      "page": 1,
+      "field": "old Schedule I serial 19 column (4) text",
+      "reason": "The removed text came from predecessor SRO 433(I)/2024, whose original notification was not visually validated in this task."
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "epo_561_route_angoor_adda",
+      "product_or_subject": "Authorized export land route: Angoor Adda",
+      "pct_code": null,
+      "current_condition": "Angoor Adda is included after Karez in paragraph 7(5) for the applicable Afghanistan/Central Asian Republics route framework.",
+      "status": "conditional",
+      "country_or_route_limitation": "Exports to Afghanistan or through Afghanistan to Central Asian Republics under paragraph 7",
+      "required_financial_condition": null,
+      "required_document_or_approval": "Normal route/customs evidence; no new named document in SRO 561",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "561(I)/2023",
+      "original_source_page": [
+        {
+          "document": "SRO 561(I)/2023",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": true,
+      "validation_status": "OCR_verified",
+      "validation_note": "Relevant only when a textile shipment uses this route."
+    },
+    {
+      "rule_id": "epo_1087_paragraph_7_omissions",
+      "product_or_subject": "Paragraph 7 sub-paragraphs (6) and (7)",
+      "pct_code": null,
+      "current_condition": "Sub-paragraphs (6) and (7) are omitted; this record does not infer replacement wording.",
+      "status": "conditional",
+      "country_or_route_limitation": "Paragraph 7 Afghanistan/transit context",
+      "required_financial_condition": null,
+      "required_document_or_approval": null,
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "1087(I)/2023",
+      "original_source_page": [
+        {
+          "document": "SRO 1087(I)/2023",
+          "page": 1
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Administrative route-context amendment, not a product permission by itself."
+    },
+    {
+      "rule_id": "epo_1087_vegetable_ghee_cooking_oil",
+      "product_or_subject": "Vegetable ghee and cooking oil",
+      "pct_code": [
+        "1516.1000",
+        "1516.2010",
+        "1516.2020",
+        "1518.0000"
+      ],
+      "current_condition": "The Afghanistan-only exclusion for goods manufactured in manufacturing bonds/export-oriented units is removed. Remaining Schedule II serial 8 conditions continue, including value-addition and packaging/label conditions.",
+      "status": "conditional",
+      "country_or_route_limitation": "Includes conditions specific to exports to Afghanistan",
+      "required_financial_condition": "Value-addition thresholds in the remaining parent condition",
+      "required_document_or_approval": "Ingredient information on Afghanistan export packages as required by the remaining parent condition",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "1087(I)/2023",
+      "original_source_page": [
+        {
+          "document": "SRO 1087(I)/2023",
+          "page": 1
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 15
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Codes come from the parent Schedule II row, not from SRO 1087 itself."
+    },
+    {
+      "rule_id": "epo_1021_wheat_schedule_i",
+      "product_or_subject": "Wheat, wheat flour, fine flour/maida and suji",
+      "pct_code": [
+        "1001.1900",
+        "1001.9900",
+        "1101.0010"
+      ],
+      "current_condition": "The Schedule I serial 19 column (4) exception is omitted. Within the EPO, the row remains in the prohibited Schedule I without that exception.",
+      "status": "prohibited",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": null,
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "1021(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 1021(I)/2024",
+          "page": 1
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 14
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "unclear",
+      "validation_note": "The removed predecessor text was introduced by SRO 433(I)/2024, whose original notification was not visually validated in this task."
+    },
+    {
+      "rule_id": "epo_705_potassium_sulphate_gwadar",
+      "product_or_subject": "Potassium sulphate (K2SO4)",
+      "pct_code": [
+        "3104.3000"
+      ],
+      "current_condition": "Export is permitted from Gwadar Port by companies manufacturing in Gwadar Free Zone.",
+      "status": "conditional",
+      "country_or_route_limitation": "Gwadar Port; manufacturer located in Gwadar Free Zone",
+      "required_financial_condition": null,
+      "required_document_or_approval": "Evidence that the company manufactures in Gwadar Free Zone; the SRO does not name a specific certificate",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "705(I)/2025",
+      "original_source_page": [
+        {
+          "document": "SRO 705(I)/2025",
+          "page": 1
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": ""
+    },
+    {
+      "rule_id": "epo_1727_removed_appendix_g_leather_rows",
+      "product_or_subject": "Specified hides, skins, leather and leather waste formerly in Appendix G serials 174–175, 181–186 and 189–198",
+      "pct_code": [
+        "4102.2110",
+        "4102.2120",
+        "4104.4100",
+        "4104.4900",
+        "4105.1000",
+        "4105.3000",
+        "4106.2100",
+        "4106.2200",
+        "4106.4000",
+        "4106.9100",
+        "4106.9200",
+        "4112.0000",
+        "4113.1000",
+        "4113.9000",
+        "4114.1000",
+        "4114.2000",
+        "4115.1000",
+        "4115.2000"
+      ],
+      "current_condition": "The cited entries and their Appendix G condition columns are omitted. From the EPO perspective these exact rows no longer impose their former Appendix G health-certificate conditions; separate animal-quarantine law is not evaluated here.",
+      "status": "allowed",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "No requirement retained by these omitted EPO rows; check separate applicable legislation",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "1727(I)/2025",
+      "original_source_page": [
+        {
+          "document": "SRO 1727(I)/2025",
+          "page": 1
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "pages": [
+            40,
+            41,
+            42
+          ]
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Allowed is limited to the EPO effect of removing these rows and is not a universal legal clearance."
+    },
+    {
+      "rule_id": "epo_1902_donkey_hides_gwadar",
+      "product_or_subject": "Donkey hides",
+      "pct_code": [
+        "respective headings",
+        "4101.5090"
+      ],
+      "current_condition": "Export is allowed only to firms/companies manufacturing in designated, approved and registered donkey slaughterhouses located in Gwadar Free Zone; the former Appendix G ban note is omitted.",
+      "status": "conditional",
+      "country_or_route_limitation": "Gwadar Free Zone",
+      "required_financial_condition": null,
+      "required_document_or_approval": "Evidence of designation, approval and registration of the donkey slaughterhouse",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "1902(I)/2025",
+      "original_source_page": [
+        {
+          "document": "SRO 1902(I)/2025",
+          "page": 1
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 40
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": ""
+    },
+    {
+      "rule_id": "epo_2486_cotton_financial_conditions",
+      "product_or_subject": "Cotton",
+      "pct_code": [
+        "5201.0000"
+      ],
+      "current_condition": "Deposit 1% of contract value with SBP and present the SBP confirmation to Customs with shipping documents. Buyer must open an irrevocable letter of credit. Complete contracted shipment within 180 days thereof. For non-performance within the stipulated time, SBP forfeits the deposit proportionate to quantity not shipped.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": "Security deposit of 1% of contract value with the State Bank of Pakistan; proportional forfeiture for unshipped quantity on non-performance",
+      "required_document_or_approval": [
+        "SBP confirmation letter",
+        "Shipping documents",
+        "Irrevocable letter of credit"
+      ],
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "2486(I)/2025",
+      "original_source_page": [
+        {
+          "document": "SRO 2486(I)/2025",
+          "page": 1
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 15
+        }
+      ],
+      "relevant_to_textile_mvp": true,
+      "validation_status": "manually_verified",
+      "validation_note": "The phrase 'within one hundred and eighty days thereof' is retained; no unstated start event is invented beyond the document grammar."
+    },
+    {
+      "rule_id": "epo_629_change_01",
+      "product_or_subject": "Schedule I serial 9 code/description substitution",
+      "pct_code": [
+        "2844.4100",
+        "2844.4200",
+        "2844.4300",
+        "2844.4400"
+      ],
+      "current_condition": "Replace '2844.4000' with the value printed in SRO 629: ['2844.4100', '2844.4200', '2844.4300', '2844.4400']. The item remains in prohibited Schedule I; SRO 629 changes its code reference only.",
+      "status": "prohibited",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": null,
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 1
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_02",
+      "product_or_subject": "Schedule I serial 14 code/description substitution",
+      "pct_code": [
+        "4407.1300",
+        "4407.1400",
+        "4407.2300"
+      ],
+      "current_condition": "Replace '4407.1900' with the value printed in SRO 629: ['4407.1300', '4407.1400', '4407.2300']. The item remains in prohibited Schedule I; SRO 629 changes its code reference only.",
+      "status": "prohibited",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": null,
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 1
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_03",
+      "product_or_subject": "Schedule I serial 18 code/description substitution",
+      "pct_code": [
+        "9701.2100",
+        "9701.2200",
+        "9701.2900",
+        "9701.9100",
+        "9701.9200",
+        "9701.9900",
+        "9702.1000",
+        "9702.9000",
+        "9703.1000",
+        "9703.9000",
+        "9705.1000",
+        "9705.2100",
+        "9705.2200",
+        "9705.2900",
+        "9705.3100",
+        "9705.3900",
+        "9706.1000",
+        "9706.9000"
+      ],
+      "current_condition": "Replace ['9701.1000', '9701.9000', '9702.0000', '9703.0000', '9705.0000', '9706.0000'] with the value printed in SRO 629: ['9701.2100', '9701.2200', '9701.2900', '9701.9100', '9701.9200', '9701.9900', '9702.1000', '9702.9000', '9703.1000', '9703.9000', '9705.1000', '9705.2100', '9705.2200', '9705.2900', '9705.3100', '9705.3900', '9706.1000', '9706.9000']. The item remains in prohibited Schedule I; SRO 629 changes its code reference only.",
+      "status": "prohibited",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": null,
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 1
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "List begins on page 1 and continues on page 2; both images were checked."
+    },
+    {
+      "rule_id": "epo_629_change_04",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 1 code/description substitution",
+      "pct_code": "2931.5910",
+      "current_condition": "Replace '2931.3910' with the value printed in SRO 629: '2931.5910'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_05",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 2 code/description substitution",
+      "pct_code": "2931.5920",
+      "current_condition": "Replace '2931.3920' with the value printed in SRO 629: '2931.5920'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_06",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 9 code/description substitution",
+      "pct_code": "2931.5930",
+      "current_condition": "Replace '2931.3930' with the value printed in SRO 629: '2931.5930'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_07",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 10 code/description substitution",
+      "pct_code": "2931.5940",
+      "current_condition": "Replace '2931.3940' with the value printed in SRO 629: '2931.5940'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_08",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 11 code/description substitution",
+      "pct_code": "2931.5950",
+      "current_condition": "Replace '2931.3950' with the value printed in SRO 629: '2931.5950'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_09",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 12 code/description substitution",
+      "pct_code": "2931.5960",
+      "current_condition": "Replace '2931.3960' with the value printed in SRO 629: '2931.5960'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_10",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 13 code/description substitution",
+      "pct_code": "2931.5999",
+      "current_condition": "Replace '2931.3999' with the value printed in SRO 629: '2931.5999'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_11",
+      "product_or_subject": "Appendix A, Schedule I Chemicals serial 15 code/description substitution",
+      "pct_code": "2931.5999",
+      "current_condition": "Replace '2931.3999' with the value printed in SRO 629: '2931.5999'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_12",
+      "product_or_subject": "Appendix B, Schedule II Chemicals serial 2 code/description substitution",
+      "pct_code": "2303.4910",
+      "current_condition": "Replace '2903.3950' with the value printed in SRO 629: '2303.4910'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 2
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "unclear",
+      "validation_note": "The source image visibly prints 2303.4910. The requested 2903.4910 conflicts with the original page. Intended/current code requires an authoritative corrigendum or confirmation."
+    },
+    {
+      "rule_id": "epo_629_change_13",
+      "product_or_subject": "Appendix B, Schedule II Chemicals serial 4 code/description substitution",
+      "pct_code": [
+        "2931.5991",
+        "2931.4100"
+      ],
+      "current_condition": "Replace ['2931.3991', '2931.3100'] with the value printed in SRO 629: ['2931.5991', '2931.4100']. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page; not part of the seven-page manual set."
+    },
+    {
+      "rule_id": "epo_629_change_14",
+      "product_or_subject": "Appendix B, Schedule II Chemicals serial 9 code/description substitution",
+      "pct_code": "2933.3500",
+      "current_condition": "Replace '2933.3950' with the value printed in SRO 629: '2933.3500'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Prior permission from National Authority (CWC), Ministry of Foreign Affairs, and other licence requirements where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page; not part of the seven-page manual set."
+    },
+    {
+      "rule_id": "epo_629_change_15",
+      "product_or_subject": "Appendix C, Schedule III Chemicals serial 10 code/description substitution",
+      "pct_code": "2920.2100",
+      "current_condition": "Replace '2970.2100' with the value printed in SRO 629: '2920.2100'. The code/description is substituted, while Chemical Weapons Convention controls and parent permissions remain applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "CWC end-use/recipient documentation including Form T-30 and prior permission where applicable",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Value retained as printed/OCR-extracted; no silent tariff normalization."
+    },
+    {
+      "rule_id": "epo_629_change_16",
+      "product_or_subject": "Appendix G serial 80 code/description substitution",
+      "pct_code": "0403.2000",
+      "current_condition": "Replace '0403.1000' with the value printed in SRO 629: '0403.2000'. The code/description is substituted; the parent Appendix G condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Animal Quarantine health certificate or other document specified by the affected parent row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_17",
+      "product_or_subject": "Appendix G serial 105 code/description substitution",
+      "pct_code": [
+        "0410.1000",
+        "0410.9000"
+      ],
+      "current_condition": "Replace '0410.0000' with the value printed in SRO 629: ['0410.1000', '0410.9000']. The code/description is substituted; the parent Appendix G condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Animal Quarantine health certificate or other document specified by the affected parent row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_18",
+      "product_or_subject": "Appendix G serial 105 code/description substitution",
+      "pct_code": null,
+      "current_condition": "Replace 'Edible products of animal origin, not elsewhere specified or included' with the value printed in SRO 629: 'Insects and other edible products of animal origin, not elsewhere specified or included'. The code/description is substituted; the parent Appendix G condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Animal Quarantine health certificate or other document specified by the affected parent row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Description substitution."
+    },
+    {
+      "rule_id": "epo_629_change_19",
+      "product_or_subject": "Appendix G serial 139 code/description substitution",
+      "pct_code": null,
+      "current_condition": "Replace 'Sausage and similar products, of meat, meat offal or blood; food preparations based on these products' with the value printed in SRO 629: 'Sausages and similar products, of meat, meat offal, blood or insects; food preparations based on these products'. The code/description is substituted; the parent Appendix G condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Animal Quarantine health certificate or other document specified by the affected parent row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 3
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Change continues onto page 4."
+    },
+    {
+      "rule_id": "epo_629_change_20",
+      "product_or_subject": "Appendix H serial 1 code/description substitution",
+      "pct_code": "3822.1100",
+      "current_condition": "Replace '3002.1100' with the value printed in SRO 629: '3822.1100'. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 4
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_21",
+      "product_or_subject": "Appendix H serial 8 code/description substitution",
+      "pct_code": "3822.1300",
+      "current_condition": "Replace '3006.2000' with the value printed in SRO 629: '3822.1300'. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 4
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_22",
+      "product_or_subject": "Appendix H serial 16 code/description substitution",
+      "pct_code": [
+        "3822.1100",
+        "3822.1200",
+        "3822.1300",
+        "3822.1900",
+        "3822.9000"
+      ],
+      "current_condition": "Replace '3822.0000' with the value printed in SRO 629: ['3822.1100', '3822.1200', '3822.1300', '3822.1900', '3822.9000']. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 4
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_23",
+      "product_or_subject": "Appendix H serial 16 code/description substitution",
+      "pct_code": "Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, whether or not put up in the form of kits, other than those of heading 30.06; certified reference materials",
+      "current_condition": "Replace 'Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, other than those of heading 30.02 or 30.06; certified reference (if diagnostic reagent)' with the value printed in SRO 629: 'Diagnostic or laboratory reagents on a backing, prepared diagnostic or laboratory reagents whether or not on a backing, whether or not put up in the form of kits, other than those of heading 30.06; certified reference materials'. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 4
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Description substitution."
+    },
+    {
+      "rule_id": "epo_629_change_24",
+      "product_or_subject": "Appendix H serial 20 code/description substitution",
+      "pct_code": "4015.1200",
+      "current_condition": "Replace '4015.1100' with the value printed in SRO 629: '4015.1200'. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_25",
+      "product_or_subject": "Appendix H serial 20 code/description substitution",
+      "pct_code": null,
+      "current_condition": "Replace 'Surgical' with the value printed in SRO 629: 'of a kind used for medical, surgical, dental or veterinary purposes'. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Description substitution."
+    },
+    {
+      "rule_id": "epo_629_change_26",
+      "product_or_subject": "Appendix H serial 82 code/description substitution",
+      "pct_code": [
+        "9027.8100",
+        "9027.8900"
+      ],
+      "current_condition": "Replace '9027.8000' with the value printed in SRO 629: ['9027.8100', '9027.8900']. The code/description is substituted; the specific parent Appendix H medical-device condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Approval/document specified by the affected Appendix H row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_27",
+      "product_or_subject": "Appendix J serial 25 code/description substitution",
+      "pct_code": null,
+      "current_condition": "Replace 'Cauliflowers and headed broccoli, fresh or chilled' with the value printed in SRO 629: 'Cauliflowers and broccoli'. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "Description substitution."
+    },
+    {
+      "rule_id": "epo_629_change_28",
+      "product_or_subject": "Appendix J serial 42 code/description substitution",
+      "pct_code": "0709.9100",
+      "current_condition": "Replace '0709.5910' with the value printed in SRO 629: '0709.9100'. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_29",
+      "product_or_subject": "Appendix J serial 43 code/description substitution",
+      "pct_code": [
+        "0709.5200",
+        "0709.5300",
+        "0709.5400",
+        "0709.5500",
+        "0709.5600",
+        "0709.5900"
+      ],
+      "current_condition": "Replace '0709.5990' with the value printed in SRO 629: ['0709.5200', '0709.5300', '0709.5400', '0709.5500', '0709.5600', '0709.5900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_30",
+      "product_or_subject": "Appendix J serial 67 code/description substitution",
+      "pct_code": "0712.3400",
+      "current_condition": "Replace 'existing entry' with the value printed in SRO 629: '0712.3400'. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "The notification does not reproduce the old entry."
+    },
+    {
+      "rule_id": "epo_629_change_31",
+      "product_or_subject": "Appendix J serial 83 code/description substitution",
+      "pct_code": [
+        "0802.9100",
+        "0802.9200",
+        "0802.9900"
+      ],
+      "current_condition": "Replace '0802.9000' with the value printed in SRO 629: ['0802.9100', '0802.9200', '0802.9900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 5
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    },
+    {
+      "rule_id": "epo_629_change_32",
+      "product_or_subject": "Appendix J serial 102 code/description substitution",
+      "pct_code": null,
+      "current_condition": "Replace 'Grapefruit including pomelos' with the value printed in SRO 629: 'Grapefruit and pomelos'. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_33",
+      "product_or_subject": "Appendix J serial 137 code/description substitution",
+      "pct_code": [
+        "0802.9100",
+        "0802.9200"
+      ],
+      "current_condition": "Replace '0813.4030' with the value printed in SRO 629: ['0802.9100', '0802.9200']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_34",
+      "product_or_subject": "Appendix J serial 312 code/description substitution",
+      "pct_code": [
+        "4401.4100",
+        "4401.4900"
+      ],
+      "current_condition": "Replace '4401.4000' with the value printed in SRO 629: ['4401.4100', '4401.4900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_35",
+      "product_or_subject": "Appendix J serial 332 code/description substitution",
+      "pct_code": [
+        "4418.1100",
+        "4418.1900"
+      ],
+      "current_condition": "Replace '4418.1000' with the value printed in SRO 629: ['4418.1100', '4418.1900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_36",
+      "product_or_subject": "Appendix J serial 333 code/description substitution",
+      "pct_code": [
+        "4418.2100",
+        "4418.2900"
+      ],
+      "current_condition": "Replace 'existing entry' with the value printed in SRO 629: ['4418.2100', '4418.2900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "The old entry is not reproduced; new values read directly."
+    },
+    {
+      "rule_id": "epo_629_change_37",
+      "product_or_subject": "Appendix J serial 335 code/description substitution",
+      "pct_code": [
+        "4418.3000",
+        "4418.8100",
+        "4418.8200",
+        "4418.8300",
+        "4418.8900"
+      ],
+      "current_condition": "Replace '4418.6000' with the value printed in SRO 629: ['4418.3000', '4418.8100', '4418.8200', '4418.8300', '4418.8900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "Read directly from the source image."
+    },
+    {
+      "rule_id": "epo_629_change_38",
+      "product_or_subject": "Appendix J serial 340 code/description substitution",
+      "pct_code": [
+        "4418.9200",
+        "4418.8100",
+        "4418.8200",
+        "4418.8300",
+        "4418.8900"
+      ],
+      "current_condition": "Replace 'existing entry' with the value printed in SRO 629: ['4418.9200', '4418.8100', '4418.8200', '4418.8300', '4418.8900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "manually_verified",
+      "validation_note": "The old entry is not reproduced; new values read directly."
+    },
+    {
+      "rule_id": "epo_629_change_39",
+      "product_or_subject": "Appendix J serial 342 code/description substitution",
+      "pct_code": [
+        "4418.9200",
+        "4418.8100",
+        "4413.8200",
+        "4418.8300",
+        "4418.8900"
+      ],
+      "current_condition": "Replace 'existing entry' with the value printed in SRO 629: ['4418.9200', '4418.8100', '4413.8200', '4418.8300', '4418.8900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 6
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "unclear",
+      "validation_note": "The page visibly prints 4413.8200 within a 4418 sequence. Whether 4418.8200 was intended is not verified."
+    },
+    {
+      "rule_id": "epo_629_change_40",
+      "product_or_subject": "Appendix J serial 347 code/description substitution",
+      "pct_code": [
+        "4420.1100",
+        "4420.1900"
+      ],
+      "current_condition": "Replace '4420.1000' with the value printed in SRO 629: ['4420.1100', '4420.1900']. The code/description is substituted; the specific parent Appendix J plant/plant-product condition remains applicable.",
+      "status": "conditional",
+      "country_or_route_limitation": null,
+      "required_financial_condition": null,
+      "required_document_or_approval": "Import permit when issued by importing-country NPPO and phytosanitary certificate from DPP, as specified by the affected row",
+      "effective_date": null,
+      "effective_date_note": "No separate effective date stated in the amendment.",
+      "amendment_sro": "629(I)/2024",
+      "original_source_page": [
+        {
+          "document": "SRO 629(I)/2024",
+          "page": 7
+        }
+      ],
+      "relevant_to_textile_mvp": false,
+      "validation_status": "OCR_verified",
+      "validation_note": "No material OCR defect was flagged on this page."
+    }
+  ]
+}
