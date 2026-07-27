@@ -252,6 +252,25 @@ def test_25_valid_certificate_of_origin() -> None:
     assert result.content_status == ComplianceCheckStatus.PASSED.value
 
 
+def test_25b_trailing_abbreviation_period_is_not_an_exporter_mismatch() -> None:
+    """A real defect found end-to-end: the invoice extractor read the
+    exporter as "...Ltd" (no period) while the certificate-of-origin
+    extractor read the same company as "...Ltd." (with one). Both are the
+    same company printed with an inconsistent abbreviation period - not a
+    mismatch a human would ever flag."""
+    result = _verify(
+        "certificate_of_origin",
+        _coo_extraction(exporter_or_applicant="Lahore Cotton Garments (Pvt.) Ltd"),
+        shipment_exporter="Lahore Cotton Garments (Pvt.) Ltd.",
+    )
+    exporter_check = next(
+        check
+        for check in result.checks
+        if check.check_id == "supporting_certificate_of_origin_exporter_match"
+    )
+    assert exporter_check.status == ComplianceCheckStatus.PASSED.value
+
+
 def test_26_valid_form_e_declaration() -> None:
     form_e = _extraction(
         detected_document_type="form_e_or_psw_export_declaration",

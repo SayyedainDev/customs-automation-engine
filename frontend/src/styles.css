@@ -883,6 +883,62 @@ tbody tr:hover {
   font-size: 11px;
 }
 
+.supporting-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.supporting-add-row__select {
+  flex: 1;
+  max-width: 360px;
+}
+
+.supporting-add-row .button {
+  flex: 0 0 auto;
+}
+
+.supporting-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.supporting-slot {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.supporting-slot__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.supporting-slot__head strong {
+  font-size: 13px;
+}
+
+.supporting-slot__error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.supporting-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
 .form-grid,
 .field-grid {
   display: grid;

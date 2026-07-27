@@ -423,9 +423,17 @@ def _compare(
 
 
 def _text(value: object | None) -> str | None:
+    """Normalize a text field for cross-document comparison.
+
+    Strips only a *trailing* period, not periods anywhere in the string:
+    "Lahore Cotton Garments (Pvt.) Ltd." and "...Ltd" are the same company
+    with an inconsistently printed abbreviation period, while "Pvt." inside
+    the name stays intact either way.
+    """
     if value is None:
         return None
-    return " ".join(str(value).split()).casefold()
+    normalized = " ".join(str(value).split()).casefold()
+    return normalized[:-1] if normalized.endswith(".") else normalized
 
 
 def _digits(value: object | None) -> str | None:

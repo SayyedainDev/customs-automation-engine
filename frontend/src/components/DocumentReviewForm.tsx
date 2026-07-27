@@ -1,6 +1,10 @@
-import { Info, LoaderCircle, Upload } from "lucide-react";
-import type { FormEvent } from "react";
+import { FilePlus2, Info, LoaderCircle, Upload, X } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import type { DocumentReviewController } from "../hooks/useDocumentReview";
+import {
+  SUPPORTING_DOCUMENT_TYPES,
+  supportingDocumentLabel,
+} from "../lib/supportingDocuments";
 import { FileDropzone } from "./FileDropzone";
 import { ProcessingTimeline } from "./ProcessingTimeline";
 
@@ -29,6 +33,107 @@ function UploadProgress({
         <span style={{ width: `${value}%` }} />
       </div>
     </div>
+  );
+}
+
+function SupportingDocumentsSection({
+  review,
+}: {
+  review: DocumentReviewController;
+}) {
+  const [pendingType, setPendingType] = useState(
+    SUPPORTING_DOCUMENT_TYPES[0].value,
+  );
+  const locked = review.reviewBusy || Boolean(review.compliance);
+  const usedTypes = new Set(review.supportingSlots.map((slot) => slot.documentType));
+
+  return (
+    <section className="panel" aria-labelledby="supporting-heading">
+      <div className="panel__header">
+        <div>
+          <p className="eyebrow">Step 2 · optional</p>
+          <h2 id="supporting-heading">Supporting documents</h2>
+          <p>
+            Attach any customs documents you already have. Each one is read
+            and cross-checked against the invoice before it can count as
+            present — adding it here is what lets a requirement pass instead
+            of showing up as outstanding.
+          </p>
+        </div>
+      </div>
+
+      <div className="panel__body">
+        <div className="supporting-add-row">
+          <label className="form-field supporting-add-row__select">
+            <span>Document type</span>
+            <select
+              value={pendingType}
+              onChange={(event) => setPendingType(event.target.value)}
+              disabled={locked}
+            >
+              {SUPPORTING_DOCUMENT_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                  {usedTypes.has(type.value) ? " (added)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="button button--secondary"
+            type="button"
+            disabled={locked}
+            onClick={() => review.addSupportingSlot(pendingType)}
+          >
+            <FilePlus2 aria-hidden="true" size={16} />
+            Add document
+          </button>
+        </div>
+
+        {review.supportingSlots.length ? (
+          <div className="supporting-slot-list">
+            {review.supportingSlots.map((slot) => (
+              <div className="supporting-slot" key={slot.id}>
+                <div className="supporting-slot__head">
+                  <strong>{supportingDocumentLabel(slot.documentType)}</strong>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label={`Remove ${supportingDocumentLabel(slot.documentType)}`}
+                    onClick={() => review.removeSupportingSlot(slot.id)}
+                    disabled={locked}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <FileDropzone
+                  label={supportingDocumentLabel(slot.documentType)}
+                  helper="PDF of the document as issued"
+                  file={slot.file}
+                  disabled={locked}
+                  onFile={(file, validationError) =>
+                    review.chooseSupportingFile(slot.id, file, validationError)
+                  }
+                />
+                {slot.error ? (
+                  <p className="supporting-slot__error">{slot.error}</p>
+                ) : null}
+                <UploadProgress
+                  label={`Uploading ${supportingDocumentLabel(slot.documentType).toLowerCase()}`}
+                  value={slot.progress}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="supporting-empty">
+            No supporting documents attached yet. The review still runs
+            without them — missing ones will show up as outstanding
+            requirements.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -99,10 +204,12 @@ export function DocumentReviewForm({
         </div>
       </section>
 
+      <SupportingDocumentsSection review={review} />
+
       <section className="panel" aria-labelledby="dates-heading">
         <div className="panel__header">
           <div>
-            <p className="eyebrow">Step 2</p>
+            <p className="eyebrow">Step 3</p>
             <h2 id="dates-heading">Shipment context</h2>
             <p>
               Dates are optional, but improve effective-date and
@@ -146,7 +253,7 @@ export function DocumentReviewForm({
       >
         <div className="panel__header">
           <div>
-            <p className="eyebrow">Step 3</p>
+            <p className="eyebrow">Step 4</p>
             <h2 id="processing-heading">Processing</h2>
             <p>Each stage reflects a completed backend operation.</p>
           </div>

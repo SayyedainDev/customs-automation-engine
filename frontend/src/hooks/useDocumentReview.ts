@@ -16,9 +16,25 @@ type ReviewPhase =
   | "idle"
   | "uploading_invoice"
   | "uploading_packing"
+  | "uploading_supporting"
   | "extracting"
   | "checking"
   | "complete";
+
+export interface SupportingSlot {
+  id: string;
+  documentType: string;
+  file: File | null;
+  progress: number;
+  upload: DocumentUploadResponse | null;
+  error: string | null;
+}
+
+let slotCounter = 0;
+function nextSlotId(): string {
+  slotCounter += 1;
+  return `supporting-${slotCounter}`;
+}
 
 const pollingStatuses = new Set(["created", "running", "resuming"]);
 
@@ -61,6 +77,7 @@ export function useDocumentReview() {
     useState<DocumentExtractionResponse | null>(null);
   const [invoiceProgress, setInvoiceProgress] = useState(0);
   const [packingProgress, setPackingProgress] = useState(0);
+  const [supportingSlots, setSupportingSlots] = useState<SupportingSlot[]>([]);
   const [phase, setPhase] = useState<ReviewPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [compliance, setCompliance] =
@@ -108,6 +125,43 @@ export function useDocumentReview() {
       clearWorkflow();
     },
     [clearWorkflow],
+  );
+
+  const addSupportingSlot = useCallback((documentType: string) => {
+    setSupportingSlots((slots) => [
+      ...slots,
+      {
+        id: nextSlotId(),
+        documentType,
+        file: null,
+        progress: 0,
+        upload: null,
+        error: null,
+      },
+    ]);
+  }, []);
+
+  const removeSupportingSlot = useCallback((id: string) => {
+    setSupportingSlots((slots) => slots.filter((slot) => slot.id !== id));
+  }, []);
+
+  const chooseSupportingFile = useCallback(
+    (id: string, file: File | null, validationError?: string) => {
+      setSupportingSlots((slots) =>
+        slots.map((slot) =>
+          slot.id === id
+            ? {
+                ...slot,
+                file,
+                upload: null,
+                progress: 0,
+                error: validationError ?? null,
+              }
+            : slot,
+        ),
+      );
+    },
+    [],
   );
 
   const loadWorkflowAssets = useCallback(
@@ -238,13 +292,65 @@ export function useDocumentReview() {
         characterCount: extractedPacking.character_count,
       });
 
+      // Upload any supporting-document slots that carry a file but haven't
+      // been sent to the backend yet. Already-uploaded slots (e.g. a second
+      // "Check" click after adding one more document) keep their document id
+      // and are not re-uploaded.
+      const alreadyUploaded = supportingSlots.filter((slot) => slot.upload);
+      const pendingSupporting = supportingSlots.filter(
+        (slot) => slot.file && !slot.upload,
+      );
+      let newlyUploaded: Array<{ id: string; upload: DocumentUploadResponse }> = [];
+      if (pendingSupporting.length) {
+        setPhase("uploading_supporting");
+        newlyUploaded = await Promise.all(
+          pendingSupporting.map(async (slot) => {
+            const upload = await api.uploadDocument(
+              slot.file as File,
+              (progress) =>
+                setSupportingSlots((slots) =>
+                  slots.map((s) => (s.id === slot.id ? { ...s, progress } : s)),
+                ),
+            );
+            sessionRef.current.addDocument({
+              id: upload.document_id,
+              name: upload.original_filename,
+              role: "supporting_document",
+              sizeBytes: upload.size_bytes,
+              uploadedAt: new Date().toISOString(),
+              status: upload.status,
+            });
+            return { id: slot.id, upload };
+          }),
+        );
+        setSupportingSlots((slots) =>
+          slots.map((slot) => {
+            const match = newlyUploaded.find((entry) => entry.id === slot.id);
+            return match
+              ? { ...slot, upload: match.upload, progress: 100 }
+              : slot;
+          }),
+        );
+      }
+
+      const supportingDocuments = [
+        ...alreadyUploaded.map((slot) => ({
+          document_type: slot.documentType,
+          document_id: (slot.upload as DocumentUploadResponse).document_id,
+        })),
+        ...pendingSupporting.map((slot, index) => ({
+          document_type: slot.documentType,
+          document_id: newlyUploaded[index].upload.document_id,
+        })),
+      ];
+
       const payload: MultiLineShipmentRequest = {
         commercial_invoice_document_id: uploadedInvoice.document_id,
         packing_list_document_id: uploadedPacking.document_id,
         shipment_date: shipmentDate || null,
         letter_of_credit_date: letterOfCreditDate || null,
         additional_uploaded_document_types: [],
-        supporting_documents: [],
+        supporting_documents: supportingDocuments,
       };
 
       setRequestPayload(payload);
@@ -331,6 +437,7 @@ export function useDocumentReview() {
     setPackingExtraction(null);
     setInvoiceProgress(0);
     setPackingProgress(0);
+    setSupportingSlots([]);
     setError(null);
     clearWorkflow();
   }
@@ -380,6 +487,10 @@ export function useDocumentReview() {
     letterOfCreditDate,
     invoiceProgress,
     packingProgress,
+    supportingSlots,
+    addSupportingSlot,
+    removeSupportingSlot,
+    chooseSupportingFile,
     reviewBusy,
     error,
     compliance,
