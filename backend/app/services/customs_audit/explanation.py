@@ -21,7 +21,17 @@ from app.core.exceptions import StructuredExtractionProviderUnavailableError
 from app.services.customs_audit.agents import NarratorFn, narrate_with_source
 from app.services.customs_audit.report import build_audit_report
 
-EXPLANATION_PROMPT_VERSION = "v2"
+EXPLANATION_PROMPT_VERSION = "v3"
+
+#: A narrator answer below this bar is not usable by the person who has to
+#: present the result, so the detailed deterministic template is used instead.
+#: The provider occasionally returns a two-sentence summary despite the prompt
+#: (or gets cut off mid-answer), and a terse answer is worse than no answer:
+#: the reader cannot tell a missing supporting document apart from a defective
+#: uploaded one.
+MIN_EXPLANATION_WORDS = 70
+_REQUIRED_SECTIONS = ("decision", "why this decision", "next steps")
+_MIN_REQUIRED_SECTIONS = 2
 
 _MAX_ISSUES = 8
 _MAX_ACTIONS = 6
@@ -160,6 +170,15 @@ def _bounded_unique(values: list[Any], *, limit: int) -> list[str]:
     return result
 
 
+def _status_headline(status: str) -> str:
+    """Say what the raw status word means, next to the status word itself."""
+    return {
+        "passed": "ready for the next submission step",
+        "failed": "not ready for customs submission",
+        "manual_review": "a person must review it before submission",
+    }.get(status, "see the decision below")
+
+
 def _decision_text(status: str) -> str:
     if status == "passed":
         return (
@@ -190,7 +209,7 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
     passed = findings.get("passed_checks") or []
 
     lines = [
-        f"Status: {status}",
+        f"Status: {status} ({_status_headline(status)})",
         "",
         "Decision",
         _decision_text(status),
@@ -223,19 +242,37 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
     else:
         lines.append("The shipment passed every configured compliance check.")
 
-    if any(
-        issue.get("category") == "Missing supporting document" for issue in issues
-    ):
+    missing_document_count = sum(
+        1 for issue in issues if issue.get("category") == "Missing supporting document"
+    )
+    if missing_document_count:
+        if missing_document_count > 1:
+            identified = (
+                "The additional documents listed above were identified by the "
+                "rules as supporting evidence needed before submission. They "
+                "were not required to start the audit"
+            )
+        else:
+            identified = (
+                "The additional document listed above was identified by a "
+                "rule as supporting evidence needed before submission. It was "
+                "not required to start the audit"
+            )
         lines.extend(
             [
                 "",
                 "What this means",
                 (
                     "The commercial invoice and packing list were enough to "
-                    "start and complete this review. The additional document "
-                    "listed above was identified by a rule as supporting "
-                    "evidence needed before submission; it was not required to "
-                    "start the audit."
+                    "start and complete this review, and both were read "
+                    f"successfully. {identified}, and nothing is wrong with "
+                    "the two files that were uploaded."
+                ),
+                (
+                    "Documents of this kind are issued by an outside body "
+                    "rather than produced by this system, so each one has to "
+                    "be obtained and filed with the shipment. They cannot be "
+                    "derived from the invoice or the packing list."
                 ),
             ]
         )
@@ -271,6 +308,23 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def explanation_meets_bar(text: str) -> bool:
+    """Return whether a narrator answer is detailed enough to show a reader.
+
+    The check is deliberately about shape, not content: the deterministic
+    verdict is already fixed, so the only question is whether this prose is
+    long enough and organized enough to be read out to a supervisor.
+    """
+    if not isinstance(text, str):
+        return False
+    normalized = text.strip()
+    if len(normalized.split()) < MIN_EXPLANATION_WORDS:
+        return False
+    lowered = normalized.casefold()
+    present = sum(1 for section in _REQUIRED_SECTIONS if section in lowered)
+    return present >= _MIN_REQUIRED_SECTIONS
+
+
 def generate_explanation_entry(
     *,
     state: dict[str, Any],
@@ -302,6 +356,12 @@ def generate_explanation_entry(
         # RUNNING with no retry path (retry() only accepts FAILED workflows)
         # - worse than falling back to the template, so it is swallowed here
         # rather than re-raised.
+        text = _default_explanation("Explanation", findings)
+        source = "template_fallback"
+
+    if source == "llm" and not explanation_meets_bar(text):
+        # The provider answered, but too thinly to be presented. Keep the
+        # detailed template and record the fallback honestly.
         text = _default_explanation("Explanation", findings)
         source = "template_fallback"
 

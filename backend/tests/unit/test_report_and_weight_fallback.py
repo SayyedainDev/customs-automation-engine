@@ -359,8 +359,8 @@ def test_12_report_gives_clear_required_actions():
     )
     actions = report["required_actions"]
     assert (
-        "Obtain Form-E and include it with the shipment documents before customs "
-        "submission."
+        "Obtain Form-E from the body that issues it and file it with the "
+        "shipment documents before customs submission."
     ) in actions
     assert any("quantity" in a.lower() for a in actions)
     assert report["overall_result"] == "FAILED"
@@ -424,12 +424,12 @@ def test_13_report_consolidates_duplicate_required_document_findings():
     ]
     assert report["required_actions"] == [
         (
-            "Obtain Form-E and include it with the shipment documents before "
-            "customs submission."
+            "Obtain Form-E from the body that issues it and file it with the "
+            "shipment documents before customs submission."
         ),
         (
-            "Obtain Certificate of origin and include it with the shipment "
-            "documents before customs submission."
+            "Obtain Certificate of origin from the body that issues it and "
+            "file it with the shipment documents before customs submission."
         ),
     ]
     # Consolidation affects the business summary only. Both the legacy and

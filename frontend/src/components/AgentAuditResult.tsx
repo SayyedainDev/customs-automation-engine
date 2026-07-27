@@ -35,6 +35,103 @@ function uniqueText(values: unknown[]): unknown[] {
   });
 }
 
+interface ExplanationBlock {
+  heading: string | null;
+  paragraphs: string[];
+  bullets: string[];
+}
+
+const explanationHeadings = new Set([
+  "decision",
+  "what was checked",
+  "why this decision",
+  "what this means",
+  "next steps",
+  "human review",
+  "status",
+]);
+
+function isExplanationHeading(line: string): boolean {
+  const normalized = line.replace(/[:*#]/g, "").trim().toLowerCase();
+  return normalized.length <= 40 && explanationHeadings.has(normalized);
+}
+
+/**
+ * Split the explanation into readable blocks.
+ *
+ * Both the deterministic template and the narrator emit short headings,
+ * numbered steps, and bullet lines separated by newlines. Rendering the raw
+ * string in one paragraph collapses all of that into an unreadable run-on, so
+ * the structure is reconstructed here instead.
+ */
+function parseExplanation(text: string): ExplanationBlock[] {
+  const blocks: ExplanationBlock[] = [];
+  let current: ExplanationBlock | null = null;
+
+  const push = () => {
+    if (current && (current.paragraphs.length || current.bullets.length)) {
+      blocks.push(current);
+    }
+    current = null;
+  };
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (isExplanationHeading(line)) {
+      push();
+      current = {
+        heading: line.replace(/[:*#]+$/, "").trim(),
+        paragraphs: [],
+        bullets: [],
+      };
+      continue;
+    }
+
+    if (!current) {
+      current = { heading: null, paragraphs: [], bullets: [] };
+    }
+
+    const bullet = line.match(/^(?:[-•*]|\d+[.)])\s+(.*)$/);
+    if (bullet) {
+      current.bullets.push(bullet[1].trim());
+    } else {
+      current.paragraphs.push(line);
+    }
+  }
+
+  push();
+  return blocks;
+}
+
+function ExplanationBody({ text }: { text: string }) {
+  const blocks = parseExplanation(text);
+  if (!blocks.length) {
+    return <p>{text}</p>;
+  }
+
+  return (
+    <div className="explanation-body">
+      {blocks.map((block, index) => (
+        <div className="explanation-block" key={`${block.heading ?? ""}-${index}`}>
+          {block.heading ? <h4>{block.heading}</h4> : null}
+          {block.paragraphs.map((paragraph, paragraphIndex) => (
+            <p key={paragraphIndex}>{paragraph}</p>
+          ))}
+          {block.bullets.length ? (
+            <ul className="explanation-bullets">
+              {block.bullets.map((bullet, bulletIndex) => (
+                <li key={bulletIndex}>{bullet}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function auditDecision(status: unknown): {
   title: string;
   tone: "success" | "warning" | "danger" | "info";
@@ -180,15 +277,16 @@ function Report({
         <section className="report-section explanation-section">
           <div className="explanation-section__heading">
             <div>
-              <h3>Additional plain-language explanation</h3>
+              <h3>Plain-language explanation</h3>
               <p>
-                This wording helps a person understand the result. It does not
-                change the deterministic decision above.
+                A full walkthrough of the result you can read out as-is. It
+                explains the wording above but does not change the
+                deterministic decision.
               </p>
             </div>
             <span className="explanation-label">{explanationLabel}</span>
           </div>
-          <p>{displayValue(explanation)}</p>
+          <ExplanationBody text={displayValue(explanation)} />
         </section>
       ) : null}
 

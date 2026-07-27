@@ -1195,15 +1195,67 @@ def test_49_no_narrator_uses_template_with_zero_groq_calls(isolated_database: En
     assert "passed every configured compliance check" in report["explanation"]
 
 
+def _detailed_narration(status: str) -> str:
+    """A narrator answer that clears the presentation bar."""
+    return (
+        "Decision\n"
+        f"The shipment reached the status {status} after the deterministic "
+        "rule engine finished every configured check. The invoice and the "
+        "packing list were both read and compared without any processing "
+        "error.\n\n"
+        "Why this decision\n"
+        "The engine compared the two uploaded documents line by line and then "
+        "applied the configured customs rules to the result. Nothing in the "
+        "available shipment data contradicted those rules.\n\n"
+        "Next steps\n"
+        "Keep this result with the shipment record so the file shows how the "
+        "decision was reached. Continue with the normal submission process "
+        "once the responsible person has read it."
+    )
+
+
 def test_50_llm_narrator_sets_explanation_source_llm(isolated_database: Engine) -> None:
     def narrator(role, findings):
-        return f"Custom explanation for status {findings['status']}."
+        return _detailed_narration(findings["status"])
 
     svc = make_service(isolated_database, passed_extraction(), explanation_narrator=narrator)
     result = start(svc, isolated_database)
     report = result["final_report"]
     assert report["explanation_source"] == "llm"
-    assert report["explanation"] == "Custom explanation for status passed."
+    assert report["explanation"] == _detailed_narration("passed")
+
+
+def test_50b_thin_narrator_answer_falls_back_to_detailed_template(
+    isolated_database: Engine,
+) -> None:
+    """A two-sentence provider answer is unusable for the person presenting
+    the audit, so it must be replaced by the deterministic template rather
+    than shown as an AI-worded explanation."""
+
+    def terse_narrator(role, findings):
+        return f"The audit result is {findings['status']}. No further detail."
+
+    svc = make_service(
+        isolated_database, passed_extraction(), explanation_narrator=terse_narrator
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert report["explanation_source"] == "template_fallback"
+    assert "What was checked" in report["explanation"]
+    assert "Next steps" in report["explanation"]
+
+
+def test_50c_unstructured_long_narrator_answer_falls_back(
+    isolated_database: Engine,
+) -> None:
+    def rambling_narrator(role, findings):
+        return "This shipment was reviewed carefully by the system. " * 12
+
+    svc = make_service(
+        isolated_database, passed_extraction(), explanation_narrator=rambling_narrator
+    )
+    result = start(svc, isolated_database)
+    assert result["final_report"]["explanation_source"] == "template_fallback"
 
 
 def test_51_explanation_fallback_includes_failed_checks_and_missing_fields(
@@ -1282,7 +1334,7 @@ def test_missing_supporting_document_is_explained_as_a_review_result() -> None:
 
     assert "Form-E" in entry["explanation"]
     assert "invoice and packing list were enough" in entry["explanation"]
-    assert "it was not required to start the audit" in entry["explanation"]
+    assert "not required to start the audit" in entry["explanation"]
     assert "invoice_line_1" not in entry["explanation"]
 
 

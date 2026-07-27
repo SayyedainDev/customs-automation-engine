@@ -84,13 +84,16 @@ class GroqNarrator:
         if is_explanation:
             role_instruction = (
                 "Write a plain-language explanation of 120-200 words. Use the "
-                "headings 'Decision', 'Why this decision', and 'Next steps'. "
-                "Explain the operational meaning of each supplied issue and "
-                "action so a non-technical reader can present it. Treat an "
-                "invoice or packing-list line reference only as a location, "
-                "never as proof that the line itself is missing. Clearly "
-                "distinguish initial audit inputs from supporting documents "
-                "that the audit says must be obtained."
+                "headings 'Decision', 'Why this decision', and 'Next steps', "
+                "each on its own line with at least two full sentences under "
+                "it. Never answer in one or two sentences and never omit a "
+                "heading. Explain the operational meaning of each supplied "
+                "issue and action so a non-technical reader can present it. "
+                "Treat an invoice or packing-list line reference only as a "
+                "location, never as proof that the line itself is missing. "
+                "Clearly distinguish initial audit inputs from supporting "
+                "documents that the audit says must be obtained. Write prose "
+                "sentences without markdown symbols such as * or #."
             )
         else:
             role_instruction = (
@@ -101,7 +104,10 @@ class GroqNarrator:
                 model=self._model,
                 temperature=0,
                 reasoning_effort="low",
-                max_completion_tokens=400,
+                # Reasoning tokens are charged against this budget, so a
+                # 200-word explanation needs materially more headroom than the
+                # three-sentence Broker/Auditor notes.
+                max_completion_tokens=900 if is_explanation else 400,
                 messages=[
                     {
                         "role": "system",

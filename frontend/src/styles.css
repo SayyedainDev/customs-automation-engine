@@ -1953,6 +1953,46 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+.explanation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.explanation-block h4 {
+  margin: 0 0 4px;
+  color: var(--info);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.explanation-block p {
+  margin: 0 0 6px;
+  color: #253b6e;
+  line-height: 1.65;
+}
+
+.explanation-block p:last-child {
+  margin-bottom: 0;
+}
+
+.explanation-bullets {
+  margin: 0;
+  padding-left: 18px;
+  color: #253b6e;
+  line-height: 1.65;
+}
+
+.explanation-bullets li {
+  margin-bottom: 4px;
+}
+
+.explanation-bullets li:last-child {
+  margin-bottom: 0;
+}
+
 .processing-panel .form-actions {
   justify-content: space-between;
   padding-top: 15px;

@@ -111,8 +111,8 @@ def _missing_document_guidance(document_type: str | None) -> tuple[str, str]:
             "provided as a supporting document."
         ),
         (
-            f"Obtain {doc} and include it with the shipment documents before "
-            "customs submission."
+            f"Obtain {doc} from the body that issues it and file it with the "
+            "shipment documents before customs submission."
         ),
     )
 
