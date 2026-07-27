@@ -14,6 +14,7 @@ from app.schemas.compliance import (
 from app.schemas.multi_line_extraction import (
     InvoiceLineItem,
     MultiLineCommercialInvoiceExtraction,
+    MultiLinePackingListExtraction,
     PackingListItem,
 )
 from app.schemas.shipment_extraction import (
@@ -27,6 +28,7 @@ from app.services.customs_audit.report import build_audit_report
 from app.services.multi_line.line_item_checks import per_item_checks
 from app.services.multi_line_shipment_service import (
     _apply_single_line_declared_weight_fallback,
+    _apply_single_line_declared_weight_fallback_to_packing_list,
     _build_item_shipment_input,
 )
 
@@ -107,13 +109,25 @@ def _packing_item(*, net="75.00", gross="80.00", index: int = 1):
         pct_code=_field("6109.1000"),
         quantity=_field(Decimal("100")),
         unit=_field("PCS"),
-        net_weight=_field(Decimal(net)),
-        gross_weight=_field(Decimal(gross)),
+        net_weight=_field(Decimal(net)) if net is not None else _missing_field(),
+        gross_weight=_field(Decimal(gross)) if gross is not None else _missing_field(),
         package_count=_field(5),
         item_source_page=1,
         item_confidence=Decimal("0.9"),
-        item_validation_status=FieldValidationStatus.VERIFIED,
+        item_validation_status=(
+            FieldValidationStatus.VERIFIED
+            if net is not None and gross is not None
+            else FieldValidationStatus.MANUAL_REVIEW
+        ),
         item_note="",
+    )
+
+
+def _packing(items, *, net_total="75.00", gross_total="80.00"):
+    return MultiLinePackingListExtraction(
+        declared_net_weight_total=_field(Decimal(net_total)) if net_total else _missing_field(),
+        declared_gross_weight_total=_field(Decimal(gross_total)) if gross_total else _missing_field(),
+        items=items,
     )
 
 
@@ -204,6 +218,40 @@ def test_7_multi_line_invoice_never_assigns_total_weight():
     assert fixed.line_items[0].net_weight.value is None
     assert fixed.line_items[1].net_weight.value is None
     assert fixed.line_items[0].gross_weight.value is None
+
+
+def test_7b_single_line_packing_list_uses_document_weight_totals():
+    """The same fallback the invoice gets, mirrored for the packing list.
+
+    Found live: a single-line packing list printed its item's weight only in
+    a table row the deterministic column reconstructor deliberately leaves
+    unmodelled (see _HEADER_PHRASES), while the document-level "Declared Net/
+    Gross Weight Total" lines extracted fine. Without this, a genuinely
+    single-line shipment landed in manual_review purely because the packing
+    list repeated a weight already stated elsewhere on its own page."""
+    packing = _apply_single_line_declared_weight_fallback_to_packing_list(
+        _packing([_packing_item(net=None, gross=None)])
+    )
+    item = packing.items[0]
+    assert item.net_weight.value == Decimal("75.00")
+    assert item.gross_weight.value == Decimal("80.00")
+    assert item.net_weight.derivation_method == "single_line_declared_total"
+    assert item.net_weight.original_field_location == "packing_list_header_or_total"
+    assert item.item_validation_status == FieldValidationStatus.VERIFIED
+    # The document-level total is preserved unchanged.
+    assert packing.declared_net_weight_total.value == Decimal("75.00")
+
+
+def test_7c_multi_line_packing_list_never_assigns_total_weight():
+    packing = _packing(
+        [
+            _packing_item(net=None, gross=None, index=1),
+            _packing_item(net=None, gross=None, index=2),
+        ]
+    )
+    fixed = _apply_single_line_declared_weight_fallback_to_packing_list(packing)
+    assert fixed.items[0].net_weight.value is None
+    assert fixed.items[1].net_weight.value is None
 
 
 # --------------------------------------------------------------------------- #

@@ -508,27 +508,45 @@ _SINGLE_LINE_WEIGHT_FALLBACK = (
 )
 
 
-def _apply_single_line_declared_weight_fallback(
-    invoice: MultiLineCommercialInvoiceExtraction,
-) -> MultiLineCommercialInvoiceExtraction:
+_ExtractionModelT = TypeVar(
+    "_ExtractionModelT",
+    MultiLineCommercialInvoiceExtraction,
+    MultiLinePackingListExtraction,
+)
+
+
+def _apply_single_line_declared_weight_fallback_generic(
+    extraction: _ExtractionModelT,
+    *,
+    items_field: str,
+    item_value_fields: tuple[str, ...],
+    document_location: str,
+) -> _ExtractionModelT:
     """Map a verified document-level weight total onto the one line item.
 
-    Deterministic rule, never an LLM guess. It fires only when the invoice has
+    Deterministic rule, never an LLM guess. It fires only when the document has
     exactly one line item whose net or gross weight is missing while a verified
-    invoice-level declared total exists (a real single-line invoice that prints
-    the weight once, as a document total). The document totals are preserved and
-    every derived value records its provenance. For multi-line invoices nothing
-    is assigned: item weights stay null and resolve to manual_review downstream.
+    document-level declared total exists (a real single-line invoice or packing
+    list that prints the weight once, as a document total). The document totals
+    are preserved and every derived value records its provenance. For
+    multi-line documents nothing is assigned: item weights stay null and
+    resolve to manual_review downstream.
+
+    Shared between the invoice and the packing list: both extraction models
+    expose the same field names (``net_weight``/``gross_weight`` per item,
+    ``declared_net_weight_total``/``declared_gross_weight_total`` at document
+    level), so one implementation covers both rather than drifting apart.
     """
 
-    if len(invoice.line_items) != 1:
-        return invoice
+    items = getattr(extraction, items_field)
+    if len(items) != 1:
+        return extraction
 
-    item = invoice.line_items[0]
+    item = items[0]
     updates: dict[str, ExtractedField] = {}
     for field_name, total_name in _SINGLE_LINE_WEIGHT_FALLBACK:
         line_field: ExtractedField = getattr(item, field_name)
-        total_field: ExtractedField = getattr(invoice, total_name)
+        total_field: ExtractedField = getattr(extraction, total_name)
         if line_field.value is None and total_field.value is not None:
             readable = field_name.replace("_", " ")
             updates[field_name] = line_field.model_copy(
@@ -540,22 +558,22 @@ def _apply_single_line_declared_weight_fallback(
                     "ocr_confidence": total_field.ocr_confidence,
                     "validation_status": FieldValidationStatus.VERIFIED,
                     "validation_note": (
-                        f"Derived from the invoice document-level declared {readable} "
-                        f"total of {total_field.value} because this single-line invoice "
-                        "did not repeat the weight on the product line."
+                        f"Derived from the document-level declared {readable} "
+                        f"total of {total_field.value} because this single-line "
+                        "document did not repeat the weight on the product line."
                     ),
                     "derivation_method": "single_line_declared_total",
-                    "original_field_location": "invoice_header_or_total",
+                    "original_field_location": document_location,
                 }
             )
 
     if not updates:
-        return invoice
+        return extraction
 
-    rolled_fields = {name: getattr(item, name) for name in _INVOICE_ITEM_VALUE_FIELDS}
+    rolled_fields = {name: getattr(item, name) for name in item_value_fields}
     rolled_fields.update(updates)
     source_page, confidence, status, note = _roll_up_item(
-        rolled_fields, _INVOICE_ITEM_VALUE_FIELDS
+        rolled_fields, item_value_fields
     )
     new_item = item.model_copy(
         update={
@@ -566,7 +584,29 @@ def _apply_single_line_declared_weight_fallback(
             "item_note": note,
         }
     )
-    return invoice.model_copy(update={"line_items": [new_item]})
+    return extraction.model_copy(update={items_field: [new_item]})
+
+
+def _apply_single_line_declared_weight_fallback(
+    invoice: MultiLineCommercialInvoiceExtraction,
+) -> MultiLineCommercialInvoiceExtraction:
+    return _apply_single_line_declared_weight_fallback_generic(
+        invoice,
+        items_field="line_items",
+        item_value_fields=_INVOICE_ITEM_VALUE_FIELDS,
+        document_location="invoice_header_or_total",
+    )
+
+
+def _apply_single_line_declared_weight_fallback_to_packing_list(
+    packing_list: MultiLinePackingListExtraction,
+) -> MultiLinePackingListExtraction:
+    return _apply_single_line_declared_weight_fallback_generic(
+        packing_list,
+        items_field="items",
+        item_value_fields=_PACKING_ITEM_VALUE_FIELDS,
+        document_location="packing_list_header_or_total",
+    )
 
 
 def _materialize_invoice(
@@ -1147,8 +1187,13 @@ def extract_match_and_check_multi_line_shipment(
     )
 
     # Deterministic single-line weight fallback runs before matching so the
-    # invoice/packing comparison sees the derived line-item weight.
+    # invoice/packing comparison sees the derived line-item weight. Applied
+    # to both documents: a single-line packing list just as often prints the
+    # weight once as a document total rather than repeating it on the row.
     invoice = _apply_single_line_declared_weight_fallback(invoice)
+    packing_list = _apply_single_line_declared_weight_fallback_to_packing_list(
+        packing_list
+    )
 
     matches = match_line_items(invoice.line_items, packing_list.items)
 
