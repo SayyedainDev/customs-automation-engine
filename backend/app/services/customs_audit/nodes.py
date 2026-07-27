@@ -290,6 +290,14 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         with deps.session_factory() as db:
             for check, item_reference in checks_with_context:
                 check_id = str(check.get("check_id"))
+                if check.get("status") == "not_applicable":
+                    # A rule that does not apply to this shipment (e.g. a
+                    # licence requirement for a different product category)
+                    # has nothing to cite or compare - retrieving evidence
+                    # for it would waste a lookup and show a meaningless
+                    # "no evidence found" chip for a requirement that was
+                    # never in play.
+                    continue
                 if is_regulatory_check(check):
                     if check_id in evidence_by_check:
                         continue

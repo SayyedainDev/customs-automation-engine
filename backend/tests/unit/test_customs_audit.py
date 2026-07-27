@@ -1576,3 +1576,37 @@ def test_65_evidence_maps_are_present_on_a_technical_failure_without_crashing(
     report = result["final_report"]
     assert report["regulatory_evidence_by_check"] == {}
     assert report["document_evidence_by_check"] == {}
+
+
+def test_66_not_applicable_checks_never_get_evidence_gathered(
+    isolated_database: Engine,
+) -> None:
+    """A rule that does not apply to this shipment has nothing to cite or
+    compare - it must not trigger a RAG lookup or show up as a meaningless
+    "no evidence found" row."""
+    queries = []
+
+    def recording_evidence(db, pct, query):
+        queries.append(query)
+        return []
+
+    extraction = passed_extraction()
+    extraction["items"][0]["compliance"]["checks"].append(
+        {
+            "check_id": "product_licence_requirement",
+            "check_name": "Product licence requirement",
+            "status": "not_applicable",
+            "message": "Not applicable to this product category.",
+            "source_document": "TIPP Product Licensing Procedure",
+            "sro_number": None,
+        }
+    )
+    svc = make_service(
+        isolated_database, extraction, evidence_fn=recording_evidence
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+
+    assert "product_licence_requirement" not in report["regulatory_evidence_by_check"]
+    assert "product_licence_requirement" not in report["document_evidence_by_check"]
+    assert not any("licence" in q.lower() or "licensing" in q.lower() for q in queries)

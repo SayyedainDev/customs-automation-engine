@@ -1,16 +1,16 @@
 # Stage 3 — Regulatory Ingestion Report
 
 Storage backend: **postgresql**
-Ingestion version: `regulatory-ingest-v1` | Rule-data version: `sha256:a462961bfc9f438f...`
+Ingestion version: `regulatory-ingest-v1` | Rule-data version: `sha256:63dedc207d787401...`
 
 ## Totals
 
 - Documents discovered: **3**
-- Documents ingested (new): **3**
-- Documents updated (checksum changed): **0**
-- Documents skipped (idempotent, unchanged): **0**
+- Documents ingested (new): **0**
+- Documents updated (checksum changed): **1**
+- Documents skipped (idempotent, unchanged): **2**
 - Documents errored: **0**
-- Pages processed: **94**
+- Pages processed: **0**
 - OCR pages (no embedded text): **0**
 - Parent chunks: **25**
 - Child chunks: **105**
@@ -20,9 +20,9 @@ Ingestion version: `regulatory-ingest-v1` | Rule-data version: `sha256:a462961bf
 
 | Key | Status | Pages | OCR | Parents | Children | Validation |
 |---|---|--:|--:|--:|--:|---|
-| sro_2486_2025_raw_cotton | ingested | 1 | 0 | 4 | 5 | verified |
-| epo_2022_base_order | ingested | 93 | 0 | 14 | 75 | partially_verified |
-| tipp_textile_product_requirements | ingested | 0 | 0 | 7 | 25 | partially_verified |
+| sro_2486_2025_raw_cotton | skipped_idempotent | 0 | 0 | 4 | 5 | verified |
+| epo_2022_base_order | skipped_idempotent | 0 | 0 | 14 | 75 | partially_verified |
+| tipp_textile_product_requirements | updated | 0 | 0 | 7 | 25 | partially_verified |
 
 ## Notes
 
