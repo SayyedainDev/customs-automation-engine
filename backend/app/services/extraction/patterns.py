@@ -121,6 +121,13 @@ def _labeled(pattern: str, note: str = "") -> FieldPattern:
     )
 
 
+#: Generic trailing nouns that extend ANY label ("Exporter Name", "Buyer
+#: Name", "Company Details") without being tied to one field. Deliberately
+#: small: each word here is swallowed into every field's label, so it must be
+#: a word that is never itself the start of a legitimate value.
+_LABEL_CONTINUATION_WORDS = r"name|details|information|particulars"
+
+
 def _label_value(labels: str, value: str, note: str) -> tuple[FieldPattern, ...]:
     """Build line-anchored label/value patterns for one field.
 
@@ -147,8 +154,22 @@ def _label_value(labels: str, value: str, note: str) -> tuple[FieldPattern, ...]
     # exact false value this design exists to prevent. Atomic matching makes
     # the label all-or-nothing, so a partial label can never leave its own
     # remainder behind as a value.
+    #
+    # Found live: "Exporter Name" / "Buyer Name" (a role word plus the generic
+    # noun "Name") is a common real invoice heading, but "Name" is not itself
+    # one of a field's role words, so the compound-join above never absorbed
+    # it. The label matched only "Exporter", and the leftover " Name" on the
+    # same line was then confidently captured by the OCR single-line pattern
+    # below as the field's *value* - "Name" is not a label fragment there, it
+    # is exactly what a value looks like. _LABEL_CONTINUATION_WORDS closes
+    # that gap the same way the "/"-joined case is already closed: a small,
+    # generic, field-independent set of trailing nouns is swallowed into the
+    # label so it can never be mistaken for the value that follows on the
+    # next line.
     label = (
-        rf"(?>(?:{labels})(?:[ \t]*[/&][ \t]*(?:{labels})|[ \t]+(?:{labels}))*)"
+        rf"(?>(?:{labels})"
+        rf"(?:[ \t]*[/&][ \t]*(?:{labels})"
+        rf"|[ \t]+(?:{labels}|{_LABEL_CONTINUATION_WORDS}))*)"
     )
     return (
         # Two-column PDF text layers extract as "Label\nValue".
@@ -206,7 +227,25 @@ _V_ORG = r"[^\n]{3,120}"
 _V_COUNTRY = r"[A-Za-z][A-Za-z .\-]{2,40}"
 _V_PLACE = r"[A-Za-z][A-Za-z .,\-]{2,50}"
 _V_DATE = r"[0-9A-Za-z][^\n]{5,29}"
-_V_MONEY = rf"(?:{_CURRENCY_ALT}|\$|Rs\.?)?[ \t]*{_MONEY_VALUE}(?:[ \t]*(?:{_WEIGHT_ALT}))?"
+#: A currency code may print before the amount ("USD 550.00") or after it
+#: ("550.00 USD") - both are common on real invoices. Only the leading form
+#: was accepted; a trailing currency (with no weight unit) failed the whole
+#: line and left fields like invoice_total unresolved even though the value
+#: was right there on the page.
+_V_MONEY = (
+    rf"(?:{_CURRENCY_ALT}|\$|Rs\.?)?[ \t]*{_MONEY_VALUE}"
+    rf"(?:[ \t]*(?:{_WEIGHT_ALT}|{_CURRENCY_ALT}))?"
+)
+# Weight fields only: a bare 1-2 digit integer with neither a decimal point
+# nor a unit is too weak to trust as a weight. Found live: a "Gross Weight"
+# *table column heading* sits on its own line directly above the item row,
+# so the item row's leading line number ("1") landed on the very next line
+# after it and satisfied the looser _V_MONEY pattern - genuinely ambiguous
+# against the real "Declared Gross Weight Total\n80.00 KG" match elsewhere on
+# the page, so the field correctly refused to pick one and stayed
+# unresolved. Requiring a decimal or an explicit unit is how a real
+# document's weight is printed; a coincidental row number is neither.
+_V_WEIGHT = rf"(?:{_MONEY_VALUE}[ \t]*(?:{_WEIGHT_ALT})|\d[\d,\s]*\.\d{{1,2}})"
 _V_NTN = rf"{_D}{{7}}[ \t]*-[ \t]*{_D}|{_D}{{13}}|{_D}{{7,8}}"
 _V_PCT = rf"{_D}{{4}}[.\s\-]?{_D}{{2}}[.\s\-]?{_D}{{2}}"
 _V_COUNT = rf"{_D}[\d,]{{0,7}}(?:[ \t]*[A-Za-z]{{3,10}})?"
@@ -312,13 +351,13 @@ FIELD_PATTERNS: Final[dict[str, tuple[FieldPattern, ...]]] = {
     "gross_weight": _label_value(
         r"(?:declared[ \t]+)?gross[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
         r"|gross[ \t]+weight[ \t]*\((?:kgs?|m\.?t\.?)\)",
-        _V_MONEY,
+        _V_WEIGHT,
         "Gross Weight",
     ),
     "net_weight": _label_value(
         r"(?:declared[ \t]+)?net[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
         r"|net[ \t]+weight[ \t]*\((?:kgs?|m\.?t\.?)\)",
-        _V_MONEY,
+        _V_WEIGHT,
         "Net Weight",
     ),
     "number_of_packages": _label_value(
@@ -530,7 +569,7 @@ def parse_date(raw: str) -> ParsedDate:
 _MONEY_CORE = re.compile(
     rf"^(?:{'|'.join(CURRENCY_CODES)}|\$|Rs\.?)?\s*"
     r"([\d,\s]*\d(?:\.\d{1,2})?)"
-    rf"\s*(?:{_WEIGHT_ALT})?\.?$",
+    rf"\s*(?:{_WEIGHT_ALT}|{'|'.join(CURRENCY_CODES)})?\.?$",
     re.IGNORECASE,
 )
 

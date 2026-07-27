@@ -555,3 +555,84 @@ def test_more_than_one_gapfill_call_is_flagged_as_a_regression() -> None:
 
 def test_single_gapfill_call_is_within_budget() -> None:
     assert DocumentTelemetry(document_ref="d", llm_calls=1).exceeded_call_budget is False
+
+
+# --------------------------------------------------------------------------- #
+# Found live: two-word labels ("Exporter Name", "Buyer Name") and a table
+# column heading colliding with the next row's line number.
+# --------------------------------------------------------------------------- #
+def test_two_word_label_does_not_leak_its_second_word_as_the_value() -> None:
+    """"Exporter Name" / "Buyer Name" must not extract as exporter="Name".
+
+    General fix, not a company-name fix: any "<role word> Name" label is
+    swallowed whole so the real value on the next line is read instead.
+    """
+    text = normalise_text(
+        "COMMERCIAL INVOICE\n"
+        "Exporter Name\n"
+        "Lahore Cotton Garments (Pvt.) Ltd.\n"
+        "Buyer Name\n"
+        "Shanghai Sample Trading Co., Ltd.\n"
+    )
+    exporter = extract_field("exporter_name", text)
+    buyer = extract_field("consignee_name", text)
+    assert exporter.value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert exporter.value != "Name"
+    assert buyer.value == "Shanghai Sample Trading Co., Ltd"
+    assert buyer.value != "Name"
+
+
+def test_plain_single_word_label_still_extracts_correctly() -> None:
+    """The continuation-word fix must not disturb the common one-word form."""
+    text = normalise_text(
+        "Exporter\nLahore Cotton Garments (Pvt.) Ltd.\nBuyer\nSample Buyer Co.\n"
+    )
+    assert extract_field("exporter_name", text).value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert extract_field("consignee_name", text).value == "Sample Buyer Co"
+
+
+def test_weight_field_rejects_a_bare_row_number_next_to_the_label() -> None:
+    """A "Gross Weight" table-column heading sits right above the item row's
+    line number ("1"); that bare 1-2 digit integer must not be accepted as a
+    weight, while the real "Declared Gross Weight Total\\n80.00 KG" value
+    elsewhere on the page still resolves cleanly."""
+    text = normalise_text(
+        "PACKING LIST\n"
+        "Net Weight\n"
+        "Gross Weight\n"
+        "1\n"
+        "Cotton knitted T-shirts\n"
+        "Declared Net Weight Total\n"
+        "75.00 KG\n"
+        "Declared Gross Weight Total\n"
+        "80.00 KG\n"
+    )
+    gross = extract_field("gross_weight", text)
+    net = extract_field("net_weight", text)
+    assert gross.value == "80.00"
+    assert net.value == "75.00"
+
+
+def test_weight_field_still_accepts_a_unit_suffixed_whole_number() -> None:
+    """A legitimately unit-suffixed whole-number weight (no decimal) is not
+    collateral damage from the bare-row-number fix."""
+    text = normalise_text("Declared Net Weight Total\n1000 KG\n")
+    assert extract_field("net_weight", text).value == "1000"
+
+
+def test_trailing_currency_code_is_accepted_same_as_a_leading_one() -> None:
+    """"550.00 USD" must resolve the same as "USD 550.00".
+
+    Found live: the invoice printed "Invoice Total\\n550.00 USD" (currency
+    after the amount); only a leading currency was accepted, so a value that
+    was plainly on the page stayed unresolved and forced a needless manual
+    review on an otherwise-clean shipment.
+    """
+    trailing = extract_field(
+        "total_invoice_value", normalise_text("Invoice Total\n550.00 USD\n")
+    )
+    leading = extract_field(
+        "total_invoice_value", normalise_text("Invoice Total\nUSD 550.00\n")
+    )
+    assert trailing.value == "550.00"
+    assert leading.value == "550.00"
