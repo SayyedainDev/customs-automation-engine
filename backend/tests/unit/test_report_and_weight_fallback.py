@@ -101,7 +101,7 @@ def _invoice(items, *, net_total="75.00", gross_total="80.00"):
     )
 
 
-def _packing_item(*, net="75.00", gross="80.00", index: int = 1):
+def _packing_item(*, net="75.00", gross="80.00", packages=5, index: int = 1):
     return PackingListItem(
         item_index=index,
         line_number=_field(1),
@@ -111,22 +111,25 @@ def _packing_item(*, net="75.00", gross="80.00", index: int = 1):
         unit=_field("PCS"),
         net_weight=_field(Decimal(net)) if net is not None else _missing_field(),
         gross_weight=_field(Decimal(gross)) if gross is not None else _missing_field(),
-        package_count=_field(5),
+        package_count=_field(packages) if packages is not None else _missing_field(),
         item_source_page=1,
         item_confidence=Decimal("0.9"),
         item_validation_status=(
             FieldValidationStatus.VERIFIED
-            if net is not None and gross is not None
+            if net is not None and gross is not None and packages is not None
             else FieldValidationStatus.MANUAL_REVIEW
         ),
         item_note="",
     )
 
 
-def _packing(items, *, net_total="75.00", gross_total="80.00"):
+def _packing(items, *, net_total="75.00", gross_total="80.00", packages_total=None):
     return MultiLinePackingListExtraction(
         declared_net_weight_total=_field(Decimal(net_total)) if net_total else _missing_field(),
         declared_gross_weight_total=_field(Decimal(gross_total)) if gross_total else _missing_field(),
+        declared_package_count_total=(
+            _field(packages_total) if packages_total is not None else _missing_field()
+        ),
         items=items,
     )
 
@@ -230,13 +233,18 @@ def test_7b_single_line_packing_list_uses_document_weight_totals():
     single-line shipment landed in manual_review purely because the packing
     list repeated a weight already stated elsewhere on its own page."""
     packing = _apply_single_line_declared_weight_fallback_to_packing_list(
-        _packing([_packing_item(net=None, gross=None)])
+        _packing(
+            [_packing_item(net=None, gross=None, packages=None)],
+            packages_total=5,
+        )
     )
     item = packing.items[0]
     assert item.net_weight.value == Decimal("75.00")
     assert item.gross_weight.value == Decimal("80.00")
+    assert item.package_count.value == 5
     assert item.net_weight.derivation_method == "single_line_declared_total"
     assert item.net_weight.original_field_location == "packing_list_header_or_total"
+    assert item.package_count.derivation_method == "single_line_declared_total"
     assert item.item_validation_status == FieldValidationStatus.VERIFIED
     # The document-level total is preserved unchanged.
     assert packing.declared_net_weight_total.value == Decimal("75.00")

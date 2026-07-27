@@ -79,6 +79,7 @@ class PackingHeaderCandidates(BaseModel):
 
     declared_net_weight_total: CandidateField[Decimal]
     declared_gross_weight_total: CandidateField[Decimal]
+    declared_package_count_total: CandidateField[int]
 
 
 class DiscoveredLine(BaseModel):

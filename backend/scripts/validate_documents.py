@@ -163,6 +163,7 @@ def _packing(items: list[PackingListItemCandidate]) -> MultiLinePackingListCandi
     return MultiLinePackingListCandidates(
         declared_net_weight_total=_blank_header("No declared net-weight total."),
         declared_gross_weight_total=_blank_header("No declared gross-weight total."),
+        declared_package_count_total=_blank_header("No declared package-count total."),
         items=items,
     )
 

@@ -201,6 +201,7 @@ def packing_candidates(
     items: list[dict],
     declared_net=None,
     declared_gross=None,
+    declared_packages=None,
 ) -> MultiLinePackingListCandidates:
     return MultiLinePackingListCandidates(
         declared_net_weight_total=(
@@ -212,6 +213,11 @@ def packing_candidates(
             field(Decimal(declared_gross))
             if declared_gross is not None
             else missing_field("No declared gross-weight total printed.")
+        ),
+        declared_package_count_total=(
+            field(declared_packages)
+            if declared_packages is not None
+            else missing_field("No declared package-count total printed.")
         ),
         items=[PackingListItemCandidate.model_validate(i) for i in items],
     )

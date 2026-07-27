@@ -507,6 +507,13 @@ _SINGLE_LINE_WEIGHT_FALLBACK = (
     ("gross_weight", "declared_gross_weight_total"),
 )
 
+#: The packing list additionally carries a package count the invoice schema
+#: has no equivalent field for, so it gets its own, longer pair list rather
+#: than extending the shared one and breaking the invoice fallback.
+_PACKING_SINGLE_LINE_FALLBACK = _SINGLE_LINE_WEIGHT_FALLBACK + (
+    ("package_count", "declared_package_count_total"),
+)
+
 
 _ExtractionModelT = TypeVar(
     "_ExtractionModelT",
@@ -521,6 +528,7 @@ def _apply_single_line_declared_weight_fallback_generic(
     items_field: str,
     item_value_fields: tuple[str, ...],
     document_location: str,
+    fallback_pairs: tuple[tuple[str, str], ...] = _SINGLE_LINE_WEIGHT_FALLBACK,
 ) -> _ExtractionModelT:
     """Map a verified document-level weight total onto the one line item.
 
@@ -544,7 +552,7 @@ def _apply_single_line_declared_weight_fallback_generic(
 
     item = items[0]
     updates: dict[str, ExtractedField] = {}
-    for field_name, total_name in _SINGLE_LINE_WEIGHT_FALLBACK:
+    for field_name, total_name in fallback_pairs:
         line_field: ExtractedField = getattr(item, field_name)
         total_field: ExtractedField = getattr(extraction, total_name)
         if line_field.value is None and total_field.value is not None:
@@ -560,7 +568,7 @@ def _apply_single_line_declared_weight_fallback_generic(
                     "validation_note": (
                         f"Derived from the document-level declared {readable} "
                         f"total of {total_field.value} because this single-line "
-                        "document did not repeat the weight on the product line."
+                        f"document did not repeat the {readable} on the product line."
                     ),
                     "derivation_method": "single_line_declared_total",
                     "original_field_location": document_location,
@@ -606,6 +614,7 @@ def _apply_single_line_declared_weight_fallback_to_packing_list(
         items_field="items",
         item_value_fields=_PACKING_ITEM_VALUE_FIELDS,
         document_location="packing_list_header_or_total",
+        fallback_pairs=_PACKING_SINGLE_LINE_FALLBACK,
     )
 
 

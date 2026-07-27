@@ -70,12 +70,17 @@ _LINE_FIELD_MAP: dict[str, str] = {
 }
 
 #: hybrid field name -> packing-list header schema field name. Packing lists
-#: only ever declare weight totals, never a price, so this map is deliberately
-#: smaller than the invoice one.
+#: only ever declare weight and package-count totals, never a price, so this
+#: map is deliberately smaller than the invoice one.
 _PACKING_HEADER_FIELD_MAP: dict[str, str] = {
     "net_weight": "declared_net_weight_total",
     "gross_weight": "declared_gross_weight_total",
+    "number_of_packages": "declared_package_count_total",
 }
+
+#: Packing-list header fields that are a whole count, not a decimal amount -
+#: everything else in _PACKING_HEADER_FIELD_MAP coerces through _decimal.
+_PACKING_HEADER_INT_FIELDS: frozenset[str] = frozenset({"declared_package_count_total"})
 
 #: hybrid line-item field name -> packing-list item schema field name. A
 #: packing-list table has no price column; per-item net_weight/gross_weight/
@@ -93,6 +98,13 @@ _PACKING_LINE_FIELD_MAP: dict[str, str] = {
 def _decimal(raw: Any) -> Decimal | None:
     try:
         return Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _int(raw: Any) -> int | None:
+    try:
+        return int(Decimal(str(raw)))
     except (InvalidOperation, TypeError, ValueError):
         return None
 
@@ -298,7 +310,9 @@ def to_packing_candidates(
             )
             continue
         payload[schema_field] = _candidate(
-            extraction.fields.get(source), page=page, coerce=_decimal
+            extraction.fields.get(source),
+            page=page,
+            coerce=_int if schema_field in _PACKING_HEADER_INT_FIELDS else _decimal,
         )
 
     items: list[dict[str, Any]] = []

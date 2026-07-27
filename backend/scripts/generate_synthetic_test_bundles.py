@@ -764,6 +764,9 @@ def build_packing_extraction(
         declared_gross_weight_total=_field(
             scenario.packing_gross_weight_total(), doc_id=packing_doc_id
         ),
+        declared_package_count_total=_field(
+            sum(item.package_count for item in scenario.items), doc_id=packing_doc_id
+        ),
         items=items,
     )
 

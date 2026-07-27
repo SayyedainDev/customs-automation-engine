@@ -31,6 +31,7 @@ const invoiceFields = [
 const packingFields = [
   ["declared_net_weight_total", "Packing-list net weight"],
   ["declared_gross_weight_total", "Packing-list gross weight"],
+  ["declared_package_count_total", "Packing-list total packages"],
 ] as const;
 
 function extractedField(

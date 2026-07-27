@@ -105,6 +105,7 @@ class _Provider:
                 payload = {
                     "declared_net_weight_total": _cf(75.00),
                     "declared_gross_weight_total": _cf(80.00),
+                    "declared_package_count_total": _cf(5),
                 }
             return response_model.model_validate(payload)
         if response_model is LineDiscovery:

@@ -86,6 +86,10 @@ class MultiLinePackingListCandidates(BaseModel):
 
     declared_net_weight_total: CandidateField[Decimal]
     declared_gross_weight_total: CandidateField[Decimal]
+    #: The document's own "Total Packages" line, when printed. Lets a
+    #: single-line packing list derive its one item's package count the same
+    #: principled way it already derives net/gross weight.
+    declared_package_count_total: CandidateField[int]
     items: list[PackingListItemCandidate]
 
 
@@ -143,6 +147,7 @@ class PackingListItem(BaseModel):
 class MultiLinePackingListExtraction(BaseModel):
     declared_net_weight_total: ExtractedField[Decimal]
     declared_gross_weight_total: ExtractedField[Decimal]
+    declared_package_count_total: ExtractedField[int]
     items: list[PackingListItem]
 
 
