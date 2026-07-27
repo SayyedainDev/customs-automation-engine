@@ -352,6 +352,34 @@ def test_wide_cell_is_not_split_into_the_previous_column() -> None:
     assert items[0]["description"].value == "Raw cotton, other"
 
 
+def test_totals_block_below_the_table_is_not_read_as_more_line_items() -> None:
+    """Found live: a single-product invoice was read as five line items.
+
+    The document's own "Invoice Total / Declared Net Weight / Declared Gross
+    Weight / Packages" summary block sat directly under the item table, using
+    the same column x-positions (its labels landed in the "Product
+    Description" column, a number in "Quantity" or "Line Total"). Table
+    reconstruction has no signal for where the table ends, so it kept
+    reading: each summary row passed the "has a description and a number"
+    test and became a fabricated extra product line."""
+    page = _invoice_table_words()[0]
+    totals_rows = [
+        _word(74, 139, 145, "Invoice Total"),
+        _word(422, 455, 145, "2000.00"),
+        _word(74, 139, 165, "Declared Net Weight"),
+        _word(285, 313, 165, "1000.00"),
+        _word(74, 139, 185, "Declared Gross Weight"),
+        _word(285, 313, 185, "1025.00"),
+        _word(74, 139, 205, "Packages"),
+        _word(285, 313, 205, "20"),
+        _word(74, 139, 225, "Country of Origin"),
+        _word(285, 313, 225, "Pakistan"),
+    ]
+    items = reconstruct_line_items([page + totals_rows])
+    assert len(items) == 1
+    assert items[0]["description"].value == "Cotton knitted T-shirts"
+
+
 def test_a_document_with_no_table_yields_no_invented_items() -> None:
     assert reconstruct_line_items([[_word(50, 100, 10, "Just prose text here")]]) == []
 

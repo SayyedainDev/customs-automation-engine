@@ -267,6 +267,31 @@ _HEADER_PHRASES: tuple[tuple[str, str | None], ...] = (
     ("no", None),
 )
 
+#: A row whose description-column text starts with one of these marks the end
+#: of the item table, not another product line. Found live: an invoice's
+#: "Invoice Total / Declared Net Weight / Declared Gross Weight / Packages"
+#: summary block sat directly under the item table using the same column
+#: positions, so a genuine single-product invoice was read as five line
+#: items - the real product plus four fabricated ones built from its own
+#: totals. Table reconstruction has no other signal for where the table
+#: ends, so this vocabulary is checked explicitly (same reasoning as
+#: _HEADER_PHRASES's unmodelled columns: naming it is what stops it being
+#: silently misread as data).
+_TABLE_END_MARKERS: tuple[str, ...] = (
+    "total",
+    "grand total",
+    "sub total",
+    "subtotal",
+    "invoice total",
+    "amount total",
+    "declared",
+    "packages",
+    "country of origin",
+    "shipping mark",
+    "test note",
+    "declaration",
+)
+
 _MAX_PHRASE_WORDS = max(len(phrase.split()) for phrase, _ in _HEADER_PHRASES)
 
 #: Vertical tolerance, in points, for treating words as being on the same row.
@@ -440,6 +465,12 @@ def reconstruct_line_items(page_words: list[list[tuple]]) -> list[dict[str, Fiel
                 # to the nearest modelled one.
                 if assigned is not None and assigned.field_name is not None:
                     cells[assigned.field_name].append(word[4])
+
+            description_text = " ".join(cells.get("description") or []).strip()
+            if description_text.casefold().startswith(_TABLE_END_MARKERS):
+                # The item table has ended; nothing below this row on the
+                # page is another product line.
+                break
 
             if not cells.get("description") or not any(
                 cells.get(name) for name in ("quantity", "line_total", "unit_price")
