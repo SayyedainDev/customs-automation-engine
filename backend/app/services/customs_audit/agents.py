@@ -567,11 +567,17 @@ def _norm(value: Any) -> str | None:
 
     Deliberately not imported: the Auditor's job is to disagree when the
     verifier is wrong, which it cannot do if it shares the verifier's code path
-    for the comparison itself.
+    for the comparison itself. A trailing abbreviation period ("...Ltd." vs
+    "...Ltd") is stripped independently here for the same reason it is in the
+    verifier's own normalizer: two extractions of the same company name
+    printed with an inconsistent abbreviation period are not a disagreement
+    worth raising to a human.
     """
     if value is None:
         return None
     text = " ".join(str(value).split()).casefold()
+    if text.endswith("."):
+        text = text[:-1]
     return text or None
 
 

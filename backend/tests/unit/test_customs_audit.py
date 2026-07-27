@@ -1610,3 +1610,45 @@ def test_66_not_applicable_checks_never_get_evidence_gathered(
     assert "product_licence_requirement" not in report["regulatory_evidence_by_check"]
     assert "product_licence_requirement" not in report["document_evidence_by_check"]
     assert not any("licence" in q.lower() or "licensing" in q.lower() for q in queries)
+
+
+def test_67_auditor_does_not_challenge_a_trailing_abbreviation_period() -> None:
+    """Found live: the deterministic verifier's exporter comparator was fixed
+    for "...Ltd." vs "...Ltd", but the Auditor's independent re-check (agents.py
+    ``_norm``, deliberately a separate implementation - see its docstring) had
+    the identical gap. A passing shipment with verified supporting documents
+    was landing in human review purely because the Auditor's own comparison
+    disagreed with the verifier over one punctuation character."""
+    extraction = make_extraction([line(status="passed")], "passed")
+    extraction["invoice"]["exporter_name"] = fld("Lahore Cotton Garments (Pvt.) Ltd")
+    extraction["supporting_documents"] = [
+        {
+            "claimed_document_type": "certificate_of_origin",
+            "canonical_document_type": "certificate_of_origin",
+            "document_id": str(uuid4()),
+            "uploaded": True,
+            "state": "shipment_matched",
+            "detected_document_type": "CERTIFICATE OF ORIGIN",
+            "document_number": "COO-001",
+            "source_page": 1,
+            "extraction_confidence": "1",
+            "ocr_confidence": None,
+            "content_status": "passed",
+            "authenticity_status": "not_externally_verified",
+            "checks": [],
+            "extraction": _supporting_extraction_fields(
+                detected_document_type="CERTIFICATE OF ORIGIN",
+                document_number="COO-001",
+                exporter_or_applicant="Lahore Cotton Garments (Pvt.) Ltd.",
+                destination_country="China",
+                issuing_authority="Lahore Chamber of Commerce and Industry",
+            ),
+        }
+    ]
+
+    audit = audit_supporting_documents(extraction)
+
+    assert audit["challenged_supporting_documents"] == []
+    assert not any(
+        "exporter" in finding.lower() for finding in audit["field_mismatches"]
+    )
