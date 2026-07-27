@@ -1,8 +1,10 @@
 import {
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
   Clock3,
   FileSearch,
+  FileText,
   UserCheck,
   Workflow,
   XCircle,
@@ -132,6 +134,111 @@ function ExplanationBody({ text }: { text: string }) {
   );
 }
 
+function evidenceStatusCopy(status: unknown): { label: string; tone: string } {
+  switch (String(status)) {
+    case "supported":
+      return { label: "Evidence found", tone: "success" };
+    case "uncertain":
+      return { label: "Evidence conflicting", tone: "warning" };
+    default:
+      return { label: "No evidence found", tone: "neutral" };
+  }
+}
+
+/**
+ * One regulatory requirement with its retrieved citations, shown regardless
+ * of whether the requirement passed or failed - a passed requirement is
+ * backed by the same kind of citation as a failed one, and a requirement
+ * with no retrievable evidence says so plainly instead of showing nothing.
+ */
+function RegulatoryEvidenceCard({
+  entry,
+}: {
+  entry: Record<string, unknown>;
+}) {
+  const citations = asList(entry.citations)
+    .map(asRecord)
+    .filter((citation): citation is Record<string, unknown> => citation !== null);
+  const evidenceStatus = evidenceStatusCopy(entry.evidence_status);
+  const checkStatus = String(entry.status ?? "");
+
+  return (
+    <details className="evidence-card">
+      <summary>
+        <span className="evidence-card__requirement">
+          {displayValue(entry.requirement)}
+        </span>
+        <span className={`status-chip status-chip--${checkStatus.toLowerCase()}`}>
+          {checkStatus}
+        </span>
+        <span className={`evidence-chip evidence-chip--${evidenceStatus.tone}`}>
+          {evidenceStatus.label}
+        </span>
+      </summary>
+      {citations.length ? (
+        <ul className="citation-list">
+          {citations.map((citation, index) => (
+            <li key={index} className="citation-card">
+              <div className="citation-card__head">
+                <BookOpen aria-hidden="true" size={14} />
+                <strong>{displayValue(citation.source_title)}</strong>
+                {citation.page_number ? (
+                  <span className="muted">page {displayValue(citation.page_number)}</span>
+                ) : null}
+              </div>
+              {citation.section ? (
+                <p className="citation-card__section">{displayValue(citation.section)}</p>
+              ) : null}
+              {citation.snippet ? (
+                <p className="citation-card__snippet">“{displayValue(citation.snippet)}”</p>
+              ) : null}
+              <div className="citation-card__scores">
+                {citation.retrieval_score !== undefined && citation.retrieval_score !== null ? (
+                  <span>retrieval {Number(citation.retrieval_score).toFixed(3)}</span>
+                ) : null}
+                {citation.rerank_score !== undefined && citation.rerank_score !== null ? (
+                  <span>rerank {Number(citation.rerank_score).toFixed(3)}</span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="evidence-empty">
+          The regulatory search found no supporting citation for this requirement.
+          Nothing was invented to fill the gap.
+        </p>
+      )}
+    </details>
+  );
+}
+
+function DocumentEvidenceRow({ entry }: { entry: Record<string, unknown> }) {
+  const values = asList(entry.evidence)
+    .map(asRecord)
+    .filter((value): value is Record<string, unknown> => value !== null);
+  return (
+    <li className="document-evidence-row">
+      <div className="document-evidence-row__head">
+        <FileText aria-hidden="true" size={14} />
+        <strong>{displayValue(entry.check_name)}</strong>
+        <span className={`status-chip status-chip--${String(entry.status ?? "").toLowerCase()}`}>
+          {displayValue(entry.status)}
+        </span>
+      </div>
+      <div className="document-evidence-row__values">
+        {values.map((value, index) => (
+          <span key={index} className="document-evidence-value">
+            {displayValue(value.document_type)}
+            {value.page_number ? ` p.${displayValue(value.page_number)}` : ""}:{" "}
+            <strong>{displayValue(value.extracted_value)}</strong>
+          </span>
+        ))}
+      </div>
+    </li>
+  );
+}
+
 function auditDecision(status: unknown): {
   title: string;
   tone: "success" | "warning" | "danger" | "info";
@@ -175,6 +282,12 @@ function Report({
   const requiredActions = uniqueText(asList(report.required_actions));
   const workflowSummary = uniqueText(asList(report.workflow_summary));
   const documentsToObtain = asList(report.documents_to_obtain)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const regulatoryEvidence = asList(report.regulatory_evidence)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const documentEvidence = asList(report.document_evidence)
     .map(asRecord)
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   const uploadedResult = String(report.uploaded_document_result ?? "");
@@ -334,6 +447,38 @@ function Report({
                   <p>{displayValue(value)}</p>
                 </div>
               </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {regulatoryEvidence.length ? (
+        <section className="report-section">
+          <h3>Regulatory evidence</h3>
+          <p className="section-intro">
+            Every requirement the rule engine cited a government source for,
+            passed or failed alike, with the citation retrieval actually
+            found. Expand a requirement to see its source, page, and matching
+            passage.
+          </p>
+          <div className="evidence-card-list">
+            {regulatoryEvidence.map((entry, index) => (
+              <RegulatoryEvidenceCard key={index} entry={entry} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {documentEvidence.length ? (
+        <section className="report-section">
+          <h3>Document evidence</h3>
+          <p className="section-intro">
+            The exact invoice and packing-list values each comparison check
+            was decided on.
+          </p>
+          <ul className="document-evidence-list">
+            {documentEvidence.map((entry, index) => (
+              <DocumentEvidenceRow key={index} entry={entry} />
             ))}
           </ul>
         </section>

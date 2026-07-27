@@ -27,6 +27,12 @@ from app.core.exceptions import (
 from app.schemas.multi_line_extraction import MultiLineShipmentRequest
 from app.services.customs_audit.consensus import compute_consensus
 from app.services.customs_audit.deps import WorkflowDeps
+from app.services.customs_audit.evidence import (
+    document_evidence_for_check,
+    evidence_status_for_regulatory,
+    is_regulatory_check,
+    normalize_regulatory_evidence,
+)
 from app.services.customs_audit.explanation import generate_explanation_entry
 from app.services.customs_audit.query import query_for_check
 from app.services.customs_audit.safety import (
@@ -257,27 +263,50 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         deterministic_status = str(extraction_result.get("overall_status"))
         broker = BrokerReport.model_validate(state.get("broker_report") or {})
 
-        # Gather evidence for failed / manual_review government checks.
-        evidence_by_check: dict[str, list[dict[str, Any]]] = {}
-        all_evidence: list[dict[str, Any]] = []
-        checks = list(extraction_result.get("shipment_level_checks", []))
+        # Gather evidence for every check the deterministic engine produced -
+        # passed, failed, and manual_review alike. Regulatory checks (ones
+        # citing a government source/SRO) are backed by a live RAG retrieval
+        # regardless of status, so "a certificate of origin is not required
+        # here" is cited exactly like "it is required"; missing/failed
+        # document-comparison checks (quantity, weight, PCT match) are backed
+        # by the extracted values themselves - never a retrieval, because
+        # there is nothing to retrieve for a fact already read off the
+        # uploaded documents.
+        checks_with_context: list[tuple[dict[str, Any], str | None]] = [
+            (check, None) for check in extraction_result.get("shipment_level_checks", [])
+        ]
         for item in extraction_result.get("items", []):
+            reference = item.get("item_reference")
             for check in (item.get("compliance") or {}).get("checks", []):
-                checks.append(check)
-            checks.extend(item.get("item_checks", []))
+                checks_with_context.append((check, reference))
+            for check in item.get("item_checks", []):
+                checks_with_context.append((check, reference))
+
+        evidence_by_check: dict[str, list[dict[str, Any]]] = {}
+        regulatory_evidence_by_check: dict[str, list[dict[str, Any]]] = {}
+        regulatory_evidence_status_by_check: dict[str, str] = {}
+        document_evidence_by_check: dict[str, list[dict[str, Any]]] = {}
+        all_evidence: list[dict[str, Any]] = []
         with deps.session_factory() as db:
-            for check in checks:
-                if check.get("status") not in {"failed", "manual_review"}:
-                    continue
-                if not check.get("source_document") and not check.get("sro_number"):
-                    continue
+            for check, item_reference in checks_with_context:
                 check_id = str(check.get("check_id"))
-                if check_id in evidence_by_check:
-                    continue
-                query = query_for_check(check, extraction_result)
-                evidence = deps.evidence_provider(db, check.get("pct_code"), query)
-                evidence_by_check[check_id] = evidence
-                all_evidence.extend(evidence)
+                if is_regulatory_check(check):
+                    if check_id in evidence_by_check:
+                        continue
+                    query = query_for_check(check, extraction_result)
+                    raw_evidence = deps.evidence_provider(db, check.get("pct_code"), query)
+                    evidence_by_check[check_id] = raw_evidence
+                    regulatory_evidence_by_check[check_id] = normalize_regulatory_evidence(
+                        raw_evidence
+                    )
+                    regulatory_evidence_status_by_check[check_id] = (
+                        evidence_status_for_regulatory(raw_evidence)
+                    )
+                    all_evidence.extend(raw_evidence)
+                elif check_id not in document_evidence_by_check:
+                    document_evidence_by_check[check_id] = document_evidence_for_check(
+                        check, extraction_result, item_reference=item_reference
+                    )
 
         try:
             report = deps.auditor_agent.build_report(
@@ -322,6 +351,9 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         return {
             "auditor_report": report.model_dump(mode="json"),
             "retrieved_evidence": all_evidence,
+            "regulatory_evidence_by_check": regulatory_evidence_by_check,
+            "regulatory_evidence_status_by_check": regulatory_evidence_status_by_check,
+            "document_evidence_by_check": document_evidence_by_check,
             "critical_anomalies": _append(
                 state, "critical_anomalies", ["auditor_output_violation"] if violations else []
             ),
@@ -513,6 +545,11 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "original_deterministic_status": (original or {}).get("overall_status"),
             "individual_compliance_checks_label": "deterministic_check",
             "retrieved_legal_evidence": state.get("retrieved_evidence", []),
+            "regulatory_evidence_by_check": state.get("regulatory_evidence_by_check", {}),
+            "regulatory_evidence_status_by_check": state.get(
+                "regulatory_evidence_status_by_check", {}
+            ),
+            "document_evidence_by_check": state.get("document_evidence_by_check", {}),
             "explanation_results": state.get("explanation_results", []),
             "human_decisions": state.get("human_correction_history", []),
             "human_review_decision": state.get("human_review_decision"),

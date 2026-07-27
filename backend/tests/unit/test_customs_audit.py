@@ -1429,3 +1429,150 @@ def test_55_rejected_workflow_gets_template_only_no_narrator_call(
     assert resumed["final_report"]["explanation_source"] == "template_fallback"
     assert "ended without a deterministic compliance verdict" in resumed["final_report"]["explanation"]
     assert calls == []
+
+
+# --------------------------------------------------------------------------- #
+# Tests 60+: evidence gathering runs for every check, not only failed ones.
+# --------------------------------------------------------------------------- #
+def test_60_rag_evidence_is_retrieved_for_a_passed_regulatory_check(
+    isolated_database: Engine,
+) -> None:
+    """The literal bug being fixed: retrieval used to be skipped entirely for
+    a check that passed. A passing "Form-E is present" finding must be able to
+    cite the same source a failing one would - the citation explains the
+    rule, not the verdict."""
+    queries = []
+
+    def recording_evidence(db, pct, query):
+        queries.append(query)
+        return [
+            {
+                "source_document": "TIPP Customs Clearance Procedure",
+                "sro_number": None,
+                "page_number": 4,
+                "section": "Export documentation",
+                "validation_status": "verified",
+                "evidence_text": "A Form-E declaration is required for every export shipment.",
+                "retrieval_score": 0.81,
+                "rerank_score": 0.93,
+            }
+        ]
+
+    svc = make_service(
+        isolated_database, passed_extraction(), evidence_fn=recording_evidence
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+
+    assert result["deterministic_status"] == "passed"
+    assert queries, "RAG must be queried even though every check passed"
+    assert report["regulatory_evidence_status_by_check"]["required_document_form_e"] == "supported"
+    citation = report["regulatory_evidence_by_check"]["required_document_form_e"][0]
+    assert citation["source_title"] == "TIPP Customs Clearance Procedure"
+    assert citation["retrieval_score"] == 0.81
+    assert citation["rerank_score"] == 0.93
+
+
+def test_61_document_comparison_checks_use_extracted_values_not_retrieval(
+    isolated_database: Engine,
+) -> None:
+    """A quantity mismatch is a fact already read off the two uploaded
+    documents; it must never trigger a RAG lookup, and its evidence must come
+    from the extracted field values."""
+    calls = []
+
+    def failing_if_called(db, pct, query):
+        calls.append(query)
+        return []
+
+    svc = make_service(
+        isolated_database, mismatch_extraction(), evidence_fn=failing_if_called
+    )
+    started = start(svc, isolated_database)
+    resumed = review(svc, isolated_database, started["workflow_id"], accept_decision())
+    report = resumed["final_report"]
+
+    document_evidence = report["document_evidence_by_check"].get("item_quantity_match")
+    assert document_evidence, "a document-comparison check must carry document evidence"
+    assert document_evidence[0]["document_type"] == "Commercial invoice"
+    assert document_evidence[0]["extracted_value"] == "100"
+    assert "item_quantity_match" not in report["regulatory_evidence_by_check"]
+
+
+def test_62_no_reliable_evidence_is_reported_honestly_not_fabricated(
+    isolated_database: Engine,
+) -> None:
+    """When retrieval finds nothing, the finding says so - it never invents a
+    citation to fill the gap, and the deterministic verdict is untouched."""
+    svc = make_service(
+        isolated_database, passed_extraction(), evidence_fn=lambda db, pct, q: []
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+
+    assert result["deterministic_status"] == "passed"
+    assert (
+        report["regulatory_evidence_status_by_check"]["required_document_form_e"]
+        == "unavailable"
+    )
+    assert report["regulatory_evidence_by_check"]["required_document_form_e"] == []
+
+
+def test_63_conflicting_evidence_is_marked_uncertain_not_silently_accepted(
+    isolated_database: Engine,
+) -> None:
+    svc = make_service(
+        isolated_database,
+        passed_extraction(),
+        evidence_fn=lambda db, pct, q: [
+            {
+                "source_document": "TIPP Customs Clearance Procedure",
+                "sro_number": None,
+                "page_number": 4,
+                "validation_status": "conflicting",
+                "evidence_text": "Two SROs disagree on this requirement.",
+            }
+        ],
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert (
+        report["regulatory_evidence_status_by_check"]["required_document_form_e"]
+        == "uncertain"
+    )
+    # Uncertain evidence on an already-passed check still does not change the
+    # deterministic verdict - only human review routing can be affected, and
+    # only through the existing failed/manual_review evidence pathway.
+    assert result["deterministic_status"] == "passed"
+
+
+def test_64_auditor_agent_still_cannot_override_status_with_full_evidence_coverage(
+    isolated_database: Engine,
+) -> None:
+    """Regression guard for the refactor: gathering evidence for every check
+    (not just failed ones) must not open a new path for an agent to move the
+    verdict. Reuses the existing LyingAuditor fixture against a failed
+    shipment that now also has passed-check regulatory evidence attached."""
+    svc = make_service(
+        isolated_database,
+        mismatch_extraction(),
+        auditor=LyingAuditor(),
+        evidence_fn=lambda db, pct, q: [
+            {"source_document": "TIPP", "validation_status": "verified", "evidence_text": "x"}
+        ],
+    )
+    started = start(svc, isolated_database)
+    assert started["deterministic_status"] == "failed"
+    resumed = review(svc, isolated_database, started["workflow_id"], accept_decision())
+    assert resumed["final_report"]["deterministic_compliance_status"] == "failed"
+
+
+def test_65_evidence_maps_are_present_on_a_technical_failure_without_crashing(
+    isolated_database: Engine,
+) -> None:
+    """The new state keys must default cleanly when extraction never ran."""
+    svc = make_service(isolated_database, {})
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert report["regulatory_evidence_by_check"] == {}
+    assert report["document_evidence_by_check"] == {}

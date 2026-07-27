@@ -57,6 +57,14 @@ def default_run_pipeline(db: Session, request: MultiLineShipmentRequest) -> dict
 def default_evidence_provider(
     db: Session, pct_code: str | None, query: str
 ) -> list[dict[str, Any]]:
+    """Run the real hybrid RAG pipeline and return citation-ready evidence.
+
+    Called for a check regardless of its deterministic status (passed,
+    failed, or manual_review) - the caller decides what to do with an empty
+    result (``search_regulatory_evidence`` already returns ``[]`` when nothing
+    clears the deterministic relevance floor); this function never invents a
+    citation to fill that gap.
+    """
     from app.services.regulatory.retrieval import search_regulatory_evidence
 
     output = search_regulatory_evidence(
@@ -65,10 +73,15 @@ def default_evidence_provider(
     return [
         {
             "source_document": item.chunk.source_document,
+            "source_document_id": item.chunk.document_checksum,
+            "source_url": item.chunk.source_url,
             "sro_number": item.chunk.sro_number,
             "page_number": item.chunk.page_number,
+            "section": item.chunk.section,
             "validation_status": item.chunk.validation_status,
             "evidence_text": item.parent.text,
+            "retrieval_score": item.rrf_score,
+            "rerank_score": item.cross_encoder_score,
         }
         for item in output.results
     ]

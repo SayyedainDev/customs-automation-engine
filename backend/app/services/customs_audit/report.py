@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.customs_audit.state import utcnow_iso
 from app.services.compliance.document_requirements import (
     collect_outstanding_documents,
     is_outstanding_document_check,
@@ -454,6 +455,100 @@ def _documents_to_obtain(checks: list[dict]) -> list[dict[str, Any]]:
     ]
 
 
+_STATUS_LABELS = {"passed": "PASSED", "failed": "FAILED", "manual_review": "MANUAL REVIEW", "not_applicable": "NOT APPLICABLE"}
+
+
+def _unique_checks_by_id(checks: list[dict]) -> list[dict]:
+    """First-seen check per check_id, in encounter order.
+
+    Several rule layers can each emit a check under the same id (see the
+    document-checklist consolidation above); the evidence tables need exactly
+    one row per id, matching how evidence was gathered upstream.
+    """
+    seen: dict[str, dict] = {}
+    for check in checks:
+        check_id = str(check.get("check_id") or "")
+        if check_id and check_id not in seen:
+            seen[check_id] = check
+    return list(seen.values())
+
+
+def _regulatory_evidence_rows(
+    checks: list[dict],
+    evidence_by_check: dict[str, list[dict[str, Any]]],
+    status_by_check: dict[str, str],
+) -> list[dict[str, Any]]:
+    """One row per regulatory check, citing what retrieval actually found.
+
+    A check absent from ``evidence_by_check`` was never a regulatory check
+    (see ``is_regulatory_check``) and is skipped here - it belongs in
+    ``document_evidence`` instead. A check present with an empty list is
+    reported as ``evidence_unavailable``, never a fabricated citation.
+    """
+    rows: list[dict[str, Any]] = []
+    for check in _unique_checks_by_id(checks):
+        check_id = str(check.get("check_id") or "")
+        if check_id not in evidence_by_check and check_id not in status_by_check:
+            continue
+        citations = evidence_by_check.get(check_id, [])
+        rows.append(
+            {
+                "check_id": check_id,
+                "requirement": check.get("check_name") or check_id.replace("_", " "),
+                "status": _STATUS_LABELS.get(check.get("status"), str(check.get("status"))),
+                "evidence_status": status_by_check.get(check_id, "unavailable"),
+                "citations": citations,
+            }
+        )
+    return rows
+
+
+def _document_evidence_rows(
+    checks: list[dict], evidence_by_check: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    """One row per document-comparison check, citing the extracted values."""
+    rows: list[dict[str, Any]] = []
+    for check in _unique_checks_by_id(checks):
+        check_id = str(check.get("check_id") or "")
+        if check_id not in evidence_by_check:
+            continue
+        rows.append(
+            {
+                "check_id": check_id,
+                "check_name": check.get("check_name") or check_id.replace("_", " "),
+                "status": _STATUS_LABELS.get(check.get("status"), str(check.get("status"))),
+                "message": check.get("message"),
+                "evidence": evidence_by_check.get(check_id, []),
+            }
+        )
+    return rows
+
+
+def _executive_summary(all_checks: list[dict], result_label: str, reason: str) -> dict[str, Any]:
+    unique = _unique_checks_by_id(all_checks)
+    counts = {"passed": 0, "failed": 0, "manual_review": 0}
+    for check in unique:
+        status = check.get("status")
+        if status in counts:
+            counts[status] += 1
+    return {
+        "overall_status": result_label,
+        "passed_checks": counts["passed"],
+        "failed_checks": counts["failed"],
+        "manual_review_checks": counts["manual_review"],
+        "explanation": reason,
+    }
+
+
+def _audit_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "workflow_id": state.get("workflow_id"),
+        "generated_at": utcnow_iso(),
+        "rule_data_version": state.get("rule_data_version"),
+        "vector_index_version": state.get("vector_index_version"),
+    }
+
+
 def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     """Assemble the full, business-readable audit report dict from state."""
     extraction = state.get("extraction_result") or {}
@@ -521,9 +616,18 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
 
     final_report = state.get("final_report") or {}
     all_checks = [*cross_document, *compliance]
+    regulatory_evidence_by_check = state.get("regulatory_evidence_by_check") or {}
+    regulatory_evidence_status_by_check = state.get("regulatory_evidence_status_by_check") or {}
+    document_evidence_by_check = state.get("document_evidence_by_check") or {}
     return {
         "overall_result": result_label,
         "overall_reason": reason,
+        "executive_summary": _executive_summary(all_checks, result_label, reason),
+        "regulatory_evidence": _regulatory_evidence_rows(
+            all_checks, regulatory_evidence_by_check, regulatory_evidence_status_by_check
+        ),
+        "document_evidence": _document_evidence_rows(all_checks, document_evidence_by_check),
+        "audit_metadata": _audit_metadata(state),
         # The two questions kept apart: were the uploaded documents sound, and
         # what paperwork is still owed before submission.
         "uploaded_document_result": _uploaded_document_result(

@@ -485,3 +485,115 @@ def test_16_a_clean_shipment_reports_no_outstanding_documents():
 
     assert report["uploaded_document_result"] == "PASSED"
     assert report["documents_to_obtain"] == []
+
+
+# --------------------------------------------------------------------------- #
+# Report structure: evidence surfaced for both passed and failed checks.
+# --------------------------------------------------------------------------- #
+def test_17_regulatory_evidence_row_exists_for_a_passed_document_requirement():
+    """A passed Form-E requirement must still carry its citation in the
+    report - the RAG evidence-gathering fix in nodes.py is only useful if the
+    business-readable report actually surfaces it."""
+    state = _extraction_state(overall="passed", form_e_present=True)
+    # The fixture only emits a "required_document_form_e" check when it is
+    # *missing*; a passed one needs to be injected explicitly here, since the
+    # report must never invent a row for a check that was never produced.
+    state["extraction_result"]["items"][0]["compliance"]["checks"].append(
+        {
+            "check_id": "required_document_form_e",
+            "check_name": "Form-E is present",
+            "status": "passed",
+            "message": "Form-E is present.",
+            "required_document": "form_e",
+            "source_document": "TIPP Customs Clearance Procedure",
+            "sro_number": None,
+        }
+    )
+    state["regulatory_evidence_by_check"] = {
+        "required_document_form_e": [
+            {
+                "source_title": "TIPP Customs Clearance Procedure",
+                "source_document_id": "sha256:abcd",
+                "sro_number": None,
+                "page_number": 4,
+                "section": "Export documentation",
+                "snippet": "A Form-E declaration is required for every export shipment.",
+                "retrieval_score": 0.81,
+                "rerank_score": 0.93,
+                "validation_status": "verified",
+            }
+        ]
+    }
+    state["regulatory_evidence_status_by_check"] = {"required_document_form_e": "supported"}
+
+    report = build_audit_report(state)
+    row = next(
+        r for r in report["regulatory_evidence"] if r["check_id"] == "required_document_form_e"
+    )
+    assert row["status"] == "PASSED"
+    assert row["evidence_status"] == "supported"
+    assert row["citations"][0]["source_title"] == "TIPP Customs Clearance Procedure"
+
+
+def test_18_regulatory_evidence_row_reports_unavailable_honestly():
+    state = _extraction_state(form_e_present=False)
+    state["regulatory_evidence_by_check"] = {"required_document_form_e": []}
+    state["regulatory_evidence_status_by_check"] = {"required_document_form_e": "unavailable"}
+
+    report = build_audit_report(state)
+    row = next(
+        r for r in report["regulatory_evidence"] if r["check_id"] == "required_document_form_e"
+    )
+    assert row["evidence_status"] == "unavailable"
+    assert row["citations"] == []
+
+
+def test_19_document_evidence_row_carries_the_extracted_values():
+    state = _extraction_state(quantity_mismatch=True)
+    state["document_evidence_by_check"] = {
+        "item_quantity_match": [
+            {
+                "document_type": "Commercial invoice",
+                "page_number": 1,
+                "field_name": "quantity",
+                "extracted_value": "100",
+                "extraction_method": "pdf_text_llm_structured_output",
+                "confidence": "0.95",
+            },
+            {
+                "document_type": "Packing list",
+                "page_number": 1,
+                "field_name": "quantity",
+                "extracted_value": "99",
+                "extraction_method": "pdf_text_llm_structured_output",
+                "confidence": "0.95",
+            },
+        ]
+    }
+    report = build_audit_report(state)
+    row = next(r for r in report["document_evidence"] if r["check_id"] == "item_quantity_match")
+    assert row["status"] == "FAILED"
+    values = {item["document_type"]: item["extracted_value"] for item in row["evidence"]}
+    assert values == {"Commercial invoice": "100", "Packing list": "99"}
+
+
+def test_20_executive_summary_counts_checks_by_status():
+    state = _extraction_state(form_e_present=False, quantity_mismatch=True)
+    report = build_audit_report(state)
+    summary = report["executive_summary"]
+    assert summary["overall_status"] == "FAILED"
+    assert summary["failed_checks"] >= 2  # missing Form-E + quantity mismatch
+    assert summary["explanation"] == report["overall_reason"]
+
+
+def test_21_audit_metadata_carries_rule_and_index_versions():
+    state = _extraction_state(overall="passed")
+    state["workflow_id"] = "wf-123"
+    state["rule_data_version"] = "sha256:testrules"
+    state["vector_index_version"] = "vec-index-v1"
+    report = build_audit_report(state)
+    metadata = report["audit_metadata"]
+    assert metadata["workflow_id"] == "wf-123"
+    assert metadata["rule_data_version"] == "sha256:testrules"
+    assert metadata["vector_index_version"] == "vec-index-v1"
+    assert metadata["generated_at"]

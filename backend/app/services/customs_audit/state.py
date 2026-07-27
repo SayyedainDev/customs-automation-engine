@@ -201,6 +201,15 @@ class CustomsAuditState(TypedDict, total=False):
     auditor_report: dict[str, Any] | None
     consensus_result: dict[str, Any] | None
     retrieved_evidence: list[dict[str, Any]]
+    #: Per check_id, normalized RAG citations - populated for every regulatory
+    #: check regardless of pass/fail/manual_review status.
+    regulatory_evidence_by_check: dict[str, list[dict[str, Any]]]
+    #: Per check_id, "supported" | "uncertain" | "unavailable" - honest label
+    #: for what retrieval found; never invented when nothing was found.
+    regulatory_evidence_status_by_check: dict[str, str]
+    #: Per check_id, evidence read directly from the uploaded invoice/packing
+    #: list for a document-comparison check (no retrieval involved).
+    document_evidence_by_check: dict[str, list[dict[str, Any]]]
     explanation_results: list[dict[str, Any]]
 
     critical_anomalies: list[str]
