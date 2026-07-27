@@ -1,7 +1,8 @@
 # Enterprise Customs Automation Engine
 
-A backend-only GenAI bootcamp capstone for auditing Pakistan textile export
-documents before customs submission.
+A GenAI bootcamp capstone for auditing Pakistan textile export documents before
+customs submission. It includes a FastAPI backend and a restrained operations
+console for the class demonstration.
 
 The project is an **agentic customs-audit prototype for five PCT codes**. It
 combines hybrid PDF extraction, deterministic compliance rules, regulatory
@@ -52,6 +53,7 @@ status.
 | Human review | Durable interrupt, review task, correction history, resume, events, and retry |
 | Explanation | One bounded Groq narration call with deterministic template fallback and caching |
 | Historical search | Persistent shipment summaries with local semantic top-k retrieval |
+| Operations console | React interface for uploads, compliance results, audit workflows, and evidence search |
 | Synthetic testing | 192 fictional PDFs, including text and image-only scanned variants |
 
 The hybrid extraction design and free-tier safeguards are documented in
@@ -83,11 +85,13 @@ daily SRO ingestion, duty/tax calculation, or live WeBOC integration.
 - LangGraph
 - Sentence Transformers with deterministic degraded fallbacks
 - NumPy/scikit-learn retrieval and ranking
+- React, TypeScript, and Vite
 
 ## Repository layout
 
 ```text
 enterprise_customs_engine/
+├── frontend/                 Operations console built and served at `/app/`
 ├── backend/
 │   ├── app/                 FastAPI application and services
 │   ├── migrations/          SQL schema migrations
@@ -103,6 +107,7 @@ enterprise_customs_engine/
 ### 1. Prerequisites
 
 - Python 3.11
+- Node.js 20 or newer
 - PostgreSQL
 - Tesseract with English language data
 
@@ -146,7 +151,18 @@ CUSTOMS_DATABASE_URL=postgresql+psycopg://customs_user:choose_a_password@localho
 
 `backend/.env` is ignored by Git.
 
-### 4. Initialize and run
+### 4. Build the operations console
+
+From `backend/`:
+
+```bash
+cd ../frontend
+npm ci
+npm run build
+cd ../backend
+```
+
+### 5. Initialize and run
 
 ```bash
 python -m app.core.init_db
@@ -160,9 +176,22 @@ dependencies.
 
 Open:
 
+- Operations console (production build): <http://127.0.0.1:8000/app/>
 - Swagger UI: <http://127.0.0.1:8000/docs>
 - API health: <http://127.0.0.1:8000/health>
 - Database health: <http://127.0.0.1:8000/health/database>
+
+For frontend development with hot reload, use a second terminal:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Vite runs at <http://127.0.0.1:5173/app/> and proxies the real API routes to
+the local FastAPI service. The console uses real backend responses; it contains
+no production mock data.
 
 ## Configuration
 
@@ -210,13 +239,15 @@ Swagger documents the complete request and response schemas.
 
 ## Suggested class demonstration
 
-1. Start PostgreSQL and the API, then show `/health/database`.
+1. Open `/app/` and confirm the API and database status in the top bar.
 2. Select `synthetic_factory/clean_cotton_tshirts/` or
    `synthetic_factory/error_quantity_mismatch/`.
-3. Upload and extract the invoice and packing list.
-4. Run `/api/v1/compliance/check-documents/multi-line` and show the structured
-   fields, matched lines, provenance, and deterministic checks.
-5. Start `/api/v1/customs-audit/workflows` with the same document IDs.
+3. Use **New review** to upload the invoice and packing list. The interface
+   shows real upload, extraction, and compliance stages.
+4. Show the structured fields, matched lines, provenance, and deterministic
+   checks.
+5. Choose **Run agent audit** only once when you want the Broker/Auditor
+   explanation; it is manual to protect the Groq free-tier quota.
 6. Show the Broker report, Auditor challenge, regulatory evidence, audit events,
    and final explanation.
 7. If the workflow pauses, submit the human-review decision and show it resume
@@ -260,8 +291,9 @@ No Groq key is required for the ordinary unit/integration suite.
 ## Deployment
 
 The Docker image is intended for a bootcamp demonstration, not a production
-service. Build from the **repository root** so the image can copy both
-`backend/` and the runtime regulatory subset:
+service. Its multi-stage build compiles the React console and serves it from
+FastAPI at `/app/`. Build from the **repository root** so the image can copy
+the frontend, backend, and runtime regulatory subset:
 
 ```bash
 docker build -f backend/Dockerfile -t customs-engine .
@@ -286,6 +318,19 @@ For Railway, use the repository root as the build context and
 files are not durable across deployments. Run the same index command once from
 the Railway service shell after the database is initialized.
 
+Recommended Railway source settings:
+
+```text
+Root Directory: /
+Dockerfile Path: backend/Dockerfile
+Branch: main
+Auto deploys: enabled
+```
+
+With those settings, pushing a commit to `main` rebuilds the same Railway
+service automatically. The public domain redirects to the console, while
+Swagger remains available at `/docs`.
+
 ## Known limitations
 
 - Five textile PCT codes, not the complete customs tariff.
@@ -302,5 +347,8 @@ the Railway service shell after the database is initialized.
   queue.
 - No authentication, authorization, production monitoring, or enterprise
   scaling.
+- The API has no UUID-upload or workflow-list endpoint, so console overview
+  totals cover documents tracked by the current browser, not every database
+  record.
 - The legacy `/shipments` CRUD demonstration is in memory; customs-audit
   workflow records and search summaries are persisted.

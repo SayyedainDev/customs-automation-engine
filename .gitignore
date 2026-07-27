@@ -10,6 +10,8 @@ htmlcov/
 venv/
 build/
 dist/
+node_modules/
+.vite/
 *.egg-info/
 
 # Private configuration and local runtime state

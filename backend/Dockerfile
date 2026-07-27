@@ -1,8 +1,22 @@
+FROM node:22-alpine AS frontend-build
+
+WORKDIR /app/frontend
+
+# Copy dependency metadata separately so Railway can reuse the npm layer when
+# application source files change. package-lock.json is required by npm ci.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+RUN npm run build
+
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    CUSTOMS_SERVE_FRONTEND=true
 
 # This Dockerfile uses the repository root as its build context:
 #   docker build -f backend/Dockerfile .
@@ -30,6 +44,7 @@ COPY backend/scripts/ingest_regulatory_documents.py \
     ./scripts/ingest_regulatory_documents.py
 COPY backend/scripts/build_regulatory_vector_index.py \
     ./scripts/build_regulatory_vector_index.py
+COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 # Runtime compliance rules plus the three curated sources needed if the
 # regulatory ingestion service is run. The rest of the 161 MB source archive
 # is reference material and is not needed by the API container.

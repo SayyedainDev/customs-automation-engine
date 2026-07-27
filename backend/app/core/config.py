@@ -9,6 +9,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "Enterprise Customs Automation Engine"
+    # The Docker image enables this after building the Vite application. It is
+    # off by default so backend-only development and tests keep the JSON root.
+    serve_frontend: bool = False
 
     database_url: str | None = None
     upload_dir: Path = Path("uploads/documents")
