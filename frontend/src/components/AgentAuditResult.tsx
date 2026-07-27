@@ -174,11 +174,22 @@ function Report({
   const checksPassed = uniqueText(asList(report.checks_passed));
   const requiredActions = uniqueText(asList(report.required_actions));
   const workflowSummary = uniqueText(asList(report.workflow_summary));
+  const documentsToObtain = asList(report.documents_to_obtain)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const uploadedResult = String(report.uploaded_document_result ?? "");
   const problems = asRecord(report.problems);
   const problemEntries = problems
-    ? Object.entries(problems).flatMap(([category, values]) =>
-        uniqueText(asList(values)).map((value) => ({ category, value })),
-      )
+    ? Object.entries(problems)
+        // Documents still to be obtained get their own checklist below; they
+        // are not defects in the invoice or packing list that were uploaded.
+        .filter(
+          ([category]) =>
+            !(category === "missing_documents" && documentsToObtain.length),
+        )
+        .flatMap(([category, values]) =>
+          uniqueText(asList(values)).map((value) => ({ category, value })),
+        )
     : [];
   const status =
     report.overall_result ?? finalReport.deterministic_compliance_status;
@@ -205,6 +216,72 @@ function Report({
           </p>
         </div>
       </div>
+
+      {uploadedResult ? (
+        <div
+          className={`notice notice--${
+            uploadedResult === "PASSED" ? "success" : "warning"
+          }`}
+        >
+          <CheckCircle2 aria-hidden="true" size={18} />
+          <div>
+            <strong>
+              {uploadedResult === "PASSED"
+                ? "The uploaded invoice and packing list are sound"
+                : "The uploaded documents need attention"}
+            </strong>
+            <p>
+              {uploadedResult === "PASSED"
+                ? "Every check that can be made on the two files you uploaded passed. Any status above that is not a pass is driven by customs paperwork that is still outstanding."
+                : "At least one check on the two uploaded files did not hold up. The findings are listed below."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {documentsToObtain.length ? (
+        <section className="report-section">
+          <h3>Documents to obtain before submission</h3>
+          <p className="section-intro">
+            These are issued by outside bodies. They cannot be produced from the
+            invoice or the packing list, so their absence is not a defect in the
+            files that were uploaded.
+          </p>
+          <ul className="document-checklist">
+            {documentsToObtain.map((document, index) => (
+              <li key={index}>
+                <div className="document-checklist__head">
+                  <strong>{displayValue(document.document)}</strong>
+                  <span
+                    className={`requirement-tag requirement-tag--${
+                      String(document.requirement ?? "")
+                        .toLowerCase()
+                        .startsWith("required")
+                        ? "required"
+                        : "conditional"
+                    }`}
+                  >
+                    {displayValue(document.requirement)}
+                  </span>
+                </div>
+                <ul className="plain-list">
+                  {uniqueText(asList(document.reasons)).map((reason, reasonIndex) => (
+                    <li key={reasonIndex}>{displayValue(reason)}</li>
+                  ))}
+                </ul>
+                {asList(document.sources).length ? (
+                  <small>
+                    Source:{" "}
+                    {asList(document.sources)
+                      .map((source) => displayValue(source))
+                      .join(" · ")}
+                  </small>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {shipment ? (
         <section className="report-section">

@@ -443,3 +443,45 @@ def test_13_report_consolidates_duplicate_required_document_findings():
         "TIPP Certificate of Origin Procedure",
         "CPFTA Certificate of Origin Procedure",
     } <= sources
+
+
+# --------------------------------------------------------------------------- #
+# Split verdict: uploaded-document quality vs. paperwork still to obtain.
+# --------------------------------------------------------------------------- #
+def test_14_outstanding_paperwork_does_not_condemn_the_uploaded_documents():
+    """A shipment held only by an absent Form-E still has two sound uploads.
+
+    ``overall_result`` keeps the strict customs meaning - the shipment is not
+    submittable - while ``uploaded_document_result`` answers the different
+    question the exporter asked: is anything wrong with what I sent?
+    """
+    report = build_audit_report(_extraction_state(form_e_present=False))
+
+    assert report["overall_result"] == "FAILED"
+    assert report["uploaded_document_result"] == "PASSED"
+    assert [document["document"] for document in report["documents_to_obtain"]] == [
+        "Form-E / PSW export declaration"
+    ]
+    assert report["documents_to_obtain"][0]["requirement"] == "Required before submission"
+    assert report["documents_to_obtain"][0]["sources"] == [
+        "TIPP Customs Clearance Procedure"
+    ]
+
+
+def test_15_a_defect_in_the_uploaded_documents_still_fails_the_document_review():
+    report = build_audit_report(
+        _extraction_state(form_e_present=False, quantity_mismatch=True)
+    )
+
+    assert report["overall_result"] == "FAILED"
+    # The quantity mismatch is a defect in the uploaded files, so the split
+    # verdict must not report them as sound.
+    assert report["uploaded_document_result"] == "FAILED"
+    assert report["documents_to_obtain"]
+
+
+def test_16_a_clean_shipment_reports_no_outstanding_documents():
+    report = build_audit_report(_extraction_state(overall="passed"))
+
+    assert report["uploaded_document_result"] == "PASSED"
+    assert report["documents_to_obtain"] == []

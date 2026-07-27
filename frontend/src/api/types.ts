@@ -99,7 +99,16 @@ export interface ShipmentItemResult {
   fields_requiring_manual_review: string[];
 }
 
+export interface OutstandingDocument {
+  document_type: string;
+  display_name: string;
+  requirement: "required" | "conditional";
+  reasons: string[];
+  sources: string[];
+}
+
 export interface MultiLineShipmentResponse {
+  /** Strict customs verdict: outstanding paperwork still blocks submission. */
   overall_status: ComplianceStatus;
   is_compliant: boolean;
   rule_data_version: string;
@@ -112,6 +121,9 @@ export interface MultiLineShipmentResponse {
   items: ShipmentItemResult[];
   fields_requiring_manual_review: string[];
   supporting_documents: Array<Record<string, unknown>>;
+  /** Verdict on the two uploaded documents alone. */
+  document_review_status: ComplianceStatus;
+  outstanding_documents: OutstandingDocument[];
 }
 
 export interface MultiLineShipmentRequest {

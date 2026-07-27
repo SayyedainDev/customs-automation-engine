@@ -1002,3 +1002,60 @@ def test_multi_line_requires_packing_list_document(isolated_database) -> None:
     response = asyncio.run(post_request())
 
     assert response.status_code == 422
+
+
+# --------------------------------------------------------------------------- #
+# Only an invoice and a packing list: the exporter's normal starting point.
+# --------------------------------------------------------------------------- #
+def test_invoice_and_packing_list_alone_split_the_verdict(
+    isolated_database, monkeypatch
+) -> None:
+    """Two sound uploads, no supporting paperwork claimed at all.
+
+    The shipment is still not submittable, and ``overall_status`` says so. But
+    nothing is wrong with the two files, so the document review passes and the
+    missing customs documents are reported as a checklist instead.
+    """
+    invoice_id, packing_id = two_matching_documents(isolated_database)
+    configure_fake_llm(monkeypatch, two_line_invoice(), two_line_packing())
+
+    result = run_phase_2c(
+        isolated_database,
+        MultiLineShipmentRequest(
+            commercial_invoice_document_id=invoice_id,
+            packing_list_document_id=packing_id,
+            shipment_date=date(2026, 7, 20),
+            additional_uploaded_document_types=[],
+        ),
+    )
+
+    assert result.overall_status == ComplianceCheckStatus.FAILED
+    assert result.document_review_status == ComplianceCheckStatus.PASSED
+    outstanding = {
+        document.document_type for document in result.outstanding_documents
+    }
+    assert "form_e" in outstanding
+    # Every checklist entry carries the rule text that demanded it.
+    assert all(document.reasons for document in result.outstanding_documents)
+
+
+def test_a_defect_in_the_uploaded_documents_fails_the_document_review(
+    isolated_database, monkeypatch
+) -> None:
+    """The split must never hide a real problem in the uploaded files."""
+    invoice_id, packing_id = two_matching_documents(isolated_database)
+    configure_fake_llm(
+        monkeypatch, two_line_invoice(invoice_total="1200.00"), two_line_packing()
+    )
+
+    result = run_phase_2c(
+        isolated_database,
+        MultiLineShipmentRequest(
+            commercial_invoice_document_id=invoice_id,
+            packing_list_document_id=packing_id,
+            shipment_date=date(2026, 7, 20),
+            additional_uploaded_document_types=[],
+        ),
+    )
+
+    assert result.document_review_status == ComplianceCheckStatus.FAILED

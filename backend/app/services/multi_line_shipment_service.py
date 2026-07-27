@@ -56,6 +56,11 @@ from app.schemas.shipment_extraction import (
     FieldValidationStatus,
     SourcePageReview,
 )
+from app.services.compliance.document_requirements import (
+    collect_outstanding_documents,
+    is_outstanding_document_check,
+    uploaded_document_review_status,
+)
 from app.services.compliance.rule_engine import DeterministicComplianceRuleEngine
 from app.services.compliance.rule_loader import (
     load_compliance_rules,
@@ -1070,6 +1075,44 @@ def _overall_shipment_status(
     return ComplianceCheckStatus.PASSED
 
 
+def _all_shipment_checks(
+    items: list[ShipmentItemResult],
+    shipment_checks: list[CrossDocumentCheck],
+) -> list[object]:
+    """Every check the engine produced, at shipment and line level."""
+    checks: list[object] = list(shipment_checks)
+    for item in items:
+        checks.extend(item.item_checks)
+        compliance = item.compliance
+        if compliance is not None:
+            checks.extend(compliance.checks)
+            checks.extend(compliance.executable_rule_checks or [])
+    return checks
+
+
+def _uploaded_document_review_status(
+    items: list[ShipmentItemResult],
+    checks: list[object],
+    manual_fields: list[str],
+) -> ComplianceCheckStatus:
+    """Judge only what the uploaded invoice and packing list can be judged on.
+
+    Rules that are unresolved purely because further customs paperwork is not
+    in hand are excluded here and reported as outstanding documents instead;
+    they still drive ``overall_status``.
+    """
+    if not items:
+        return ComplianceCheckStatus.MANUAL_REVIEW
+    statuses = [
+        check.status  # type: ignore[attr-defined]
+        for check in checks
+        if not is_outstanding_document_check(check)
+    ]
+    if manual_fields:
+        statuses.append(ComplianceCheckStatus.MANUAL_REVIEW)
+    return uploaded_document_review_status(statuses)
+
+
 def _invoice_header_manual_fields(
     invoice: MultiLineCommercialInvoiceExtraction,
 ) -> list[str]:
@@ -1153,8 +1196,15 @@ def extract_match_and_check_multi_line_shipment(
     for item in items:
         manual_fields.extend(item.fields_requiring_manual_review)
 
+    all_checks = _all_shipment_checks(items, [*shipment_checks, *supporting_checks])
+    outstanding = collect_outstanding_documents(all_checks)
+
     return MultiLineShipmentResponse(
         supporting_documents=supporting_results,
+        document_review_status=_uploaded_document_review_status(
+            items, all_checks, manual_fields
+        ),
+        outstanding_documents=outstanding,
         overall_status=overall_status,
         is_compliant=overall_status == ComplianceCheckStatus.PASSED,
         rule_data_version=load_compliance_rules().rule_data_version,

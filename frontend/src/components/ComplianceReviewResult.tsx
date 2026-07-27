@@ -268,28 +268,49 @@ function decisionCopy(status: ComplianceStatus): {
   switch (status) {
     case "passed":
       return {
-        title: "Ready based on the configured checks",
+        title: "The uploaded documents are sound",
         description:
-          "The invoice and packing list passed the configured document, matching, and regulatory checks.",
+          "Extraction, invoice-to-packing-list matching, arithmetic, and product classification all passed on the two files you uploaded.",
       };
     case "manual_review":
       return {
-        title: "Human review required before submission",
+        title: "The uploaded documents need a person to confirm a value",
         description:
-          "Document processing completed, but at least one rule could not be decided safely from the available information.",
+          "Both files were read, but at least one value could not be determined safely enough for the rule engine to decide on its own.",
       };
     case "failed":
       return {
-        title: "Not ready for customs submission",
+        title: "The uploaded documents contain a problem to correct",
         description:
-          "Document processing completed, but one or more compliance requirements failed. Review the reasons and required actions below.",
+          "Both files were read, but something in them did not hold up: the reasons and the corrections are listed below.",
       };
     default:
       return {
-        title: "No customs decision available",
-        description:
-          "The configured checks did not apply to this shipment.",
+        title: "No document decision available",
+        description: "The configured checks did not apply to this shipment.",
       };
+  }
+}
+
+/** Plain wording for the strict customs verdict, shown beside the checklist. */
+function submissionCopy(
+  status: ComplianceStatus,
+  outstandingCount: number,
+): string {
+  if (outstandingCount > 0) {
+    return status === "passed"
+      ? "Confirm the documents listed below before submission."
+      : `Not ready for submission: ${outstandingCount} customs ${
+          outstandingCount === 1 ? "document is" : "documents are"
+        } still outstanding.`;
+  }
+  switch (status) {
+    case "passed":
+      return "Ready for the next submission step under the configured rules.";
+    case "manual_review":
+      return "A person must review the flagged points before submission.";
+    default:
+      return "Not ready for submission until the findings below are resolved.";
   }
 }
 
@@ -384,13 +405,28 @@ export function ComplianceReviewResult({
     ({ check }) =>
       check.status !== "passed" && check.status !== "not_applicable",
   );
-  const actionableFindings = consolidateFindings(rawFindings);
+
+  // Paperwork the exporter has to obtain elsewhere is shown as its own
+  // checklist, so it is removed from the findings about the uploaded files.
+  const outstanding = result.outstanding_documents ?? [];
+  const outstandingKeys = new Set(
+    outstanding.map((document) => normalizedDocumentKey(document.document_type)),
+  );
+  const actionableFindings = consolidateFindings(rawFindings).filter(
+    (finding) => !outstandingKeys.has(finding.key.replace(/^document:/, "")),
+  );
   const matchedLineCount = result.items.filter(
     (item) => item.match_status === "matched",
   ).length;
-  const decision = decisionCopy(result.overall_status);
+  const documentStatus = result.document_review_status ?? result.overall_status;
+  const decision = decisionCopy(documentStatus);
   const nextActions = [
     ...new Set([
+      ...outstanding.map((document) =>
+        document.requirement === "required"
+          ? `Obtain the ${document.display_name.toLowerCase()} from the body that issues it and file it with the shipment documents.`
+          : `Confirm with a compliance reviewer whether the ${document.display_name.toLowerCase()} applies to this shipment.`,
+      ),
       ...actionableFindings.map((finding) => finding.action),
       ...(result.fields_requiring_manual_review.length
         ? [
@@ -407,11 +443,11 @@ export function ComplianceReviewResult({
       <section className="panel" aria-labelledby="result-heading">
         <div className="panel__header">
           <div>
-            <p className="eyebrow">Deterministic decision</p>
+            <p className="eyebrow">Deterministic decision · uploaded documents</p>
             <h2 id="result-heading">{decision.title}</h2>
             <p>{decision.description}</p>
           </div>
-          <StatusBadge status={result.overall_status} />
+          <StatusBadge status={documentStatus} />
         </div>
         <div className="panel__body stack">
           <div className="notice notice--success processing-success">
@@ -426,10 +462,22 @@ export function ComplianceReviewResult({
             </div>
           </div>
 
+          <div className="submission-readiness">
+            <div>
+              <span className="eyebrow">Customs submission readiness</span>
+              <p>{submissionCopy(result.overall_status, outstanding.length)}</p>
+            </div>
+            <StatusBadge status={result.overall_status} />
+          </div>
+
           <div className="summary-grid">
             <div className="summary-item">
               <span>Input documents processed</span>
               <strong>2 of 2</strong>
+            </div>
+            <div className="summary-item">
+              <span>Documents still to obtain</span>
+              <strong>{outstanding.length}</strong>
             </div>
             <div className="summary-item">
               <span>Shipment lines matched</span>
@@ -516,13 +564,58 @@ export function ComplianceReviewResult({
         </div>
       </section>
 
+      {outstanding.length ? (
+        <section className="panel" aria-labelledby="outstanding-heading">
+          <div className="panel__header">
+            <div>
+              <h2 id="outstanding-heading">Required before submission</h2>
+              <p>
+                Customs documents the rules require for this shipment. They are
+                issued by outside bodies and cannot be produced from the invoice
+                or the packing list, so their absence is not a defect in the two
+                files you uploaded.
+              </p>
+            </div>
+            <FileCheck2 aria-hidden="true" size={19} />
+          </div>
+          <div className="panel__body">
+            <ul className="document-checklist">
+              {outstanding.map((document) => (
+                <li key={document.document_type}>
+                  <div className="document-checklist__head">
+                    <strong>{document.display_name}</strong>
+                    <span
+                      className={`requirement-tag requirement-tag--${document.requirement}`}
+                    >
+                      {document.requirement === "required"
+                        ? "Required"
+                        : "Confirm whether it applies"}
+                    </span>
+                  </div>
+                  {document.reasons.length ? (
+                    <ul className="plain-list">
+                      {document.reasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {document.sources.length ? (
+                    <small>Source: {document.sources.join(" · ")}</small>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel" aria-labelledby="findings-heading">
         <div className="panel__header">
           <div>
-            <h2 id="findings-heading">Why this decision was reached</h2>
+            <h2 id="findings-heading">Findings in the uploaded documents</h2>
             <p>
-              Repeated checks for the same supporting document are combined
-              into one clear finding.
+              Problems in the invoice or packing list themselves. Missing
+              customs paperwork is listed separately above.
             </p>
           </div>
           <ShieldCheck aria-hidden="true" size={19} />
@@ -538,10 +631,11 @@ export function ComplianceReviewResult({
             <div className="notice notice--success">
               <ShieldCheck aria-hidden="true" size={18} />
               <div>
-                <strong>No failed or uncertain checks</strong>
+                <strong>Nothing wrong with the uploaded documents</strong>
                 <p>
-                  The configured checks did not return a compliance action for
-                  this shipment.
+                  The invoice and packing list passed every check that can be
+                  made on them: extraction, line matching, arithmetic, weights,
+                  and product classification.
                 </p>
               </div>
             </div>

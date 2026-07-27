@@ -1953,6 +1953,75 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+.submission-readiness {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.submission-readiness p {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.document-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.document-checklist > li {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.document-checklist__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.document-checklist small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.requirement-tag {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.requirement-tag--required {
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.requirement-tag--conditional {
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
 .explanation-body {
   display: flex;
   flex-direction: column;

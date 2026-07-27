@@ -127,8 +127,20 @@ def build_explanation_findings(
     else:
         human_review_status = "not_required"
 
+    documents_to_obtain = _bounded_unique(
+        [
+            f"{document.get('document')} ({str(document.get('requirement') or '').lower()})"
+            for document in report.get("documents_to_obtain") or []
+        ],
+        limit=_MAX_ISSUES,
+    )
+
     return {
         "status": str(status),
+        "uploaded_document_result": _bounded_text(
+            report.get("uploaded_document_result")
+        ),
+        "documents_to_obtain": documents_to_obtain,
         "decision_summary": _bounded_text(report.get("overall_reason")),
         "shipment_context": shipment_context,
         "passed_checks": passed_checks,
@@ -218,6 +230,15 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
     if decision_summary:
         lines.append(decision_summary)
 
+    documents_to_obtain = findings.get("documents_to_obtain") or []
+    uploaded_result = str(findings.get("uploaded_document_result") or "")
+    if uploaded_result == "PASSED" and status != "passed" and documents_to_obtain:
+        lines.append(
+            "The commercial invoice and the packing list that were uploaded "
+            "passed every check that can be made on them. The shipment is held "
+            "only by customs documents that are not in hand yet, listed below."
+        )
+
     lines.extend(["", "What was checked"])
     if passed:
         lines.append(
@@ -273,6 +294,12 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
                     "rather than produced by this system, so each one has to "
                     "be obtained and filed with the shipment. They cannot be "
                     "derived from the invoice or the packing list."
+                ),
+                *(
+                    ["Documents to obtain:"]
+                    + [f"- {document}" for document in documents_to_obtain]
+                    if documents_to_obtain
+                    else []
                 ),
             ]
         )

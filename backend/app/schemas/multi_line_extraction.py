@@ -196,7 +196,26 @@ class MultiLineShipmentRequest(BaseModel):
     supporting_documents: list[SupportingDocumentRef] = Field(default_factory=list)
 
 
+class OutstandingDocument(BaseModel):
+    """A customs document a rule requires that is not in hand yet.
+
+    This is a checklist entry, not a defect in the uploaded files: the document
+    is issued by an outside body and cannot be derived from the invoice or the
+    packing list. Every rule that named it keeps its citation here.
+    """
+
+    document_type: str
+    display_name: str
+    #: "required" when at least one rule firmly requires it; "conditional" when
+    #: the rules could not decide from the shipment fields whether it applies.
+    requirement: str
+    reasons: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
 class MultiLineShipmentResponse(BaseModel):
+    #: The strict customs verdict: a shipment with outstanding paperwork is
+    #: still not ready for submission. Unchanged meaning.
     overall_status: ComplianceCheckStatus
     is_compliant: bool
     rule_data_version: str
@@ -209,3 +228,9 @@ class MultiLineShipmentResponse(BaseModel):
     items: list[ShipmentItemResult]
     fields_requiring_manual_review: list[str]
     supporting_documents: list[SupportingDocumentResult] = Field(default_factory=list)
+    #: The verdict on the two documents that were actually uploaded, judged
+    #: without the rules that merely require further paperwork. Never used to
+    #: clear a shipment on its own - `overall_status` remains the decision.
+    document_review_status: ComplianceCheckStatus = ComplianceCheckStatus.PASSED
+    #: Customs documents the rules require that were not provided.
+    outstanding_documents: list[OutstandingDocument] = Field(default_factory=list)

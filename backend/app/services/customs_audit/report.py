@@ -12,6 +12,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.compliance.document_requirements import (
+    collect_outstanding_documents,
+    is_outstanding_document_check,
+)
+
 # --------------------------------------------------------------------------- #
 # Check categorisation. Every id below is an existing deterministic check.
 # --------------------------------------------------------------------------- #
@@ -407,6 +412,48 @@ def _supporting_documents(extraction: dict) -> list[dict[str, Any]]:
     return rows
 
 
+def _uploaded_document_result(
+    extraction: dict, checks: list[dict], *, overall_status: str
+) -> str:
+    """Label the verdict on the invoice and packing list that were uploaded.
+
+    Rules that are unresolved only because further customs paperwork is still
+    outstanding are excluded: they say nothing about the two uploaded files.
+    ``overall_status`` keeps its strict meaning and is reported separately.
+    """
+    if not (extraction.get("items") or []):
+        return _RESULT_LABELS["manual_review"]
+    if overall_status in ("rejected", "technical_failure"):
+        return _RESULT_LABELS.get(overall_status, overall_status.upper())
+    statuses = {
+        str(check.get("status") or "")
+        for check in checks
+        if not is_outstanding_document_check(check)
+    }
+    if "failed" in statuses:
+        return _RESULT_LABELS["failed"]
+    if "manual_review" in statuses:
+        return _RESULT_LABELS["manual_review"]
+    return _RESULT_LABELS["passed"]
+
+
+def _documents_to_obtain(checks: list[dict]) -> list[dict[str, Any]]:
+    """The pre-submission document checklist, in business-readable form."""
+    return [
+        {
+            "document": document.display_name,
+            "requirement": (
+                "Required before submission"
+                if document.requirement == "required"
+                else "Confirm whether it applies"
+            ),
+            "reasons": document.reasons,
+            "sources": document.sources,
+        }
+        for document in collect_outstanding_documents(checks)
+    ]
+
+
 def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     """Assemble the full, business-readable audit report dict from state."""
     extraction = state.get("extraction_result") or {}
@@ -473,9 +520,16 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     )
 
     final_report = state.get("final_report") or {}
+    all_checks = [*cross_document, *compliance]
     return {
         "overall_result": result_label,
         "overall_reason": reason,
+        # The two questions kept apart: were the uploaded documents sound, and
+        # what paperwork is still owed before submission.
+        "uploaded_document_result": _uploaded_document_result(
+            extraction, all_checks, overall_status=result_status
+        ),
+        "documents_to_obtain": _documents_to_obtain(all_checks),
         "supporting_documents": _supporting_documents(extraction),
         "shipment_summary": _shipment_summary(invoice, packing, state),
         "line_items": _line_items(extraction),
