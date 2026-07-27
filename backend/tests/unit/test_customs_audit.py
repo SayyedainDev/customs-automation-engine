@@ -855,6 +855,41 @@ def test_45_live_narrator_classifies_rate_limit_as_provider_unavailable(
         narrator("Broker", {"deterministic_status": "failed"})
 
 
+def test_explanation_role_requests_detailed_plain_language_without_changing_other_roles(
+    monkeypatch,
+) -> None:
+    requests = []
+
+    class RecordingCompletions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content="Recorded narrative.")
+                    )
+                ]
+            )
+
+    class FakeGroq:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=RecordingCompletions())
+
+    monkeypatch.setattr("groq.Groq", FakeGroq)
+    narrator = GroqNarrator(api_key="test-key", model="test-model")
+
+    narrator("Explanation", {"status": "failed", "issues": []})
+    narrator("Broker", {"deterministic_status": "failed"})
+
+    explanation_prompt = requests[0]["messages"][1]["content"]
+    broker_prompt = requests[1]["messages"][1]["content"]
+    assert "120-200 words" in explanation_prompt
+    assert "Why this decision" in explanation_prompt
+    assert "Next steps" in explanation_prompt
+    assert "at most three short sentences" in broker_prompt
+    assert "120-200 words" not in broker_prompt
+
+
 def test_46_workflow_endpoint_reports_live_narrator_quota_as_503(
     isolated_database: Engine,
 ) -> None:
@@ -1180,8 +1215,75 @@ def test_51_explanation_fallback_includes_failed_checks_and_missing_fields(
     resumed = review(svc, isolated_database, started["workflow_id"], accept_decision())
     report = resumed["final_report"]
     assert report["explanation_source"] == "template_fallback"
-    assert "did not pass all configured compliance checks" in report["explanation"]
-    assert "invoice_line_1" in report["explanation"]
+    assert "Decision" in report["explanation"]
+    assert "Why this decision" in report["explanation"]
+    assert "Next steps" in report["explanation"]
+    assert "qty mismatch" in report["explanation"]
+    assert "invoice_line_1" not in report["explanation"]
+
+
+def test_explanation_findings_are_bounded_business_fields_not_raw_documents() -> None:
+    from app.services.customs_audit.explanation import build_explanation_findings
+
+    state = {
+        "extraction_result": mismatch_extraction(),
+        "deterministic_compliance_result": {
+            "overall_status": "failed",
+            "item_statuses": [
+                {"item_reference": "invoice_line_1", "status": "failed"}
+            ],
+        },
+        "manual_review_reasons": ["technical_internal_reason"],
+        "raw_document_text": "SECRET RAW PDF CONTENT",
+    }
+    findings = build_explanation_findings(
+        state, {"deterministic_compliance_status": "failed"}
+    )
+    serialized = str(findings)
+
+    assert findings["status"] == "failed"
+    assert any("qty mismatch" in issue["detail"] for issue in findings["issues"])
+    assert len(findings["issues"]) <= 8
+    assert "invoice_line_1" not in serialized
+    assert "technical_internal_reason" not in serialized
+    assert "SECRET RAW PDF CONTENT" not in serialized
+
+
+def test_missing_supporting_document_is_explained_as_a_review_result() -> None:
+    from app.services.customs_audit.explanation import generate_explanation_entry
+
+    extraction = passed_extraction()
+    extraction["overall_status"] = "failed"
+    extraction["shipment_level_checks"].append(
+        {
+            "check_id": "required_document_form_e",
+            "status": "failed",
+            "required_document": "form_e",
+            "message": "Missing required document: Form-E.",
+        }
+    )
+    state = {
+        "extraction_result": extraction,
+        "deterministic_compliance_result": {
+            "overall_status": "failed",
+            "item_statuses": [
+                {"item_reference": "invoice_line_1", "status": "failed"}
+            ],
+        },
+        "explanation_results": [],
+    }
+
+    entry = generate_explanation_entry(
+        state=state,
+        final_report={"deterministic_compliance_status": "failed"},
+        narrator=None,
+        model_label="test-model",
+    )
+
+    assert "Form-E" in entry["explanation"]
+    assert "invoice and packing list were enough" in entry["explanation"]
+    assert "it was not required to start the audit" in entry["explanation"]
+    assert "invoice_line_1" not in entry["explanation"]
 
 
 def test_52_explanation_provider_unavailable_falls_back_without_stranding_workflow(

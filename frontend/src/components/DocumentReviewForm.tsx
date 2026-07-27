@@ -1,4 +1,4 @@
-import { LoaderCircle, Upload } from "lucide-react";
+import { Info, LoaderCircle, Upload } from "lucide-react";
 import type { FormEvent } from "react";
 import type { DocumentReviewController } from "../hooks/useDocumentReview";
 import { FileDropzone } from "./FileDropzone";
@@ -48,12 +48,25 @@ export function DocumentReviewForm({
         <div className="panel__header">
           <div>
             <p className="eyebrow">Step 1</p>
-            <h2 id="documents-heading">Required documents</h2>
-            <p>Select the two PDFs that describe the same shipment.</p>
+            <h2 id="documents-heading">Documents needed to start</h2>
+            <p>Select one invoice and its matching packing list.</p>
           </div>
         </div>
 
         <div className="panel__body">
+          <div className="notice notice--info input-scope-note">
+            <Info aria-hidden="true" size={18} />
+            <div>
+              <strong>Only these two PDFs are needed to run the review</strong>
+              <p>
+                You do not need Form-E, a certificate of origin, or other
+                supporting documents at this step. If a customs rule requires
+                one, the result will identify it as a missing supporting
+                document and explain what to do next.
+              </p>
+            </div>
+          </div>
+
           <div className="upload-grid">
             <div className="stack">
               <FileDropzone
@@ -166,7 +179,7 @@ export function DocumentReviewForm({
                 )}
                 {review.reviewBusy
                   ? "Processing documents…"
-                  : "Run compliance review"}
+                  : "Check invoice and packing list"}
               </button>
             </div>
           ) : null}

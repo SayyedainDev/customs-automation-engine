@@ -102,7 +102,7 @@ def test_shipment_deadline_manual_review_when_dates_missing() -> None:
 
 def test_china_certificate_of_origin_is_destination_scoped() -> None:
     engine = DeterministicComplianceRuleEngine()
-    china = ShipmentComplianceInput.model_validate(
+    germany = ShipmentComplianceInput.model_validate(
         {
             "product_name": "Cotton knitted T-shirts",
             "pct_code": "61091000",
@@ -117,9 +117,50 @@ def test_china_certificate_of_origin_is_destination_scoped() -> None:
             "uploaded_document_types": ["commercial_invoice", "packing_list", "form_e"],
         }
     )
-    coo = _checks(engine.check(china))["xr_coo_china"]
+    checks = _checks(engine.check(germany))
+    coo = checks["xr_coo_china"]
     # The China rule does not apply to a Germany shipment.
     assert coo.status == ComplianceCheckStatus.NOT_APPLICABLE
+    # With no matching destination-specific rule, the generic conditional rule
+    # remains visible for a human to assess.
+    assert (
+        checks["xr_coo_other_destinations"].status
+        == ComplianceCheckStatus.MANUAL_REVIEW
+    )
+
+
+def test_china_specific_certificate_rule_suppresses_other_destinations_rule() -> None:
+    engine = DeterministicComplianceRuleEngine()
+    china = ShipmentComplianceInput.model_validate(
+        {
+            "product_name": "Cotton knitted T-shirts",
+            "pct_code": "61091000",
+            "quantity": Decimal("100"),
+            "unit_price": Decimal("5.50"),
+            "invoice_line_total": Decimal("550.00"),
+            "invoice_total": Decimal("550.00"),
+            "net_weight": Decimal("75"),
+            "gross_weight": Decimal("80"),
+            "destination_country": "China",
+            "shipment_date": date(2026, 7, 20),
+            "uploaded_document_types": [
+                "commercial_invoice",
+                "packing_list",
+                "form_e",
+            ],
+        }
+    )
+
+    checks = _checks(engine.check(china))
+
+    assert checks["xr_coo_china"].status == ComplianceCheckStatus.FAILED
+    # The generic check is retained in the raw executable audit trail, but it
+    # cannot add a contradictory manual-review finding for a China shipment.
+    assert (
+        checks["xr_coo_other_destinations"].status
+        == ComplianceCheckStatus.NOT_APPLICABLE
+    )
+    assert "covers destination China" in checks["xr_coo_other_destinations"].message
 
 
 def test_complete_shipment_reaches_executable_pass() -> None:

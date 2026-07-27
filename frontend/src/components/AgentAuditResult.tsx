@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock3,
   FileSearch,
@@ -24,6 +25,46 @@ function asList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function uniqueText(values: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = displayValue(value).trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function auditDecision(status: unknown): {
+  title: string;
+  tone: "success" | "warning" | "danger" | "info";
+} {
+  switch (String(status).toLowerCase()) {
+    case "passed":
+      return {
+        title: "Ready based on the configured checks",
+        tone: "success",
+      };
+    case "failed":
+    case "rejected":
+      return {
+        title: "Not ready for customs submission",
+        tone: "danger",
+      };
+    case "manual_review":
+    case "awaiting_human_review":
+      return {
+        title: "Human review required before submission",
+        tone: "warning",
+      };
+    default:
+      return {
+        title: "Audit result available",
+        tone: "info",
+      };
+  }
+}
+
 function Report({
   finalReport,
 }: {
@@ -33,43 +74,48 @@ function Report({
   const report = userReport ?? finalReport;
   const shipment = asRecord(report.shipment_summary);
   const explanation = report.explanation ?? finalReport.explanation;
-  const requiredActions = asList(report.required_actions);
-  const workflowSummary = asList(report.workflow_summary);
+  const checksPassed = uniqueText(asList(report.checks_passed));
+  const requiredActions = uniqueText(asList(report.required_actions));
+  const workflowSummary = uniqueText(asList(report.workflow_summary));
   const problems = asRecord(report.problems);
   const problemEntries = problems
     ? Object.entries(problems).flatMap(([category, values]) =>
-        asList(values).map((value) => ({ category, value })),
+        uniqueText(asList(values)).map((value) => ({ category, value })),
       )
     : [];
+  const status =
+    report.overall_result ?? finalReport.deterministic_compliance_status;
+  const decision = auditDecision(status);
+  const explanationSource = String(
+    report.explanation_source ?? finalReport.explanation_source ?? "",
+  );
+  const explanationLabel =
+    explanationSource === "llm"
+      ? "AI-assisted wording"
+      : explanationSource
+        ? "Deterministic template wording"
+        : "Supplementary wording";
 
   return (
     <div className="agent-report stack-lg">
-      <div className="notice notice--info">
+      <div className={`notice notice--${decision.tone}`}>
         <FileSearch aria-hidden="true" size={18} />
         <div>
-          <strong>
-            {displayValue(
-              report.overall_result ??
-                finalReport.deterministic_compliance_status,
-            )}
-          </strong>
-          <p>{displayValue(report.overall_reason)}</p>
+          <strong>{decision.title}</strong>
+          <p>
+            {displayValue(report.overall_reason)} The invoice and packing list
+            were processed; this status describes customs readiness.
+          </p>
         </div>
       </div>
 
-      {explanation ? (
-        <section className="report-section">
-          <h3>Explanation</h3>
-          <p>{displayValue(explanation)}</p>
-          {report.explanation_source ? (
-            <small>Source: {labelize(String(report.explanation_source))}</small>
-          ) : null}
-        </section>
-      ) : null}
-
       {shipment ? (
         <section className="report-section">
-          <h3>Shipment summary</h3>
+          <h3>What was checked</h3>
+          <p className="section-intro">
+            These shipment details were extracted and supplied to the
+            deterministic rule engine.
+          </p>
           <dl className="metadata-grid metadata-grid--compact">
             {Object.entries(shipment)
               .filter(([, value]) => value !== null && value !== undefined)
@@ -80,16 +126,39 @@ function Report({
                 </div>
               ))}
           </dl>
+          {checksPassed.length ? (
+            <div className="verified-checks">
+              <strong>Checks confirmed by the rule engine</strong>
+              <ul className="plain-list">
+                {checksPassed.slice(0, 8).map((check, index) => (
+                  <li key={index}>
+                    <CheckCircle2 aria-hidden="true" size={14} />
+                    {displayValue(check)}
+                  </li>
+                ))}
+              </ul>
+              {checksPassed.length > 8 ? (
+                <small>
+                  {checksPassed.length - 8} additional passed checks are retained
+                  in the audit record.
+                </small>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
       {problemEntries.length ? (
         <section className="report-section">
-          <h3>Problems identified</h3>
-          <ul className="plain-list">
+          <h3>Why this decision was reached</h3>
+          <ul className="decision-list decision-list--problems">
             {problemEntries.map(({ category, value }, index) => (
               <li key={`${category}-${index}`}>
-                <strong>{labelize(category)}:</strong> {displayValue(value)}
+                <AlertTriangle aria-hidden="true" size={16} />
+                <div>
+                  <strong>{labelize(category)}</strong>
+                  <p>{displayValue(value)}</p>
+                </div>
               </li>
             ))}
           </ul>
@@ -98,8 +167,8 @@ function Report({
 
       {requiredActions.length ? (
         <section className="report-section">
-          <h3>Required actions</h3>
-          <ol className="plain-list">
+          <h3>What to do next</h3>
+          <ol className="action-list">
             {requiredActions.map((action, index) => (
               <li key={index}>{displayValue(action)}</li>
             ))}
@@ -107,15 +176,31 @@ function Report({
         </section>
       ) : null}
 
+      {explanation ? (
+        <section className="report-section explanation-section">
+          <div className="explanation-section__heading">
+            <div>
+              <h3>Additional plain-language explanation</h3>
+              <p>
+                This wording helps a person understand the result. It does not
+                change the deterministic decision above.
+              </p>
+            </div>
+            <span className="explanation-label">{explanationLabel}</span>
+          </div>
+          <p>{displayValue(explanation)}</p>
+        </section>
+      ) : null}
+
       {workflowSummary.length ? (
-        <section className="report-section">
-          <h3>Workflow summary</h3>
+        <details className="technical-details">
+          <summary>Audit workflow details</summary>
           <ul className="plain-list">
             {workflowSummary.map((entry, index) => (
               <li key={index}>{displayValue(entry)}</li>
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
     </div>
   );

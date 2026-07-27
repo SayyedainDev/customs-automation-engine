@@ -290,7 +290,58 @@ def evaluate_executable_rules(
     rule_data_version: str,
 ) -> list[ComplianceCheckResult]:
     """Evaluate every executable rule that applies to this PCT code."""
-    return [
-        evaluate_rule(rule, shipment, uploaded_documents, pct_code, rule_data_version)
-        for rule in rule_set.rules_for(pct_code)
-    ]
+    applicable_rules = rule_set.rules_for(pct_code)
+    results: list[ComplianceCheckResult] = []
+
+    for rule in applicable_rules:
+        if rule.check_type is ExecutableCheckType.CONDITIONAL_DOCUMENT:
+            destination_rule = next(
+                (
+                    candidate
+                    for candidate in applicable_rules
+                    if (
+                        candidate.check_type
+                        is ExecutableCheckType.DESTINATION_DOCUMENT
+                        and candidate.required_document == rule.required_document
+                        and _destination_matches(
+                            shipment.destination_country,
+                            candidate.destination_country,
+                        )
+                    )
+                ),
+                None,
+            )
+            if destination_rule is not None:
+                # Keep the generic rule in the raw audit trail, but mark it as
+                # structurally irrelevant when a destination-specific rule
+                # covers the same document. For example, the CPFTA China rule
+                # is authoritative for a China shipment, so the conditional
+                # rule for "other destinations" must not create a second,
+                # contradictory manual-review finding.
+                results.append(
+                    _result(
+                        rule,
+                        pct_code=pct_code,
+                        status=ComplianceCheckStatus.NOT_APPLICABLE,
+                        message=(
+                            f"{rule.rule_name}: does not apply because "
+                            f"'{destination_rule.rule_name}' covers destination "
+                            f"{shipment.destination_country or 'unspecified'}."
+                        ),
+                        rule_data_version=rule_data_version,
+                        government_rule=False,
+                    )
+                )
+                continue
+
+        results.append(
+            evaluate_rule(
+                rule,
+                shipment,
+                uploaded_documents,
+                pct_code,
+                rule_data_version,
+            )
+        )
+
+    return results

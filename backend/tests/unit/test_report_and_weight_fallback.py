@@ -343,7 +343,12 @@ def test_11_report_separates_missing_documents_from_mismatches():
         _extraction_state(form_e_present=False, quantity_mismatch=True)
     )
     problems = report["problems"]
-    assert problems["missing_documents"] == ["Form-E is missing."]
+    assert problems["missing_documents"] == [
+        (
+            "The invoice and packing list were processed, but Form-E was not "
+            "provided as a supporting document."
+        )
+    ]
     assert any("Quantity mismatch" in m for m in problems["document_mismatches"])
     assert problems["document_mismatches"] != problems["missing_documents"]
 
@@ -353,6 +358,88 @@ def test_12_report_gives_clear_required_actions():
         _extraction_state(form_e_present=False, quantity_mismatch=True)
     )
     actions = report["required_actions"]
-    assert "Upload the Form-E." in actions
+    assert (
+        "Obtain Form-E and include it with the shipment documents before customs "
+        "submission."
+    ) in actions
     assert any("quantity" in a.lower() for a in actions)
     assert report["overall_result"] == "FAILED"
+
+
+def test_13_report_consolidates_duplicate_required_document_findings():
+    state = _extraction_state(form_e_present=False)
+    checks = state["extraction_result"]["items"][0]["compliance"]["checks"]
+    checks.extend(
+        [
+            {
+                "check_id": "xr_common_form_e",
+                "check_name": "Form-E required for export clearance",
+                "status": "failed",
+                "message": "The required document 'form_e' is missing.",
+                "required_document": "form_e",
+                "source_document": "Export Policy Order 2022",
+                "sro_number": "544(I)/2022",
+                "source_page": 1,
+                "issuing_authority": "Ministry of Commerce",
+                "validation_status": "partially_verified",
+            },
+            {
+                "check_id": "destination_certificate_of_origin",
+                "check_name": "Destination-based certificate of origin",
+                "status": "failed",
+                "message": "Export to China requires a certificate of origin.",
+                "required_document": "certificate_of_origin",
+                "source_document": "TIPP Certificate of Origin Procedure",
+                "sro_number": None,
+                "source_page": None,
+                "issuing_authority": "Trade Development Authority of Pakistan",
+                "validation_status": "partially_verified",
+            },
+            {
+                "check_id": "xr_coo_china",
+                "check_name": "Certificate of origin for export to China under CPFTA",
+                "status": "failed",
+                "message": "The destination-specific document is missing.",
+                "required_document": "certificate_of_origin",
+                "source_document": "CPFTA Certificate of Origin Procedure",
+                "sro_number": None,
+                "source_page": None,
+                "issuing_authority": "Trade Development Authority of Pakistan",
+                "validation_status": "partially_verified",
+            },
+        ]
+    )
+
+    report = build_audit_report(state)
+
+    assert report["problems"]["missing_documents"] == [
+        (
+            "The invoice and packing list were processed, but Form-E was not "
+            "provided as a supporting document."
+        ),
+        (
+            "The invoice and packing list were processed, but Certificate of "
+            "origin was not provided as a supporting document."
+        ),
+    ]
+    assert report["required_actions"] == [
+        (
+            "Obtain Form-E and include it with the shipment documents before "
+            "customs submission."
+        ),
+        (
+            "Obtain Certificate of origin and include it with the shipment "
+            "documents before customs submission."
+        ),
+    ]
+    # Consolidation affects the business summary only. Both the legacy and
+    # executable legal sources remain available for audit/explanation.
+    sources = {
+        item["source_document"] for item in report["compliance_evidence"]
+    }
+    assert {
+        "TIPP Customs Clearance Procedure",
+        "Export Policy Order 2022",
+        "TIPP Certificate of Origin Procedure",
+        "CPFTA Certificate of Origin Procedure",
+    } <= sources

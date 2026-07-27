@@ -92,6 +92,31 @@ def _doc_name(document_type: str | None) -> str:
     return _DOCUMENT_NAMES.get(document_type, document_type.replace("_", " "))
 
 
+def _missing_document_guidance(document_type: str | None) -> tuple[str, str]:
+    """Return one plain-language problem and action for a missing document.
+
+    Invoice and packing-list uploads are the inputs to this review. Other
+    documents are supporting customs documents discovered by the rules, not
+    extra files the user was expected to provide to start the review.
+    """
+    doc = _doc_name(document_type)
+    if document_type in {"commercial_invoice", "packing_list"}:
+        return (
+            f"{doc} is missing, so the two-document review could not be completed.",
+            f"Provide the {doc.lower()} and run the review again.",
+        )
+    return (
+        (
+            f"The invoice and packing list were processed, but {doc} was not "
+            "provided as a supporting document."
+        ),
+        (
+            f"Obtain {doc} and include it with the shipment documents before "
+            "customs submission."
+        ),
+    )
+
+
 def _shipment_summary(invoice: dict, packing: dict, state: dict) -> dict[str, Any]:
     packages = [
         _fv(item.get("package_count"))
@@ -175,8 +200,10 @@ def _categorise(check: dict, *, is_compliance: bool) -> tuple[str | None, str, s
 
     if status == "failed":
         if check_id in _DOCUMENT_PRESENCE_IDS:
-            doc = _doc_name(check.get("required_document"))
-            return "missing_documents", f"{doc} is missing.", f"Upload the {doc}."
+            message, action = _missing_document_guidance(
+                check.get("required_document")
+            )
+            return "missing_documents", message, action
         if check_id in _ARITHMETIC_IDS:
             return "calculation_errors", message, "Correct the figures so the totals add up."
         if check_id in _MISMATCH_IDS:
@@ -188,12 +215,10 @@ def _categorise(check: dict, *, is_compliance: bool) -> tuple[str | None, str, s
             )
             return "document_mismatches", message, action
         if is_compliance and check.get("required_document"):
-            doc = _doc_name(check.get("required_document"))
-            return (
-                "regulatory_problems",
-                f"{doc} is required but was not provided.",
-                f"Provide the {doc}.",
+            message, action = _missing_document_guidance(
+                check.get("required_document")
             )
+            return "missing_documents", message, action
         return "regulatory_problems", message, "Send the case for regulatory review."
 
     # manual_review (and anything else uncertain)
@@ -400,6 +425,7 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     }
     checks_passed: list[str] = []
     actions: list[str] = []
+    missing_document_keys: set[str] = set()
 
     def ingest(check: dict, *, is_compliance: bool) -> None:
         bucket, message, action = _categorise(check, is_compliance=is_compliance)
@@ -407,6 +433,16 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
             if check.get("status") == "passed" and message not in checks_passed:
                 checks_passed.append(message)
             return
+        if bucket == "missing_documents":
+            # Legacy and executable rule layers deliberately remain in the raw
+            # audit record. Consolidate them only in this business-facing view
+            # so one absent supporting document produces one clear problem and
+            # one action, regardless of how many rules identified it.
+            document_key = str(check.get("required_document") or "").strip().casefold()
+            if document_key and document_key in missing_document_keys:
+                return
+            if document_key:
+                missing_document_keys.add(document_key)
         if message not in problems[bucket]:
             problems[bucket].append(message)
         if action and action not in actions:
