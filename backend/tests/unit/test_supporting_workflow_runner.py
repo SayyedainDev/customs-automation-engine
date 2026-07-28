@@ -393,7 +393,9 @@ class _PreflightApi:
 
 def test_preflight_requires_server_proven_postgres_workflow_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core.config import get_settings
+    from pydantic import SecretStr
     monkeypatch.setattr(get_settings(), "database_url", "postgresql://fake")
+    monkeypatch.setattr(get_settings(), "groq_api_key", SecretStr("fake"))
     report = runner.preflight(
         _PreflightApi(),  # type: ignore[arg-type]
         need_ocr=False,
@@ -415,8 +417,11 @@ def test_preflight_requires_server_proven_postgres_workflow_profile(monkeypatch:
     ],
 )
 def test_preflight_refuses_wrong_workflow_runtime(
-    override: dict[str, Any],
+    override: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app.core.config import get_settings
+    from pydantic import SecretStr
+    monkeypatch.setattr(get_settings(), "groq_api_key", SecretStr("fake"))
     with pytest.raises(runner.EvaluationError):
         runner.preflight(
             _PreflightApi(override),  # type: ignore[arg-type]
