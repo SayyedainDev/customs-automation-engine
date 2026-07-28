@@ -391,7 +391,9 @@ class _PreflightApi:
         return _Response(200, {"degraded_mode": False, "results": [{}]})
 
 
-def test_preflight_requires_server_proven_postgres_workflow_profile() -> None:
+def test_preflight_requires_server_proven_postgres_workflow_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import get_settings
+    monkeypatch.setattr(get_settings(), "database_url", "postgresql://fake")
     report = runner.preflight(
         _PreflightApi(),  # type: ignore[arg-type]
         need_ocr=False,
