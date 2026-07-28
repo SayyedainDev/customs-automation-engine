@@ -3,6 +3,7 @@ import {
   BookOpenCheck,
   ExternalLink,
   FilePlus2,
+  FileText,
   LayoutDashboard,
   Menu,
   Search,
@@ -17,6 +18,7 @@ type ConnectionState = "checking" | "online" | "offline";
 
 const navigation = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/prepare", label: "Prepare an export", icon: FileText },
   { to: "/review", label: "New review", icon: FilePlus2 },
   { to: "/search", label: "Evidence search", icon: Search },
 ];

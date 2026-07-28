@@ -56,16 +56,20 @@
 - **Result**: Passed (1 passed)
 - **Blockers**: None
 
-## Phase 7 — Frontend Entry Points
+## Phase 7 & 8 — Frontend Entry Points and Finalization
 - **Files Changed**:
-  - `frontend/src/components/AgentAuditResult.tsx`
-- **Result**: Button added
+  - `frontend/src/components/AgentAuditResult.tsx` (updated)
+  - `frontend/src/components/AssistantPanel.tsx` (created & finalized)
+  - `frontend/src/pages/PrepareExportPage.tsx` (created)
+  - `frontend/src/api/types.ts` (updated)
+  - `frontend/src/api/client.ts` (updated)
+- **Result**: Successfully implemented "Prepare an Export" screen and "Shipment Assistant" embedded chat panel with shift+enter submission, source cards, suggested questions, and answer types.
 - **Blockers**: None
 
-## Phase 8 — Verification
+## Phase 9 — Verification
 - **Files Changed**:
   - `docs/CACE_ASSISTANT_REPORT.md`
-- **Result**: All 610 tests passed, `mypy` passed perfectly.
+- **Result**: All 641 tests passed, `mypy` passed perfectly. Clean-worktree verification succeeded with credentials mocked properly for isolation testing.
 - **Blockers**: None
 
 All phases complete.

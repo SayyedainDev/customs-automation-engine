@@ -9,6 +9,10 @@ import type {
   ReviewTaskResponse,
   ShipmentSearchResponse,
   WorkflowStatusResponse,
+  GuidanceRequest,
+  GuidanceResponse,
+  ShipmentChatRequest,
+  ChatResponse,
 } from "./types";
 
 const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(
@@ -211,5 +215,17 @@ export const api = {
     request<ShipmentSearchResponse>("/api/v1/shipment-search/search", {
       method: "POST",
       body: JSON.stringify({ query, top_k: 5 }),
+    }),
+
+  getGuidance: (payload: GuidanceRequest) =>
+    request<GuidanceResponse>("/api/v1/assistant/guidance", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  sendChat: (shipmentId: string, payload: ShipmentChatRequest) =>
+    request<ChatResponse>(`/api/v1/assistant/shipments/${shipmentId}/chat`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

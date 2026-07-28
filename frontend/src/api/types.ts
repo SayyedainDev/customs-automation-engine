@@ -291,3 +291,36 @@ export interface ChatResponse {
   suggested_questions: string[];
 }
 
+export interface GuidanceRequest {
+  conversation_id?: string | null;
+  product: string;
+  pct_code: string;
+  destination: string;
+  planned_shipment_date?: string | null;
+  question?: string;
+}
+
+export interface DocumentGuidanceSchema {
+  document_type: string;
+  display_name: string;
+  requirement: string;
+  reason: string;
+  evidence_status: string;
+  citations: unknown[];
+}
+
+export interface GuidanceResponse {
+  conversation_id: string;
+  message_id: string;
+  mode: string;
+  supported_scope: boolean;
+  pct_code?: string | null;
+  product?: string | null;
+  destination?: string | null;
+  planned_shipment_date?: string | null;
+  documents: DocumentGuidanceSchema[];
+  limitations: string[];
+  answer?: string | null;
+}
+
+
