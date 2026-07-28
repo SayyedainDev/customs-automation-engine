@@ -197,6 +197,13 @@ def _decimal(field: dict[str, Any]) -> Decimal | None:
 
 def _provenance(extraction_method: str | None) -> ProvenanceLabel:
     method = extraction_method or ""
+    if method == "human_review":
+        # A reviewer confirmed or corrected this value - it was never read
+        # from the PDF this way. Checked first so it can never be mislabeled
+        # as machine/OCR/LLM provenance (found live: this branch was missing
+        # entirely and every human-reviewed field fell through to the
+        # MACHINE_EXTRACTED default).
+        return ProvenanceLabel.HUMAN_CORRECTION
     if "tesseract_ocr" in method or method == "not_extracted_ocr_required":
         return ProvenanceLabel.OCR_EXTRACTED
     if "llm_structured" in method:

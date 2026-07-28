@@ -23,10 +23,25 @@ from app.models.customs_audit import (
     CustomsHumanReviewTask,
 )
 from app.services.customs_audit.report import build_audit_report
-from app.services.customs_audit.state import HumanReviewDecision, WorkflowStatus, utcnow_iso
+from app.services.customs_audit.state import (
+    HumanAction,
+    HumanReviewDecision,
+    WorkflowStatus,
+    utcnow_iso,
+)
 from app.services.shipment_search.vector_store import index_shipment_summary
 
 logger = logging.getLogger(__name__)
+
+#: Advertised in the HumanAction enum (and validated structurally, so a
+#: client cannot bypass them with an arbitrary string) but not implemented in
+#: this prototype - document replacement requires a real upload workflow.
+#: Rejected here, before the graph is ever invoked, rather than silently
+#: "completing" a workflow that never actually attached a new document or
+#: reprocessed anything.
+_UNSUPPORTED_ACTIONS = frozenset(
+    {HumanAction.PROVIDE_MISSING_DOCUMENT.value, HumanAction.REQUEST_REPROCESSING.value}
+)
 
 
 class WorkflowNotFoundError(Exception):
@@ -114,6 +129,13 @@ class CustomsAuditService:
         validated = HumanReviewDecision.model_validate(
             {**decision, "timestamp": decision.get("timestamp") or utcnow_iso()}
         )
+        if validated.action.value in _UNSUPPORTED_ACTIONS:
+            raise WorkflowStateError(
+                f"the '{validated.action.value}' action is not implemented in this "
+                "prototype (document replacement requires a real upload workflow); "
+                "use confirm_extracted_value, correct_extracted_value, "
+                "accept_manual_review or reject_submission"
+            )
         state = await self._invoke(
             Command(resume=validated.model_dump(mode="json")), workflow.thread_id
         )

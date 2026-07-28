@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -47,11 +48,13 @@ from app.services.customs_audit.safety import (
     validate_broker_report,
 )
 from app.services.customs_audit.state import (
+    CORRECTABLE_BASES,
     MAX_HUMAN_REVIEW_ROUNDS,
     ActorType,
     AuditorReport,
     AuditRevision,
     BrokerReport,
+    CorrectionBasis,
     DisputedFieldDetail,
     HumanAction,
     HumanCorrection,
@@ -156,12 +159,55 @@ def _item_index_by_reference(
     return None, None
 
 
+#: Below this confidence, the extractor itself is not sure of the value -
+#: that is the software's own uncertainty, not a claim about what the
+#: document says, so a human resolving it is correcting an *extraction*
+#: problem. Matches the qualitative gap already used elsewhere in this
+#: codebase between a comfortably-read field and a shaky one.
+_LOW_CONFIDENCE_THRESHOLD = Decimal("0.90")
+
+
+def _field_correction_basis(field: dict[str, Any]) -> str:
+    """Classify *why* one side of a disputed field might be wrong.
+
+    Deliberately conservative: anything that does not clearly indicate the
+    software's own uncertainty (a confident, verified, non-OCR reading)
+    defaults to ``CONFIRMED_DOCUMENT_MISMATCH`` - fail closed, never assume a
+    value is correctable just because a dispute exists.
+    """
+    method = str(field.get("extraction_method") or "")
+    validation_status = field.get("validation_status")
+    raw_confidence = field.get("confidence")
+    try:
+        confidence = Decimal(str(raw_confidence)) if raw_confidence is not None else None
+    except (InvalidOperation, ValueError):
+        confidence = None
+
+    if field.get("value") is None or method == "not_extracted_ocr_required":
+        return CorrectionBasis.PARSER_ERROR.value
+
+    is_uncertain = validation_status == "manual_review" or (
+        confidence is not None and confidence < _LOW_CONFIDENCE_THRESHOLD
+    )
+    if "tesseract_ocr" in method and is_uncertain:
+        return CorrectionBasis.AMBIGUOUS_OCR.value
+    if is_uncertain:
+        return CorrectionBasis.LOW_CONFIDENCE_EXTRACTION.value
+    if confidence is None and validation_status != "verified":
+        return CorrectionBasis.HUMAN_CONFIRMATION_REQUIRED.value
+    # Confident, verified, not OCR-derived: the document itself clearly and
+    # unambiguously contains this value - only a corrected document (not a
+    # rewritten stored value) can resolve a disagreement here.
+    return CorrectionBasis.CONFIRMED_DOCUMENT_MISMATCH.value
+
+
 def _disputed_field_details_for_check(
     check: dict[str, Any], item_reference: str | None, extraction_result: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """The invoice-side and packing-side values behind one failed/uncertain
-    item-comparison check, each traceable to a document, page and
-    confidence - the precise thing a reviewer is being asked to look at."""
+    item-comparison check, each traceable to a document, page, confidence
+    and *why* it may be wrong - the precise thing a reviewer is being asked
+    to look at, and what later gates whether a correction to it is safe."""
     field_name = _FIELD_NAME_BY_CHECK.get(str(check.get("check_id") or ""))
     if field_name is None or item_reference is None:
         return []
@@ -190,6 +236,7 @@ def _disputed_field_details_for_check(
                 "value": field.get("value"),
                 "confidence": field.get("confidence"),
                 "extraction_method": field.get("extraction_method"),
+                "correction_basis": _field_correction_basis(field),
             }
         )
     return details
@@ -269,12 +316,15 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
         ],
         deterministic_status=consensus.get("deterministic_status"),
         evidence_passages=state.get("retrieved_evidence", [])[:5],
+        # PROVIDE_MISSING_DOCUMENT / REQUEST_REPROCESSING are deliberately
+        # excluded here: document replacement is not implemented in this
+        # prototype, and workflow_service.submit_review() explicitly rejects
+        # them if a client submits them anyway - never silently "completing"
+        # as though a new document had actually been attached.
         allowed_actions=[
             HumanAction.CONFIRM_EXTRACTED_VALUE,
             HumanAction.CORRECT_EXTRACTED_VALUE,
-            HumanAction.PROVIDE_MISSING_DOCUMENT,
             HumanAction.ACCEPT_MANUAL_REVIEW,
-            HumanAction.REQUEST_REPROCESSING,
             HumanAction.REJECT_SUBMISSION,
             HumanAction.ADD_REVIEW_NOTE,
         ],
@@ -431,6 +481,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 for i in extraction_result.get("items", [])
             ],
             "frozen_at": utcnow_iso(),
+            "triggered_by": "initial",
         }
         events = [
             _event(
@@ -440,9 +491,36 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 payload={"overall_status": frozen["overall_status"]},
             )
         ]
+        # Revision 1 begins here, at the same instant the original status is
+        # frozen - not retroactively, whenever a correction happens to be
+        # submitted later (or never, if none ever is). The Broker report is
+        # already available (broker_agent runs before this node); the
+        # Auditor and consensus are not produced until after this node, so
+        # this revision starts "provisional" (frozen=False) and is completed
+        # by compare_agent_reports's controlled completion step below -
+        # never edited again after that.
+        provisional_revision = AuditRevision(
+            revision_number=1,
+            frozen=False,
+            frozen_at=frozen["frozen_at"],
+            triggered_by="initial",
+            deterministic_result=frozen,
+            broker_report=state.get("broker_report"),
+            auditor_report=None,
+            consensus_result=None,
+        )
+        events.append(
+            _event(
+                event_type="audit_revision_frozen",
+                node_name="deterministic_compliance",
+                actor=ActorType.SYSTEM,
+                payload={"version": 1, "overall_status": frozen["overall_status"], "provisional": True},
+            )
+        )
         return {
             "deterministic_compliance_result": frozen,
             "deterministic_result_history": _append(state, "deterministic_result_history", [frozen]),
+            "audit_revisions": _append(state, "audit_revisions", [provisional_revision.model_dump(mode="json")]),
             "audit_events": _append(state, "audit_events", events),
             "updated_at": utcnow_iso(),
         }
@@ -683,9 +761,41 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 new_hash=_state_hash(state),
             )
         ]
+
+        # Controlled completion of revision 1: the Auditor and consensus are
+        # only available now (this node runs after auditor_agent). This is
+        # the one and only place revision 1's provisional entry (see
+        # deterministic_compliance) is ever updated - it is complete and
+        # frozen=True before interrupt_for_human_review can possibly run, so
+        # a human correction never needs to (and never does) create it.
+        existing_revisions = list(state.get("audit_revisions") or [])
+        audit_revisions = existing_revisions
+        if existing_revisions and existing_revisions[0].get("revision_number") == 1:
+            provisional = existing_revisions[0]
+            completed_revision = AuditRevision(
+                revision_number=1,
+                frozen=True,
+                frozen_at=provisional.get("frozen_at") or utcnow_iso(),
+                triggered_by="initial",
+                deterministic_result=provisional.get("deterministic_result") or {},
+                broker_report=state.get("broker_report"),
+                auditor_report=state.get("auditor_report"),
+                consensus_result=consensus_obj.model_dump(mode="json"),
+            )
+            audit_revisions = [completed_revision.model_dump(mode="json"), *existing_revisions[1:]]
+            events.append(
+                _event(
+                    event_type="audit_revision_frozen",
+                    node_name="compare_agent_reports",
+                    actor=ActorType.SYSTEM,
+                    payload={"version": 1, "overall_status": deterministic_status, "provisional": False},
+                )
+            )
+
         return {
             "consensus_result": consensus_obj.model_dump(mode="json"),
             "manual_review_reasons": _append(state, "manual_review_reasons", reasons),
+            "audit_revisions": audit_revisions,
             "audit_events": _append(state, "audit_events", events),
             "updated_at": utcnow_iso(),
         }
@@ -756,10 +866,11 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         }
 
     def resume_workflow(state: dict[str, Any]) -> dict[str, Any]:
-        """The legacy-actions path: reject / accept-manual-review / add-note /
-        request-reprocessing / provide-missing-document. A confirm/correct
-        action never reaches this node - route_human_action sends it to
-        apply_human_correction instead (see below)."""
+        """The legacy-actions path: reject / accept-manual-review / add-note.
+        PROVIDE_MISSING_DOCUMENT / REQUEST_REPROCESSING never reach the graph
+        at all (workflow_service.submit_review() rejects them first). A
+        confirm/correct action never reaches this node either -
+        route_human_action sends it to apply_human_correction instead."""
         decision = state.get("human_review_decision") or {}
         action = decision.get("action")
         updates: dict[str, Any] = {"updated_at": utcnow_iso()}
@@ -796,15 +907,28 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         raw_corrections = decision.get("corrections") or []
         extraction_result = state.get("extraction_result") or {}
         revision_from = len(state.get("deterministic_result_history") or []) or 1
-        disputed_paths = {
-            d.get("field_path") for d in review_task.get("disputed_field_details") or []
+        disputed_details_by_path = {
+            d.get("field_path"): d for d in review_task.get("disputed_field_details") or []
         }
         present_check_ids = _all_check_ids(extraction_result)
 
-        def _fail(reason: str) -> dict[str, Any]:
+        #: The exact response required when a reviewer attempts to overwrite
+        #: a value the uploaded document itself states clearly and
+        #: confidently: the disagreement is between two documents, not a
+        #: software reading error, so no stored value may be edited to make
+        #: it go away. Document replacement is not implemented in this
+        #: prototype, so the workflow simply finalizes in whatever
+        #: deterministic status the engine already reached (see
+        #: build_final_report) - no new status is invented.
+        _DOCUMENT_CONFLICT_MESSAGE = (
+            "The uploaded document itself contains the conflicting value. "
+            "Upload a corrected document and run the audit again."
+        )
+
+        def _fail(reason: str, *, event_type: str = "correction_validation_failed") -> dict[str, Any]:
             events = [
                 _event(
-                    event_type="correction_validation_failed",
+                    event_type=event_type,
                     node_name="apply_human_correction",
                     actor=ActorType.SYSTEM,
                     actor_reference=reviewer,
@@ -829,8 +953,15 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         regulatory_context_changed = False
         for raw in raw_corrections:
             field_path = raw.get("field_path")
-            if disputed_paths and field_path not in disputed_paths:
+            detail = disputed_details_by_path.get(field_path)
+            if disputed_details_by_path and detail is None:
                 return _fail(f"field_path not part of the active review task: {field_path}")
+            if detail is not None:
+                basis = str(detail.get("correction_basis") or CorrectionBasis.CONFIRMED_DOCUMENT_MISMATCH.value)
+                if basis not in CORRECTABLE_BASES:
+                    return _fail(
+                        _DOCUMENT_CONFLICT_MESSAGE, event_type="correction_rejected_document_conflict"
+                    )
             if not raw.get("reason"):
                 return _fail(f"a reason is required to correct {field_path}")
             try:
@@ -890,23 +1021,15 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         except CorrectionValidationError as exc:
             return _fail(str(exc))
 
-        # Revision 1 is captured retroactively, exactly once, from whatever
-        # is still in state at this instant (the correction below has not
-        # been applied to extraction_result yet) - see AuditRevision.
+        # Revision 1 already exists, complete and frozen, by the time this
+        # node can ever run: deterministic_compliance opens it and
+        # compare_agent_reports completes it, and both always run before
+        # interrupt_for_human_review - which is the only way a correction
+        # decision reaches this node at all. It is never created here.
         audit_revisions = list(state.get("audit_revisions") or [])
-        if not audit_revisions:
-            original_deterministic = state.get("deterministic_compliance_result") or {}
-            audit_revisions.append(
-                AuditRevision(
-                    revision_number=1,
-                    frozen_at=original_deterministic.get("frozen_at") or utcnow_iso(),
-                    triggered_by="initial",
-                    deterministic_result=original_deterministic,
-                    broker_report=state.get("broker_report"),
-                    auditor_report=state.get("auditor_report"),
-                    consensus_result=state.get("consensus_result"),
-                ).model_dump(mode="json")
-            )
+        assert audit_revisions and audit_revisions[0].get("revision_number") == 1, (
+            "revision 1 must already be frozen before a human correction can be applied"
+        )
 
         events = [
             _event(

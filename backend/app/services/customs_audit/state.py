@@ -64,6 +64,40 @@ class HumanAction(str, Enum):
     ADD_REVIEW_NOTE = "add_review_note"
 
 
+class CorrectionBasis(str, Enum):
+    """*Why* a disputed value is eligible (or not) for correct_extracted_value.
+
+    A human corrects an *extraction* problem - the software's own reading of
+    a document - never a *document* problem, where two documents plainly and
+    confidently disagree with each other. The first four are extraction
+    problems, correctable in place. The last three are not: the document
+    itself is the source of the disagreement, and only a corrected document
+    (not implemented in this prototype - see ``correct_extracted_value``
+    validation in nodes.py) can resolve them.
+    """
+
+    LOW_CONFIDENCE_EXTRACTION = "low_confidence_extraction"
+    AMBIGUOUS_OCR = "ambiguous_ocr"
+    PARSER_ERROR = "parser_error"
+    HUMAN_CONFIRMATION_REQUIRED = "human_confirmation_required"
+    CONFIRMED_DOCUMENT_MISMATCH = "confirmed_document_mismatch"
+    MISSING_REQUIRED_DOCUMENT = "missing_required_document"
+    REGULATORY_VIOLATION = "regulatory_violation"
+
+
+#: The only bases correct_extracted_value/confirm_extracted_value may act on -
+#: a reviewer resolves the software's uncertainty, never a document's own
+#: unambiguous content.
+CORRECTABLE_BASES = frozenset(
+    {
+        CorrectionBasis.LOW_CONFIDENCE_EXTRACTION.value,
+        CorrectionBasis.AMBIGUOUS_OCR.value,
+        CorrectionBasis.PARSER_ERROR.value,
+        CorrectionBasis.HUMAN_CONFIRMATION_REQUIRED.value,
+    }
+)
+
+
 # --------------------------------------------------------------------------- #
 # Structured agent reports.
 # --------------------------------------------------------------------------- #
@@ -152,6 +186,9 @@ class DisputedFieldDetail(BaseModel):
     value: Any = None
     confidence: float | None = None
     extraction_method: str | None = None
+    #: Why this specific value is (or is not) eligible for
+    #: correct_extracted_value/confirm_extracted_value - see CorrectionBasis.
+    correction_basis: str = CorrectionBasis.CONFIRMED_DOCUMENT_MISMATCH.value
 
 
 class HumanReviewRequest(BaseModel):

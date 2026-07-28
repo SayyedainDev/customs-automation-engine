@@ -41,6 +41,22 @@ def fld(value, *, method="pdf_text_llm_structured_output", page=1, vs="verified"
     return {"value": value, "extraction_method": method, "confidence": conf, "source_page": page, "validation_status": vs, "ocr_confidence": ocr_conf}
 
 
+def mark_field_uncertain(extraction, *, doc="invoice", item_index=1, field="quantity"):
+    """Mutate one already-built extraction fixture so a specific field reads
+    as a genuine extraction uncertainty (low confidence + manual_review)
+    rather than a confident, verified reading - the only kind of disputed
+    field correct_extracted_value/confirm_extracted_value may act on. Tests
+    that exercise the correction/recompute machinery (not the new
+    document-conflict rejection) need this; a fixture built with fld()'s
+    default confidence=0.99/verified is - correctly - not correctable."""
+    items_key = "line_items" if doc == "invoice" else "items"
+    items = extraction[doc][items_key]
+    item = next(i for i in items if i.get("item_index") == item_index)
+    item[field]["confidence"] = "0.55"
+    item[field]["validation_status"] = "manual_review"
+    return extraction
+
+
 def sinput(pct, quantity="100", unit_price="5.50", line_total="550.00", net="75", gross="80"):
     return {"product_name": "Cotton knitted T", "pct_code": pct, "quantity": quantity, "unit_price": unit_price, "invoice_line_total": line_total, "invoice_total": line_total, "net_weight": net, "gross_weight": gross, "destination_country": "China", "shipment_date": "2026-07-20", "letter_of_credit_date": None, "uploaded_document_types": ["commercial_invoice", "packing_list", "form_e", "certificate_of_origin"]}
 
@@ -484,6 +500,7 @@ def test_20_correction_recomputes_status_from_corrected_data(
         ],
         "failed",
     )
+    mark_field_uncertain(extraction, doc="invoice", item_index=1, field="quantity")
     svc = make_service(isolated_database, extraction)
     result = start(svc, isolated_database)
     assert result["deterministic_status"] == "failed"
@@ -909,6 +926,7 @@ def test_41_human_correction_cannot_erase_existing_document_failure(
         ],
         "failed",
     )
+    mark_field_uncertain(extraction, doc="invoice", item_index=1, field="quantity")
     svc = make_service(isolated_database, extraction)
     started = start(svc, isolated_database)
     assert started["status"] == "awaiting_human_review"

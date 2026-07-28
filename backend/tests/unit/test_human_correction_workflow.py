@@ -28,6 +28,7 @@ from tests.unit.test_customs_audit import (
     line,
     make_extraction,
     make_service,
+    mark_field_uncertain,
     manual_review_extraction,
     review,
     review_task,
@@ -42,9 +43,12 @@ class LyingAuditor(DeterministicAuditorAgent):
 
 
 def clean_quantity_mismatch_extraction():
-    """Single problem: invoice/packing quantity disagree. No other blocker,
-    so correcting it resolves everything and the workflow completes."""
-    return make_extraction(
+    """Single problem: invoice/packing quantity disagree, and the invoice
+    side was extracted with low confidence - a genuine extraction
+    uncertainty, not a confident document-vs-document conflict, so it is
+    eligible for correct_extracted_value. No other blocker, so correcting it
+    resolves everything and the workflow completes."""
+    extraction = make_extraction(
         [
             line(
                 status="failed",
@@ -60,6 +64,7 @@ def clean_quantity_mismatch_extraction():
         ],
         "failed",
     )
+    return mark_field_uncertain(extraction, doc="invoice", item_index=1, field="quantity")
 
 
 _XR_PCT_CHECK = {
@@ -75,10 +80,11 @@ _XR_PCT_CHECK = {
 
 
 def clean_pct_regulatory_extraction():
-    """Single problem: PCT code disagreement, plus one xr_-family regulatory
-    check already on the shipment so a PCT correction has something concrete
-    to requery evidence for."""
-    return make_extraction(
+    """Single problem: PCT code disagreement (invoice side low-confidence,
+    so it is eligible for correction), plus one xr_-family regulatory check
+    already on the shipment so a PCT correction has something concrete to
+    requery evidence for."""
+    extraction = make_extraction(
         [
             line(
                 status="failed",
@@ -94,12 +100,14 @@ def clean_pct_regulatory_extraction():
         ],
         "failed",
     )
+    return mark_field_uncertain(extraction, doc="invoice", item_index=1, field="pct_code")
 
 
 def two_problem_extraction():
     """Quantity AND PCT code both disagree - independent problems, so
-    correcting only one must leave the shipment still not ready."""
-    return make_extraction(
+    correcting only one (the low-confidence quantity) must leave the
+    shipment still not ready because of the other, untouched one."""
+    extraction = make_extraction(
         [
             line(
                 status="failed",
@@ -112,6 +120,7 @@ def two_problem_extraction():
         ],
         "failed",
     )
+    return mark_field_uncertain(extraction, doc="invoice", item_index=1, field="quantity")
 
 
 # 1. Quantity mismatch creates a structured human-review task.

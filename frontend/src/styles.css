@@ -2740,3 +2740,15 @@ textarea:focus {
   font-size: 13px;
   color: #344054;
 }
+
+.human-confirmed-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--success-border);
+  border-radius: 999px;
+  color: var(--success);
+  background: var(--success-bg);
+  font-size: 10px;
+  font-weight: 650;
+  vertical-align: middle;
+}

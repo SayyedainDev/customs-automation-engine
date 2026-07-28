@@ -302,6 +302,9 @@ function DocumentEvidenceRow({ entry }: { entry: Record<string, unknown> }) {
             {displayValue(value.document_type)}
             {value.page_number ? ` p.${displayValue(value.page_number)}` : ""}:{" "}
             <strong>{displayValue(value.extracted_value)}</strong>
+            {value.extraction_method === "human_review" ? (
+              <span className="human-confirmed-badge">Human-confirmed</span>
+            ) : null}
           </span>
         ))}
       </div>
