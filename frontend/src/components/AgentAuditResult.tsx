@@ -19,6 +19,7 @@ import type {
 } from "../api/types";
 import { displayValue, formatDate, labelize } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
+import { AssistantPanel } from "./AssistantPanel";
 
 type CorrectionAction = "confirm_extracted_value" | "correct_extracted_value";
 
@@ -886,6 +887,7 @@ function Report({
 }
 
 export function AgentAuditResult({
+  shipmentId,
   workflow,
   reviewTask,
   events,
@@ -893,6 +895,7 @@ export function AgentAuditResult({
   onDecision,
   onCorrection,
 }: {
+  shipmentId: string;
   workflow: WorkflowStatusResponse;
   reviewTask: ReviewTaskResponse | null;
   events: AuditEvent[];
@@ -1019,6 +1022,8 @@ export function AgentAuditResult({
             </ol>
           </section>
         ) : null}
+
+        <AssistantPanel shipmentId={shipmentId} />
       </div>
     </section>
   );

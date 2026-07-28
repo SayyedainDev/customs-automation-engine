@@ -256,3 +256,38 @@ export interface TrackedDocument {
   characterCount?: number;
   complianceStatus?: ComplianceStatus;
 }
+
+export interface ShipmentChatRequest {
+  conversation_id?: string | null;
+  question: string;
+  technical_detail?: boolean;
+}
+
+export interface ChatSource {
+  source_kind: string;
+  display_name?: string;
+  document_type?: string;
+  document_name?: string;
+  page_number?: number;
+  snippet?: string;
+  document_id?: string;
+  audit_revision_number?: number;
+  status?: string;
+  source_document?: string;
+  evidence_status?: string;
+  source_type?: string;
+}
+
+export interface ChatResponse {
+  conversation_id: string;
+  message_id: string;
+  mode: string;
+  answer_type?: string;
+  answer: string;
+  audit_status?: string;
+  audit_revision_number?: number;
+  sources: ChatSource[];
+  limitations: string[];
+  suggested_questions: string[];
+}
+
