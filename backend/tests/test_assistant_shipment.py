@@ -1,6 +1,5 @@
 from uuid import uuid4
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from app.models.documents import DocumentUploadRecord
 from app.models.customs_audit import CustomsAuditWorkflow, CustomsAuditEvent
@@ -78,16 +77,10 @@ def test_answer_shipment_question_regulatory_guidance(isolated_database):
     db.add(workflow)
     db.commit()
     
-    import app.services.assistant.shipment_assistant as sa
-    original_classify = sa.classify_question
-    sa.classify_question = lambda q: "regulatory_guidance"
-    try:
-        resp = answer_shipment_question(db, workflow_id, "Why is Form-E required?")
-        assert resp.answer_type == "regulatory_guidance"
-        assert "In the full implementation" not in resp.answer
-        assert resp.suggested_questions != []
-    finally:
-        sa.classify_question = original_classify
+    resp = answer_shipment_question(db, workflow_id, "What does the export policy order say about this?")
+    assert resp.answer_type == "regulatory_guidance"
+    assert "In the full implementation" not in resp.answer
+    assert resp.suggested_questions != []
 
 def test_answer_shipment_question_combined(isolated_database):
     db = Session(isolated_database)
@@ -97,6 +90,20 @@ def test_answer_shipment_question_combined(isolated_database):
     db.commit()
     
     resp = answer_shipment_question(db, workflow_id, "Does my Form-E satisfy the requirement?")
+    assert resp.answer_type == "combined_shipment_and_regulation"
+    assert "Simulated combined answer" not in resp.answer
+    source_kinds = [s.source_kind for s in resp.sources]
+    assert "uploaded_document" in source_kinds
+    assert "audit_finding" in source_kinds
+
+def test_answer_shipment_question_combined_coo(isolated_database):
+    db = Session(isolated_database)
+    workflow_id = uuid4()
+    workflow = CustomsAuditWorkflow(id=workflow_id, thread_id="thread-coo", status="passed")
+    db.add(workflow)
+    db.commit()
+    
+    resp = answer_shipment_question(db, workflow_id, "Does my Certificate of Origin satisfy the configured China requirement?")
     assert resp.answer_type == "combined_shipment_and_regulation"
     assert "Simulated combined answer" not in resp.answer
     source_kinds = [s.source_kind for s in resp.sources]
@@ -127,16 +134,7 @@ def test_answer_shipment_question_audit_history(isolated_database):
     db.add(event2)
     db.commit()
     
-    # We don't have a specific router classifier for audit history in the provided tests, but we can call it manually if we mock the route, or if "history" matches.
-    # The prompt says: "audit_history has no real handler." Wait, the routing logic in `classify_question` might not map to `audit_history` perfectly for all strings, but we can test the function if it hits the branch.
-    # Let's mock classify_question in the test.
-    import app.services.assistant.shipment_assistant as sa
-    original_classify = sa.classify_question
-    sa.classify_question = lambda q: "audit_history"
-    try:
-        resp = answer_shipment_question(db, workflow_id, "What changed between revision 1 and revision 2?")
-        assert resp.answer_type == "audit_history"
-        assert "Found 2 revisions" in resp.answer
-        assert resp.sources[0].source_kind == "frozen_audit"
-    finally:
-        sa.classify_question = original_classify
+    resp = answer_shipment_question(db, workflow_id, "What is the audit history of this shipment?")
+    assert resp.answer_type == "audit_history"
+    assert "Found 2 revisions" in resp.answer
+    assert resp.sources[0].source_kind == "frozen_audit"
