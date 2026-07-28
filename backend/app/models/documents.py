@@ -68,6 +68,14 @@ class DocumentUploadRecord(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    indexing_status: Mapped[str] = mapped_column(
+        String(50),
+        default="pending",
+    )
+    indexing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

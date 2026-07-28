@@ -11,6 +11,7 @@ from app.api.routes import shipments
 from app.api.routes import shipment_extraction
 from app.api.routes import shipment_search
 from app.api.routes import structured_extraction
+from app.api.routes import assistant
 from app.core.config import get_settings
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -40,6 +41,7 @@ app.include_router(regulatory_evidence.router)
 app.include_router(compliance_explain.router)
 app.include_router(customs_audit.router)
 app.include_router(shipment_search.router)
+app.include_router(assistant.router)
 
 
 @app.get("/")
