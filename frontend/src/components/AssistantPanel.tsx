@@ -16,10 +16,12 @@ interface AssistantPanelProps {
 }
 
 const ANSWER_TYPE_LABELS: Record<string, string> = {
-  document_fact: "Document fact",
+  pre_submission_guidance: "Preparation guidance",
+  shipment_document_fact: "Document fact",
   audit_result: "Audit result",
   regulatory_guidance: "Regulatory guidance",
-  combined_answer: "Combined answer",
+  combined_shipment_and_regulation: "Combined answer",
+  audit_history: "Audit history",
   out_of_scope: "Out of scope",
   clarification: "Clarification",
 };
