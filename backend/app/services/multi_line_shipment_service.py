@@ -106,7 +106,7 @@ from app.services.multi_line.line_item_checks import (
 from app.services.structured_extraction_service import (
     extract_structured_model_from_text,
 )
-from app.schemas.supporting_documents import SupportingDocumentResult
+from app.schemas.supporting_documents import SupportingDocumentResult, SupportingDocumentState
 from app.services.supporting_document_service import (
     verified_document_types,
     verify_supporting_documents,
@@ -1481,6 +1481,31 @@ def extract_match_and_check_multi_line_shipment(
 
     all_checks = _all_shipment_checks(items, [*shipment_checks, *supporting_checks])
     outstanding = collect_outstanding_documents(all_checks)
+
+    # ----------------------------------------------------------------------- #
+    # Index extracted documents for Assistant Chat
+    # ----------------------------------------------------------------------- #
+    from app.services.assistant.shipment_indexer import index_shipment_documents
+    
+    docs_to_index = [
+        (request.commercial_invoice_document_id, "commercial_invoice")
+    ]
+    if request.packing_list_document_id:
+        docs_to_index.append((request.packing_list_document_id, "packing_list"))
+        
+    for supp in supporting_results:
+        if supp.uploaded and supp.document_id and supp.state in [
+            SupportingDocumentState.TYPE_VERIFIED,
+            SupportingDocumentState.FIELDS_VERIFIED,
+            SupportingDocumentState.SHIPMENT_MATCHED,
+        ]:
+            docs_to_index.append((supp.document_id, supp.canonical_document_type.value))
+            
+    index_shipment_documents(
+        db,
+        shipment_id=request.commercial_invoice_document_id,
+        documents=docs_to_index
+    )
 
     return MultiLineShipmentResponse(
         supporting_documents=supporting_results,

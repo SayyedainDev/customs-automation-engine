@@ -421,6 +421,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             violations = [f"broker_schema_validation_failure: {exc}"]
         report_dict = report.model_dump(mode="json")
 
+
         events = [
             _event(
                 event_type="broker_report_created",
