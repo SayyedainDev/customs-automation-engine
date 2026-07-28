@@ -883,11 +883,13 @@ def test_explanation_role_requests_detailed_plain_language_without_changing_othe
 
     explanation_prompt = requests[0]["messages"][1]["content"]
     broker_prompt = requests[1]["messages"][1]["content"]
-    assert "120-200 words" in explanation_prompt
+    assert "150-260 words" in explanation_prompt
     assert "Why this decision" in explanation_prompt
-    assert "Next steps" in explanation_prompt
+    assert "What to do next" in explanation_prompt
+    assert "Regulatory evidence" in explanation_prompt
+    assert "no background in customs, programming or AI" in explanation_prompt
     assert "at most three short sentences" in broker_prompt
-    assert "120-200 words" not in broker_prompt
+    assert "150-260 words" not in broker_prompt
 
 
 def test_46_workflow_endpoint_reports_live_narrator_quota_as_503(
@@ -1191,26 +1193,40 @@ def test_49_no_narrator_uses_template_with_zero_groq_calls(isolated_database: En
     assert result["status"] == "completed"
     report = result["final_report"]
     assert report["explanation_source"] == "template_fallback"
-    assert "Status: passed" in report["explanation"]
-    assert "passed every configured compliance check" in report["explanation"]
+    assert "The CACE pre-submission document audit passed." in report["explanation"]
+    assert "100 units of Cotton knitted T" in report["explanation"]
+    assert "100 pieces × $5.50 = $550.00" in report["explanation"]
 
 
 def _detailed_narration(status: str) -> str:
-    """A narrator answer that clears the presentation bar."""
+    """A narrator answer that clears the presentation bar: all six headings,
+    a grounded concrete value from the passed_extraction fixture, and the
+    full mandatory limitation wording."""
     return (
         "Decision\n"
-        f"The shipment reached the status {status} after the deterministic "
-        "rule engine finished every configured check. The invoice and the "
-        "packing list were both read and compared without any processing "
-        "error.\n\n"
+        f"The CACE pre-submission document audit reached the status {status}. "
+        "The invoice and the packing list were both read and compared "
+        "without any processing error.\n\n"
+        "What the system checked\n"
+        "The system checked the commercial invoice and packing list. It "
+        "compared the product, PCT code, quantity, price and weights on "
+        "both documents.\n\n"
         "Why this decision\n"
-        "The engine compared the two uploaded documents line by line and then "
-        "applied the configured customs rules to the result. Nothing in the "
-        "available shipment data contradicted those rules.\n\n"
-        "Next steps\n"
+        "The invoice and packing list both describe 100 units of Cotton "
+        "knitted T, with PCT code 6109.1000 on both documents. The invoice "
+        "calculation is correct: 100 pieces multiplied by $5.50 equals "
+        "$550.00.\n\n"
+        "Regulatory evidence\n"
+        "This shipment did not have any requirements that needed a citation "
+        "to a regulatory source.\n\n"
+        "What to do next\n"
         "Keep this result with the shipment record so the file shows how the "
         "decision was reached. Continue with the normal submission process "
-        "once the responsible person has read it."
+        "once the responsible person has read it.\n\n"
+        "Limitations\n"
+        "This is a prototype pre-submission document audit. It is not "
+        "official customs clearance, external document authentication or "
+        "permission to enter the destination country."
     )
 
 
@@ -1241,8 +1257,8 @@ def test_50b_thin_narrator_answer_falls_back_to_detailed_template(
     result = start(svc, isolated_database)
     report = result["final_report"]
     assert report["explanation_source"] == "template_fallback"
-    assert "What was checked" in report["explanation"]
-    assert "Next steps" in report["explanation"]
+    assert "What the system checked" in report["explanation"]
+    assert "What to do next" in report["explanation"]
 
 
 def test_50c_unstructured_long_narrator_answer_falls_back(
@@ -1269,7 +1285,7 @@ def test_51_explanation_fallback_includes_failed_checks_and_missing_fields(
     assert report["explanation_source"] == "template_fallback"
     assert "Decision" in report["explanation"]
     assert "Why this decision" in report["explanation"]
-    assert "Next steps" in report["explanation"]
+    assert "What to do next" in report["explanation"]
     assert "qty mismatch" in report["explanation"]
     assert "invoice_line_1" not in report["explanation"]
 
@@ -1333,8 +1349,8 @@ def test_missing_supporting_document_is_explained_as_a_review_result() -> None:
     )
 
     assert "Form-E" in entry["explanation"]
-    assert "invoice and packing list were enough" in entry["explanation"]
-    assert "not required to start the audit" in entry["explanation"]
+    assert "read successfully and passed every check" in entry["explanation"]
+    assert "issued by an outside body" in entry["explanation"]
     assert "invoice_line_1" not in entry["explanation"]
 
 
@@ -1809,11 +1825,15 @@ def test_74_valid_llm_wording_without_prohibited_claims_is_not_rejected(
     def good_narrator(role, findings):
         return (
             "Decision: the shipment passed the compliance checks configured for "
-            "this capstone. Why this decision: the invoice and packing list "
-            "matched on every compared field and the required Form-E was "
-            "present. This is not official customs clearance or external "
-            "document authentication. Next steps: keep the verified invoice "
-            "and packing list with the shipment record. " + ("Reviewed carefully. " * 10)
+            "this capstone. What the system checked: the commercial invoice and "
+            "packing list. Why this decision: the invoice and packing list "
+            "both show 100 units at PCT code 6109.1000, and the required "
+            "Form-E was present. Regulatory evidence: no citation was needed "
+            "for this shipment. Next steps: keep the verified invoice "
+            "and packing list with the shipment record. Limitations: this is "
+            "not official customs clearance, external document "
+            "authentication or permission to enter the destination "
+            "country. " + ("Reviewed carefully. " * 10)
         )
 
     svc = make_service(

@@ -455,6 +455,27 @@ def _documents_to_obtain(checks: list[dict]) -> list[dict[str, Any]]:
     ]
 
 
+#: Plain-language, non-LLM description of the retrieval pipeline, shown by
+#: the frontend inside a collapsed "How the evidence search worked" section -
+#: never in the main explanation text (see explanation.py's jargon rules).
+#: Each idea is stated in plain words first, with the technical name in
+#: parentheses second, so the section reads even if the reader skips every
+#: parenthetical.
+EVIDENCE_SEARCH_EXPLANATION = (
+    "The system searched the regulatory documents in two ways. First, it "
+    "looked for exact words, such as the PCT code or SRO number (this "
+    "exact-word search method is called BM25). Second, it looked for "
+    "passages with a similar meaning, even when the exact words were "
+    "different (this meaning-based search is called embedding search). The "
+    "results from both searches were combined into one ranked list (this "
+    "combining step is called Reciprocal Rank Fusion). The system then "
+    "re-checked the best candidates one more time and rejected any passage "
+    "that did not directly support the requirement (this final check is "
+    "called cross-encoder reranking). Only passages that passed every step "
+    "were shown as evidence; the underlying scores are available in each "
+    "citation's own technical details."
+)
+
 _STATUS_LABELS = {"passed": "PASSED", "failed": "FAILED", "manual_review": "MANUAL REVIEW", "not_applicable": "NOT APPLICABLE"}
 
 
@@ -658,6 +679,7 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
         ),
         "document_evidence": _document_evidence_rows(all_checks, document_evidence_by_check),
         "system_scope": _system_scope_rows(all_checks, system_scope_statements_by_check),
+        "evidence_search_explanation": EVIDENCE_SEARCH_EXPLANATION,
         "audit_metadata": _audit_metadata(state),
         # The two questions kept apart: were the uploaded documents sound, and
         # what paperwork is still owed before submission.

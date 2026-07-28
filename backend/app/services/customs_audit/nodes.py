@@ -617,6 +617,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 "explanation_source": "template_fallback",
                 "fingerprint": None,
                 "cache_hit": False,
+                "explanation_rejection_reason": None,
             }
         else:
             entry = generate_explanation_entry(
@@ -628,6 +629,9 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         explanation_results = _append(state, "explanation_results", [entry])
         final_report["explanation"] = entry["explanation"]
         final_report["explanation_source"] = entry["explanation_source"]
+        final_report["explanation_rejection_reason"] = entry.get(
+            "explanation_rejection_reason"
+        )
         final_report["explanation_results"] = explanation_results
         events = [
             _event(

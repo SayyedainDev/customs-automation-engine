@@ -46,9 +46,13 @@ interface ExplanationBlock {
 const explanationHeadings = new Set([
   "decision",
   "what was checked",
+  "what the system checked",
   "why this decision",
   "what this means",
+  "regulatory evidence",
   "next steps",
+  "what to do next",
+  "limitations",
   "human review",
   "status",
 ]);
@@ -354,6 +358,9 @@ function Report({
   const systemScope = asList(report.system_scope)
     .map(asRecord)
     .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const evidenceSearchExplanation = report.evidence_search_explanation
+    ? displayValue(report.evidence_search_explanation)
+    : null;
   const uploadedResult = String(report.uploaded_document_result ?? "");
   const problems = asRecord(report.problems);
   const problemEntries = problems
@@ -540,6 +547,12 @@ function Report({
             found. Expand a requirement to see its source, page, and matching
             passage.
           </p>
+          {evidenceSearchExplanation ? (
+            <details className="evidence-search-explanation">
+              <summary>How the evidence search worked</summary>
+              <p>{evidenceSearchExplanation}</p>
+            </details>
+          ) : null}
           <div className="evidence-card-list">
             {regulatoryEvidence.map((entry, index) => (
               <RegulatoryEvidenceCard key={index} entry={entry} />

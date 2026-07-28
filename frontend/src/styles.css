@@ -2271,6 +2271,26 @@ textarea:focus {
   margin-bottom: 8px;
 }
 
+.evidence-search-explanation {
+  margin: 8px 0 12px;
+  padding: 0 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.evidence-search-explanation summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+.evidence-search-explanation p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .system-scope-list {
   display: flex;
   flex-direction: column;
