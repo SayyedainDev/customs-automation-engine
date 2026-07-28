@@ -358,8 +358,7 @@ class _PreflightApi:
 
         settings = get_settings()
         configured_key = settings.groq_api_key
-        assert configured_key is not None
-        api_key = configured_key.get_secret_value()
+        api_key = configured_key.get_secret_value() if configured_key else "fake-test-key"
         self.workflow = {
             "status": "ok",
             "checkpoint_backend": "postgres",

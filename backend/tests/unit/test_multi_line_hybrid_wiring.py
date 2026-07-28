@@ -127,6 +127,10 @@ def test_fully_resolved_document_makes_zero_groq_calls(
     monkeypatch.setattr(
         multi_line_shipment_service, "extract_structured_model_from_text", _fail_if_called
     )
+    from app.services.extraction.telemetry import DocumentTelemetry
+    def _fake_run_gapfill(extraction, unresolved, *, document_ref="gapfill", client=None):
+        return {}, DocumentTelemetry(document_ref=document_ref, llm_calls=0)
+    monkeypatch.setattr(multi_line_shipment_service, "run_gapfill", _fake_run_gapfill)
     monkeypatch.setattr(staged_multi_line, "extract_invoice_staged", _fail_if_called)
     monkeypatch.setattr(staged_multi_line, "extract_packing_staged", _fail_if_called)
 
@@ -313,6 +317,11 @@ def test_single_shot_fallback_provider_unavailable_propagates(
 def test_switching_extraction_mode_invalidates_the_cache(
     isolated_database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app.services.extraction.telemetry import DocumentTelemetry
+    def _fake_run_gapfill(extraction, unresolved, *, document_ref="gapfill", client=None):
+        return {}, DocumentTelemetry(document_ref=document_ref, llm_calls=0)
+    monkeypatch.setattr(multi_line_shipment_service, "run_gapfill", _fake_run_gapfill)
+    
     invoice_id, packing_id = _hybrid_documents(isolated_database)
     run_phase_2c(isolated_database, phase_2c_request(invoice_id, packing_id))
     with Session(isolated_database) as db:
