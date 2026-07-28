@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from app.core.database import get_db_session
 from app.models.assistant import AssistantConversation, AssistantMessage
@@ -105,8 +105,8 @@ def delete_conversation(
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     db.execute(
-        select(AssistantMessage).where(AssistantMessage.conversation_id == conversation_id)
-    ).scalars().all() # In a real implementation we'd do a delete statement
+        delete(AssistantMessage).where(AssistantMessage.conversation_id == conversation_id)
+    )
     
     db.delete(conv)
     db.commit()
