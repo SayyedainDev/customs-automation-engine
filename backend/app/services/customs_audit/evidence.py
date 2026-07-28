@@ -93,13 +93,35 @@ _SNIPPET_MAX_CHARS = 320
 #: number bigger than zero".
 _ARITHMETIC_SOURCE_LABEL = "Shipment invoice arithmetic"
 
+#: check_ids that mean "this prototype's configured rule data covers this
+#: input" - a statement about the software's own scope, not a government
+#: requirement. Only one exists today (see general_checks.py's
+#: mvp_pct_support); this is a lookup table, not a heuristic, so it can never
+#: misclassify a real regulatory check as scope or vice versa.
+_SYSTEM_SCOPE_CHECK_IDS = frozenset({"mvp_pct_support"})
+
+
+def is_system_scope_check(check: dict[str, Any]) -> bool:
+    """True for a check that only asserts the prototype supports this input."""
+    return str(check.get("check_id") or "") in _SYSTEM_SCOPE_CHECK_IDS
+
 
 def is_regulatory_check(check: dict[str, Any]) -> bool:
     """A check that cites a government source, not a two-document comparison."""
+    if is_system_scope_check(check):
+        return False
     source = check.get("source_document")
     if source == _ARITHMETIC_SOURCE_LABEL:
         return False
     return bool(source or check.get("sro_number"))
+
+
+def system_scope_statement(check: dict[str, Any]) -> str:
+    """Plain statement of prototype coverage - never phrased as a legal claim."""
+    pct_code = check.get("pct_code")
+    if pct_code:
+        return f"PCT {pct_code} is supported by this CACE prototype."
+    return "This input is supported by this CACE prototype."
 
 
 def _field_evidence(doc_key: str, field_name: str, field: Any) -> dict[str, Any] | None:
@@ -205,23 +227,65 @@ def document_evidence_for_check(
     return fallback
 
 
+#: document_type values that come from a project-curated summary record
+#: rather than a page of an official government document - see sources.py's
+#: ingestion, which tags this one type this way. A curated record is
+#: reviewed against official sources but is not itself a government
+#: publication, so it must never be labelled as one.
+_CURATED_DOCUMENT_TYPES = frozenset({"product_requirements_structured"})
+
+#: How many citations are shown expanded by default; the rest are still
+#: returned (never dropped) but flagged ``display_primary=False`` so the
+#: caller can put them under a collapsed "additional sources" detail instead
+#: of repeating a full card for every near-duplicate match. This is a display
+#: ranking only - it says nothing about legal authority. A curated project
+#: record (see ``source_kind``) can be ``display_primary=True`` if it is the
+#: strongest match; it is never thereby a primary *legal* source.
+_MAX_DISPLAY_PRIMARY_CITATIONS = 2
+
+
+def _source_kind(document_type: Any) -> str:
+    if document_type in _CURATED_DOCUMENT_TYPES:
+        return "curated"
+    return "official"
+
+
 def normalize_regulatory_evidence(raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Shape retrieved evidence into the citation fields a reader needs.
 
     Reads defensively (``.get`` with a default) because test fakes and older
     callers may supply only the legacy subset of keys; anything absent is
-    reported as absent rather than guessed.
+    reported as absent rather than guessed. Deduplicates identical
+    source/page combinations and marks only the first
+    ``_MAX_DISPLAY_PRIMARY_CITATIONS`` with ``display_primary=True`` - the
+    caller decides how to render the rest, but they are never silently
+    discarded. ``display_primary`` is purely about which citations are shown
+    expanded versus collapsed; ``source_kind`` (curated/official) is the
+    separate, authoritative field for legal provenance - do not conflate the
+    two.
     """
-    normalized = []
+    normalized: list[dict[str, Any]] = []
+    seen: set[tuple[Any, Any]] = set()
     for item in raw_items:
+        key = (
+            item.get("source_document_id") or item.get("source_document"),
+            item.get("page_number"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+
         snippet = item.get("evidence_text")
         if isinstance(snippet, str) and len(snippet) > _SNIPPET_MAX_CHARS:
             snippet = snippet[: _SNIPPET_MAX_CHARS - 1].rstrip() + "…"
+        document_type = item.get("document_type")
         normalized.append(
             {
                 "source_title": item.get("source_document"),
                 "source_document_id": item.get("source_document_id")
                 or item.get("document_checksum"),
+                "source_kind": _source_kind(document_type),
+                "issuing_authority": item.get("issuing_authority"),
                 "sro_number": item.get("sro_number"),
                 "page_number": item.get("page_number"),
                 "section": item.get("section"),
@@ -229,15 +293,32 @@ def normalize_regulatory_evidence(raw_items: list[dict[str, Any]]) -> list[dict[
                 "retrieval_score": item.get("retrieval_score") or item.get("rrf_score"),
                 "rerank_score": item.get("rerank_score") or item.get("cross_encoder_score"),
                 "validation_status": item.get("validation_status"),
+                "display_primary": len(normalized) < _MAX_DISPLAY_PRIMARY_CITATIONS,
             }
         )
     return normalized
 
 
+#: Ranked from strongest to weakest; evidence_status_for_regulatory returns
+#: the first one that applies, so a single conflicting item never gets
+#: masked by other, unrelated verified items in the same result set.
 def evidence_status_for_regulatory(raw_items: list[dict[str, Any]]) -> str:
-    """Honest label for what retrieval actually returned - never invented."""
+    """Honest, graded label for what retrieval actually returned.
+
+    - ``evidence_unavailable``: nothing cleared the relevance floor. Never
+      filled with an unrelated passage to avoid an empty result.
+    - ``evidence_conflicting``: at least one candidate's own validation
+      status says the sources disagree.
+    - ``evidence_verified``: every candidate comes from a fully verified
+      source.
+    - ``evidence_partial``: candidates exist and are not conflicting, but at
+      least one is only partially verified - real evidence, weaker
+      confidence, reported as such rather than rounded up.
+    """
     if not raw_items:
-        return "unavailable"
+        return "evidence_unavailable"
     if any(item.get("validation_status") == "conflicting" for item in raw_items):
-        return "uncertain"
-    return "supported"
+        return "evidence_conflicting"
+    if all(item.get("validation_status") == "verified" for item in raw_items):
+        return "evidence_verified"
+    return "evidence_partial"

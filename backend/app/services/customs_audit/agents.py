@@ -93,7 +93,12 @@ class GroqNarrator:
                 "location, never as proof that the line itself is missing. "
                 "Clearly distinguish initial audit inputs from supporting "
                 "documents that the audit says must be obtained. Write prose "
-                "sentences without markdown symbols such as * or #."
+                "sentences without markdown symbols such as * or #. This is a "
+                "pre-submission document audit only, not a customs authority: "
+                "never say the shipment is cleared for customs, cleared for "
+                "entry, approved by customs, officially or guaranteed "
+                "compliant, or that no further documents can ever be "
+                "required. Never claim external authentication of a document."
             )
         else:
             role_instruction = (

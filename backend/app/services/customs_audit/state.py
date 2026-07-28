@@ -204,12 +204,17 @@ class CustomsAuditState(TypedDict, total=False):
     #: Per check_id, normalized RAG citations - populated for every regulatory
     #: check regardless of pass/fail/manual_review status.
     regulatory_evidence_by_check: dict[str, list[dict[str, Any]]]
-    #: Per check_id, "supported" | "uncertain" | "unavailable" - honest label
+    #: Per check_id, "evidence_verified" | "evidence_partial" |
+    #: "evidence_unavailable" | "evidence_conflicting" - honest, graded label
     #: for what retrieval found; never invented when nothing was found.
     regulatory_evidence_status_by_check: dict[str, str]
     #: Per check_id, evidence read directly from the uploaded invoice/packing
     #: list for a document-comparison check (no retrieval involved).
     document_evidence_by_check: dict[str, list[dict[str, Any]]]
+    #: Per check_id, a plain "this prototype supports this input" statement
+    #: for a system-scope check (e.g. mvp_pct_support) - never a regulatory
+    #: citation, because it isn't a government requirement.
+    system_scope_statements_by_check: dict[str, str]
     explanation_results: list[dict[str, Any]]
 
     critical_anomalies: list[str]

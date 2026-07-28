@@ -2220,6 +2220,85 @@ textarea:focus {
   color: var(--muted);
 }
 
+.citation-card__provenance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 10.5px;
+}
+
+.source-kind-chip {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.source-kind-chip--curated {
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.source-kind-chip--official {
+  border: 1px solid var(--success-border);
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.citation-card__technical {
+  margin-top: 4px;
+}
+
+.citation-card__technical summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.evidence-card__additional {
+  margin-top: 8px;
+  padding: 0 12px 12px;
+}
+
+.evidence-card__additional > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.system-scope-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.system-scope-row {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.system-scope-row__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.system-scope-row__head strong {
+  flex: 1;
+  font-size: 12.5px;
+}
+
 .evidence-empty {
   margin: 0;
   padding: 0 12px 12px;

@@ -78,6 +78,8 @@ def default_evidence_provider(
             "sro_number": item.chunk.sro_number,
             "page_number": item.chunk.page_number,
             "section": item.chunk.section,
+            "document_type": item.chunk.document_type,
+            "issuing_authority": item.chunk.issuing_authority,
             "validation_status": item.chunk.validation_status,
             "evidence_text": item.parent.text,
             "retrieval_score": item.rrf_score,

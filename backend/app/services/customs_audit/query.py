@@ -14,11 +14,17 @@ from app.services.regulatory.query_builder import (
 
 
 def query_for_check(check: dict[str, Any], extraction_result: dict[str, Any]) -> str:
+    destination = (
+        ((extraction_result.get("invoice") or {}).get("destination_country") or {}).get(
+            "value"
+        )
+    )
     return build_compliance_query(
         ComplianceQueryInputs(
             check_id=str(check.get("check_id", "")),
             check_name=check.get("check_name"),
             pct_code=check.get("pct_code"),
+            destination_country=destination,
             required_document=check.get("required_document"),
             sro_number=check.get("sro_number"),
             source_document=check.get("source_document"),

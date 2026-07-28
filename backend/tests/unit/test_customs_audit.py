@@ -1466,7 +1466,10 @@ def test_60_rag_evidence_is_retrieved_for_a_passed_regulatory_check(
 
     assert result["deterministic_status"] == "passed"
     assert queries, "RAG must be queried even though every check passed"
-    assert report["regulatory_evidence_status_by_check"]["required_document_form_e"] == "supported"
+    assert (
+        report["regulatory_evidence_status_by_check"]["required_document_form_e"]
+        == "evidence_verified"
+    )
     citation = report["regulatory_evidence_by_check"]["required_document_form_e"][0]
     assert citation["source_title"] == "TIPP Customs Clearance Procedure"
     assert citation["retrieval_score"] == 0.81
@@ -1513,7 +1516,7 @@ def test_62_no_reliable_evidence_is_reported_honestly_not_fabricated(
     assert result["deterministic_status"] == "passed"
     assert (
         report["regulatory_evidence_status_by_check"]["required_document_form_e"]
-        == "unavailable"
+        == "evidence_unavailable"
     )
     assert report["regulatory_evidence_by_check"]["required_document_form_e"] == []
 
@@ -1538,7 +1541,7 @@ def test_63_conflicting_evidence_is_marked_uncertain_not_silently_accepted(
     report = result["final_report"]
     assert (
         report["regulatory_evidence_status_by_check"]["required_document_form_e"]
-        == "uncertain"
+        == "evidence_conflicting"
     )
     # Uncertain evidence on an already-passed check still does not change the
     # deterministic verdict - only human review routing can be affected, and
@@ -1652,3 +1655,193 @@ def test_67_auditor_does_not_challenge_a_trailing_abbreviation_period() -> None:
     assert not any(
         "exporter" in finding.lower() for finding in audit["field_mismatches"]
     )
+
+
+# --------------------------------------------------------------------------- #
+# Tests 68+: RAG evidence-quality and final-report wording (check-category
+# routing, evidence acceptance, and the explanation authority boundary).
+# --------------------------------------------------------------------------- #
+def test_68_arithmetic_checks_never_invoke_rag_end_to_end(
+    isolated_database: Engine,
+) -> None:
+    """The internal-math label must keep a header check out of RAG for the
+    whole workflow, not just at the evidence.py unit level - it still gets
+    document evidence (the invoice fields it depends on), never a citation."""
+    calls = []
+
+    def recording_evidence(db, pct, query):
+        calls.append(query)
+        return []
+
+    def extraction():
+        result = passed_extraction()
+        result["shipment_level_checks"].append(
+            {
+                "check_id": "invoice_total_consistency",
+                "status": "passed",
+                "source_document": "Shipment invoice arithmetic",
+            }
+        )
+        return result
+
+    svc = make_service(isolated_database, extraction, evidence_fn=recording_evidence)
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+
+    assert result["deterministic_status"] == "passed"
+    assert "invoice_total_consistency" not in report["regulatory_evidence_by_check"]
+    assert "invoice_total_consistency" in report["document_evidence_by_check"]
+    assert not any("invoice total consistency" in q.lower() for q in calls)
+
+
+def test_69_form_e_and_china_coo_checks_invoke_regulatory_rag_with_specific_queries(
+    isolated_database: Engine,
+) -> None:
+    queries = []
+
+    def recording_evidence(db, pct, query):
+        queries.append(query)
+        return [
+            {"source_document": "TIPP", "validation_status": "verified", "evidence_text": "x"}
+        ]
+
+    def extraction():
+        result = mismatch_extraction()
+        result["items"][0]["compliance"]["checks"] = [PASSED_LEGAL_CHECK, COO_CHECK]
+        return result
+
+    svc = make_service(isolated_database, extraction, evidence_fn=recording_evidence)
+    started = start(svc, isolated_database)
+    resumed = review(svc, isolated_database, started["workflow_id"], accept_decision())
+    report = resumed["final_report"]
+
+    assert "required_document_form_e" in report["regulatory_evidence_by_check"]
+    assert "xr_coo_china" in report["regulatory_evidence_by_check"]
+    assert any("form e" in q.lower() for q in queries)
+    assert any("china" in q.lower() for q in queries)
+
+
+def test_70_mvp_scope_check_never_invokes_rag_and_shows_prototype_statement(
+    isolated_database: Engine,
+) -> None:
+    calls = []
+
+    def failing_if_called(db, pct, query):
+        calls.append(query)
+        return []
+
+    svc = make_service(isolated_database, unsupported_extraction(), evidence_fn=failing_if_called)
+    started = start(svc, isolated_database)
+    resumed = review(svc, isolated_database, started["workflow_id"], accept_decision())
+    report = resumed["final_report"]
+
+    assert "mvp_pct_support" not in report["regulatory_evidence_by_check"]
+    assert calls == []
+    assert (
+        report["system_scope_statements_by_check"]["mvp_pct_support"]
+        == "PCT 40011000 is supported by this CACE prototype."
+    )
+
+
+def test_71_deterministic_passed_status_is_unchanged_by_evidence_gate_changes(
+    isolated_database: Engine,
+) -> None:
+    """The exact scenario the user flagged: a genuinely passing textile
+    shipment. Tightening the evidence-quality gate must never move this
+    verdict - only what is shown as supporting evidence changes."""
+    svc = make_service(
+        isolated_database,
+        passed_extraction(),
+        evidence_fn=lambda db, pct, q: [
+            {
+                "source_document": "TIPP clearance",
+                "document_type": "export_policy_amendment",
+                "validation_status": "verified",
+                "evidence_text": "A Form-E declaration is required for every export shipment.",
+            }
+        ],
+    )
+    result = start(svc, isolated_database)
+    assert result["deterministic_status"] == "passed"
+    assert result["final_report"]["deterministic_compliance_status"] == "passed"
+
+
+def test_72_llm_wording_claiming_customs_clearance_triggers_deterministic_fallback(
+    isolated_database: Engine,
+) -> None:
+    def bad_narrator(role, findings):
+        return (
+            "This shipment is customs cleared and officially compliant with all "
+            "applicable regulations. " + ("Every configured check passed. " * 20)
+        )
+
+    svc = make_service(
+        isolated_database, passed_extraction(), explanation_narrator=bad_narrator
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert report["explanation_source"] == "template_fallback"
+    assert "customs cleared" not in report["explanation"].lower()
+    assert "Decision" in report["explanation"]
+
+
+def test_73_llm_wording_claiming_cleared_for_entry_triggers_fallback(
+    isolated_database: Engine,
+) -> None:
+    def bad_narrator(role, findings):
+        return (
+            "The shipment is cleared for entry into China and no additional "
+            "documentation can be required. " + ("Every configured check passed. " * 20)
+        )
+
+    svc = make_service(
+        isolated_database, passed_extraction(), explanation_narrator=bad_narrator
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert report["explanation_source"] == "template_fallback"
+    assert "cleared for entry into china" not in report["explanation"].lower()
+
+
+def test_74_valid_llm_wording_without_prohibited_claims_is_not_rejected(
+    isolated_database: Engine,
+) -> None:
+    def good_narrator(role, findings):
+        return (
+            "Decision: the shipment passed the compliance checks configured for "
+            "this capstone. Why this decision: the invoice and packing list "
+            "matched on every compared field and the required Form-E was "
+            "present. This is not official customs clearance or external "
+            "document authentication. Next steps: keep the verified invoice "
+            "and packing list with the shipment record. " + ("Reviewed carefully. " * 10)
+        )
+
+    svc = make_service(
+        isolated_database, passed_extraction(), explanation_narrator=good_narrator
+    )
+    result = start(svc, isolated_database)
+    report = result["final_report"]
+    assert report["explanation_source"] == "llm"
+
+
+def test_75_default_template_disclaimer_is_never_flagged_as_a_prohibited_claim() -> None:
+    """Regression guard for the negation-window fix: the mandatory disclaimer
+    itself ("not official customs clearance...") must pass the same gate that
+    rejects a real claim of clearance."""
+    from app.services.customs_audit.explanation import (
+        _default_explanation,
+        explanation_has_prohibited_claims,
+    )
+
+    text = _default_explanation(
+        "Explanation",
+        {
+            "status": "passed",
+            "shipment_context": {"destination": "China"},
+            "issues": [],
+            "required_actions": [],
+            "passed_checks": ["required_document_form_e"],
+        },
+    )
+    assert explanation_has_prohibited_claims(text) is None
+    assert "not official customs clearance" in text.lower()

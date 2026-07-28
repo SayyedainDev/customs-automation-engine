@@ -11,7 +11,9 @@ from app.services.customs_audit.evidence import (
     document_evidence_for_check,
     evidence_status_for_regulatory,
     is_regulatory_check,
+    is_system_scope_check,
     normalize_regulatory_evidence,
+    system_scope_statement,
 )
 
 
@@ -90,7 +92,7 @@ def test_e_a_check_with_no_field_mapping_and_no_pages_yields_no_evidence():
 
 
 def test_f_empty_retrieval_result_is_unavailable_not_fabricated():
-    assert evidence_status_for_regulatory([]) == "unavailable"
+    assert evidence_status_for_regulatory([]) == "evidence_unavailable"
 
 
 def test_g_conflicting_validation_status_is_uncertain():
@@ -98,7 +100,7 @@ def test_g_conflicting_validation_status_is_uncertain():
         evidence_status_for_regulatory(
             [{"validation_status": "conflicting", "evidence_text": "x"}]
         )
-        == "uncertain"
+        == "evidence_conflicting"
     )
 
 
@@ -107,7 +109,19 @@ def test_h_normal_result_is_supported():
         evidence_status_for_regulatory(
             [{"validation_status": "verified", "evidence_text": "x"}]
         )
-        == "supported"
+        == "evidence_verified"
+    )
+
+
+def test_h2_mixed_verified_and_partial_is_evidence_partial():
+    assert (
+        evidence_status_for_regulatory(
+            [
+                {"validation_status": "verified", "evidence_text": "x"},
+                {"validation_status": "partially_verified", "evidence_text": "y"},
+            ]
+        )
+        == "evidence_partial"
     )
 
 
@@ -130,6 +144,8 @@ def test_i_normalize_regulatory_evidence_shapes_citation_fields():
         {
             "source_title": "TIPP Customs Clearance Procedure",
             "source_document_id": "sha256:abcd",
+            "source_kind": "official",
+            "issuing_authority": None,
             "sro_number": None,
             "page_number": 4,
             "section": "Export documentation",
@@ -137,8 +153,56 @@ def test_i_normalize_regulatory_evidence_shapes_citation_fields():
             "retrieval_score": 0.81,
             "rerank_score": 0.93,
             "validation_status": "verified",
+            "display_primary": True,
         }
     ]
+
+
+def test_i2_normalize_regulatory_evidence_marks_curated_document_type():
+    raw = [
+        {
+            "source_document": "PSW/TIPP textile product export requirements (curated)",
+            "document_type": "product_requirements_structured",
+            "issuing_authority": "CACE project (reviewed PSW/TIPP + Export Policy sources)",
+            "page_number": 1,
+            "validation_status": "partially_verified",
+            "evidence_text": "Form-E is required for textile exports.",
+        }
+    ]
+    normalized = normalize_regulatory_evidence(raw)
+    assert normalized[0]["source_kind"] == "curated"
+    assert normalized[0]["issuing_authority"] == (
+        "CACE project (reviewed PSW/TIPP + Export Policy sources)"
+    )
+
+
+def test_i3_normalize_regulatory_evidence_dedupes_and_caps_primary_citations():
+    raw = [
+        {"source_document_id": "sha256:aaa", "page_number": 1, "evidence_text": "a"},
+        {"source_document_id": "sha256:aaa", "page_number": 1, "evidence_text": "a-dup"},
+        {"source_document_id": "sha256:bbb", "page_number": 2, "evidence_text": "b"},
+        {"source_document_id": "sha256:ccc", "page_number": 3, "evidence_text": "c"},
+    ]
+    normalized = normalize_regulatory_evidence(raw)
+    assert len(normalized) == 3
+    assert [item["display_primary"] for item in normalized] == [True, True, False]
+
+
+def test_i4_display_primary_is_a_display_rank_not_a_legal_source_claim():
+    """A curated project record can be the strongest-ranked (display_primary)
+    result without becoming a primary *legal* source - that authority
+    question is answered only by source_kind, never by display rank."""
+    raw = [
+        {
+            "source_document": "PSW/TIPP textile product export requirements (curated)",
+            "document_type": "product_requirements_structured",
+            "page_number": 1,
+            "evidence_text": "Form-E is required for textile exports.",
+        }
+    ]
+    normalized = normalize_regulatory_evidence(raw)
+    assert normalized[0]["display_primary"] is True
+    assert normalized[0]["source_kind"] == "curated"
 
 
 def test_j_long_snippet_is_truncated_not_silently_dropped():
@@ -203,3 +267,70 @@ def test_m_item_line_calculation_shows_the_three_values_it_depends_on():
     evidence = document_evidence_for_check(check, extraction, item_reference="invoice_line_1")
     values = {item["field_name"]: item["extracted_value"] for item in evidence}
     assert values == {"quantity": "100", "unit_price": "5.50", "line_total": "550.00"}
+
+
+# --------------------------------------------------------------------------- #
+# Three-way check classification: every check is exactly one of Document
+# Evidence, System-Scope, or Regulatory - never two, never neither. Internal
+# arithmetic/schema/project-scope checks were previously routed into
+# Regulatory Evidence because "any non-empty source_document" was the only
+# rule; the classification below is now a strict, non-overlapping partition.
+# --------------------------------------------------------------------------- #
+def test_n_mvp_pct_support_is_system_scope_not_regulatory():
+    check = {"check_id": "mvp_pct_support", "status": "manual_review", "source_document": "config"}
+    assert is_system_scope_check(check) is True
+    assert is_regulatory_check(check) is False
+
+
+def test_o_system_scope_statement_names_the_pct_code_and_claims_nothing_legal():
+    check = {"check_id": "mvp_pct_support", "pct_code": "61091000"}
+    statement = system_scope_statement(check)
+    assert statement == "PCT 61091000 is supported by this CACE prototype."
+    lowered = statement.lower()
+    for forbidden in ("cleared", "approved", "guarantee", "compliant", "authorized"):
+        assert forbidden not in lowered
+
+
+def test_p_system_scope_statement_has_a_generic_fallback_with_no_pct_code():
+    assert system_scope_statement({"check_id": "mvp_pct_support"}) == (
+        "This input is supported by this CACE prototype."
+    )
+
+
+def test_q_every_check_falls_into_exactly_one_of_the_three_categories():
+    """No leakage: for a representative sample spanning all three kinds, the
+    system-scope and regulatory predicates never agree with each other, and
+    a check that is neither is exactly the document-comparison kind (it has
+    a field mapping or falls back to recorded page references)."""
+    samples = [
+        {"check_id": "mvp_pct_support", "status": "manual_review", "source_document": "config", "pct_code": "40011000"},
+        {"check_id": "required_document_form_e", "status": "passed", "source_document": "TIPP clearance"},
+        {"check_id": "xr_coo_china", "status": "manual_review", "source_document": "TIPP CPFTA", "sro_number": None},
+        {"check_id": "positive_quantity", "status": "passed", "source_document": "Shipment invoice arithmetic"},
+        {"check_id": "invoice_line_calculation", "status": "passed", "source_document": "Shipment invoice arithmetic"},
+        {"check_id": "item_quantity_match", "status": "failed"},
+        {"check_id": "sum_line_totals_match_invoice_total", "status": "passed"},
+    ]
+    expected = {
+        "mvp_pct_support": "system_scope",
+        "required_document_form_e": "regulatory",
+        "xr_coo_china": "regulatory",
+        "positive_quantity": "document",
+        "invoice_line_calculation": "document",
+        "item_quantity_match": "document",
+        "sum_line_totals_match_invoice_total": "document",
+    }
+    for check in samples:
+        scope = is_system_scope_check(check)
+        regulatory = is_regulatory_check(check)
+        # Mutually exclusive by construction (is_regulatory_check always
+        # checks is_system_scope_check first), but assert it explicitly so a
+        # future edit to either function cannot silently reintroduce overlap.
+        assert not (scope and regulatory), check["check_id"]
+        if scope:
+            actual = "system_scope"
+        elif regulatory:
+            actual = "regulatory"
+        else:
+            actual = "document"
+        assert actual == expected[check["check_id"]], check["check_id"]

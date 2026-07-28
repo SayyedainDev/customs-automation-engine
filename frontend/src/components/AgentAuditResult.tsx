@@ -136,13 +136,60 @@ function ExplanationBody({ text }: { text: string }) {
 
 function evidenceStatusCopy(status: unknown): { label: string; tone: string } {
   switch (String(status)) {
-    case "supported":
+    case "evidence_verified":
       return { label: "Evidence found", tone: "success" };
-    case "uncertain":
+    case "evidence_partial":
+      return { label: "Partial evidence", tone: "warning" };
+    case "evidence_conflicting":
       return { label: "Evidence conflicting", tone: "warning" };
     default:
       return { label: "No evidence found", tone: "neutral" };
   }
+}
+
+function CitationCard({ citation }: { citation: Record<string, unknown> }) {
+  const isCurated = citation.source_kind === "curated";
+  return (
+    <li className="citation-card">
+      <div className="citation-card__head">
+        <BookOpen aria-hidden="true" size={14} />
+        <strong>{displayValue(citation.source_title)}</strong>
+        {citation.page_number ? (
+          <span className="muted">page {displayValue(citation.page_number)}</span>
+        ) : null}
+      </div>
+      <div className="citation-card__provenance">
+        <span className={`source-kind-chip source-kind-chip--${isCurated ? "curated" : "official"}`}>
+          {isCurated ? "Curated rule record" : "Official government source"}
+        </span>
+        {isCurated ? (
+          <span className="muted">derived from reviewed PSW/TIPP and Export Policy sources</span>
+        ) : citation.issuing_authority ? (
+          <span className="muted">{displayValue(citation.issuing_authority)}</span>
+        ) : null}
+      </div>
+      {citation.section ? (
+        <p className="citation-card__section">{displayValue(citation.section)}</p>
+      ) : null}
+      {citation.snippet ? (
+        <p className="citation-card__snippet">“{displayValue(citation.snippet)}”</p>
+      ) : null}
+      <details className="citation-card__technical">
+        <summary>Retrieval details</summary>
+        <div className="citation-card__scores">
+          {citation.retrieval_score !== undefined && citation.retrieval_score !== null ? (
+            <span>retrieval {Number(citation.retrieval_score).toFixed(3)}</span>
+          ) : null}
+          {citation.rerank_score !== undefined && citation.rerank_score !== null ? (
+            <span>rerank {Number(citation.rerank_score).toFixed(3)}</span>
+          ) : null}
+          {citation.validation_status ? (
+            <span>source status: {displayValue(citation.validation_status)}</span>
+          ) : null}
+        </div>
+      </details>
+    </li>
+  );
 }
 
 /**
@@ -150,6 +197,9 @@ function evidenceStatusCopy(status: unknown): { label: string; tone: string } {
  * of whether the requirement passed or failed - a passed requirement is
  * backed by the same kind of citation as a failed one, and a requirement
  * with no retrievable evidence says so plainly instead of showing nothing.
+ * At most two citations are shown expanded; any further matches the
+ * retriever found stay available under a collapsed "additional sources"
+ * detail rather than repeating a full card for every near-duplicate.
  */
 function RegulatoryEvidenceCard({
   entry,
@@ -157,6 +207,9 @@ function RegulatoryEvidenceCard({
   entry: Record<string, unknown>;
 }) {
   const citations = asList(entry.citations)
+    .map(asRecord)
+    .filter((citation): citation is Record<string, unknown> => citation !== null);
+  const additionalCitations = asList(entry.additional_citations)
     .map(asRecord)
     .filter((citation): citation is Record<string, unknown> => citation !== null);
   const evidenceStatus = evidenceStatusCopy(entry.evidence_status);
@@ -176,40 +229,48 @@ function RegulatoryEvidenceCard({
         </span>
       </summary>
       {citations.length ? (
-        <ul className="citation-list">
-          {citations.map((citation, index) => (
-            <li key={index} className="citation-card">
-              <div className="citation-card__head">
-                <BookOpen aria-hidden="true" size={14} />
-                <strong>{displayValue(citation.source_title)}</strong>
-                {citation.page_number ? (
-                  <span className="muted">page {displayValue(citation.page_number)}</span>
-                ) : null}
-              </div>
-              {citation.section ? (
-                <p className="citation-card__section">{displayValue(citation.section)}</p>
-              ) : null}
-              {citation.snippet ? (
-                <p className="citation-card__snippet">“{displayValue(citation.snippet)}”</p>
-              ) : null}
-              <div className="citation-card__scores">
-                {citation.retrieval_score !== undefined && citation.retrieval_score !== null ? (
-                  <span>retrieval {Number(citation.retrieval_score).toFixed(3)}</span>
-                ) : null}
-                {citation.rerank_score !== undefined && citation.rerank_score !== null ? (
-                  <span>rerank {Number(citation.rerank_score).toFixed(3)}</span>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="citation-list">
+            {citations.map((citation, index) => (
+              <CitationCard key={index} citation={citation} />
+            ))}
+          </ul>
+          {additionalCitations.length ? (
+            <details className="evidence-card__additional">
+              <summary>{additionalCitations.length} additional source(s) found</summary>
+              <ul className="citation-list">
+                {additionalCitations.map((citation, index) => (
+                  <CitationCard key={index} citation={citation} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
       ) : (
         <p className="evidence-empty">
-          The regulatory search found no supporting citation for this requirement.
+          Relevant regulatory evidence was not available in the indexed corpus.
           Nothing was invented to fill the gap.
         </p>
       )}
     </details>
+  );
+}
+
+/** A system-scope check ("PCT 61091000 is supported by this CACE
+ * prototype") is a statement about the software's own configured coverage,
+ * never a regulatory citation - shown plainly, with no source card. */
+function SystemScopeRow({ entry }: { entry: Record<string, unknown> }) {
+  const checkStatus = String(entry.status ?? "");
+  return (
+    <li className="system-scope-row">
+      <div className="system-scope-row__head">
+        <strong>{displayValue(entry.requirement)}</strong>
+        <span className={`status-chip status-chip--${checkStatus.toLowerCase()}`}>
+          {checkStatus}
+        </span>
+      </div>
+      <p className="muted">{displayValue(entry.statement)}</p>
+    </li>
   );
 }
 
@@ -288,6 +349,9 @@ function Report({
     .map(asRecord)
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   const documentEvidence = asList(report.document_evidence)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const systemScope = asList(report.system_scope)
     .map(asRecord)
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   const uploadedResult = String(report.uploaded_document_result ?? "");
@@ -447,6 +511,21 @@ function Report({
                   <p>{displayValue(value)}</p>
                 </div>
               </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {systemScope.length ? (
+        <section className="report-section">
+          <h3>Prototype scope</h3>
+          <p className="section-intro">
+            What this software is configured to check, not a government
+            requirement.
+          </p>
+          <ul className="system-scope-list">
+            {systemScope.map((entry, index) => (
+              <SystemScopeRow key={index} entry={entry} />
             ))}
           </ul>
         </section>

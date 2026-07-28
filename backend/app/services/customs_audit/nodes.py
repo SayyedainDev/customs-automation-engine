@@ -31,7 +31,9 @@ from app.services.customs_audit.evidence import (
     document_evidence_for_check,
     evidence_status_for_regulatory,
     is_regulatory_check,
+    is_system_scope_check,
     normalize_regulatory_evidence,
+    system_scope_statement,
 )
 from app.services.customs_audit.explanation import generate_explanation_entry
 from app.services.customs_audit.query import query_for_check
@@ -286,6 +288,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         regulatory_evidence_by_check: dict[str, list[dict[str, Any]]] = {}
         regulatory_evidence_status_by_check: dict[str, str] = {}
         document_evidence_by_check: dict[str, list[dict[str, Any]]] = {}
+        system_scope_statements_by_check: dict[str, str] = {}
         all_evidence: list[dict[str, Any]] = []
         with deps.session_factory() as db:
             for check, item_reference in checks_with_context:
@@ -298,7 +301,16 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                     # "no evidence found" chip for a requirement that was
                     # never in play.
                     continue
-                if is_regulatory_check(check):
+                if is_system_scope_check(check):
+                    # "PCT code supported by the MVP" is a statement about
+                    # this software's own configured scope, not a government
+                    # requirement - it must never trigger a regulatory
+                    # lookup or be presented as a legal citation.
+                    if check_id not in system_scope_statements_by_check:
+                        system_scope_statements_by_check[check_id] = system_scope_statement(
+                            check
+                        )
+                elif is_regulatory_check(check):
                     if check_id in evidence_by_check:
                         continue
                     query = query_for_check(check, extraction_result)
@@ -362,6 +374,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "regulatory_evidence_by_check": regulatory_evidence_by_check,
             "regulatory_evidence_status_by_check": regulatory_evidence_status_by_check,
             "document_evidence_by_check": document_evidence_by_check,
+            "system_scope_statements_by_check": system_scope_statements_by_check,
             "critical_anomalies": _append(
                 state, "critical_anomalies", ["auditor_output_violation"] if violations else []
             ),
@@ -558,6 +571,9 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 "regulatory_evidence_status_by_check", {}
             ),
             "document_evidence_by_check": state.get("document_evidence_by_check", {}),
+            "system_scope_statements_by_check": state.get(
+                "system_scope_statements_by_check", {}
+            ),
             "explanation_results": state.get("explanation_results", []),
             "human_decisions": state.get("human_correction_history", []),
             "human_review_decision": state.get("human_review_decision"),

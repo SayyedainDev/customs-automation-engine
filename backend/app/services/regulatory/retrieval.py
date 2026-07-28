@@ -53,6 +53,19 @@ RRF_K = 60
 RERANK_TOP_N_DEFAULT = 25
 # Deterministic relevance floor (reranker-independent) for evidence_not_found.
 MIN_LEXICAL_RELEVANCE = 0.5
+# A chunk's declared pct_codes/sro_number/destination metadata is trusted to
+# BOOST an already-relevant candidate, never to manufacture relevance out of
+# a passage with almost no real lexical overlap with the query. Found live: a
+# page listing Schedule-III negative-list items (tobacco, medical devices,
+# seeds, plant material - a completely unrelated part of the same source
+# document) was tagged at ingestion with every one of the five supported PCT
+# codes, including 61091000. Its real overlap with a cotton-T-shirt query was
+# 0.083 (only the word "pct" in common) - noise - but the flat +0.5 metadata
+# bonus alone cleared MIN_LEXICAL_RELEVANCE. A genuinely relevant chunk about
+# the same product measured 0.75-0.80 overlap on the same queries, so 0.20 is
+# a wide, general margin between "actually about this" and "shares a stray
+# metadata tag with this" - it is not tuned to this one document.
+MIN_BASE_LEXICAL_OVERLAP = 0.20
 RETRIEVAL_MODE = "hybrid_dense_bm25_rrf_cross_encoder"
 
 
@@ -159,11 +172,21 @@ def _lexical_relevance(
     pct_code: str | None,
     destination_country: str | None,
 ) -> float:
-    """Deterministic relevance floor, independent of the active reranker."""
+    """Deterministic relevance floor, independent of the active reranker.
+
+    Metadata bonuses (PCT/SRO/destination match) only ever apply on top of a
+    real baseline of lexical overlap - see MIN_BASE_LEXICAL_OVERLAP. Below
+    that baseline, the chunk's own declared metadata is not trusted enough to
+    manufacture relevance by itself, because that metadata can be wrong or
+    too coarse (a whole source document tagged with every PCT code it covers
+    anywhere, not the specific code each page is actually about).
+    """
     doc_tokens = set(tokenize(chunk.text))
     if not query_tokens:
         return 0.0
     overlap = len(query_tokens & doc_tokens) / len(query_tokens)
+    if overlap < MIN_BASE_LEXICAL_OVERLAP:
+        return overlap
     score = overlap
     if pct_code and chunk.pct_codes and pct_code in chunk.pct_codes:
         score += 0.5

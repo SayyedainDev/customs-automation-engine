@@ -458,6 +458,11 @@ def _documents_to_obtain(checks: list[dict]) -> list[dict[str, Any]]:
 _STATUS_LABELS = {"passed": "PASSED", "failed": "FAILED", "manual_review": "MANUAL REVIEW", "not_applicable": "NOT APPLICABLE"}
 
 
+def _status_label(check: dict[str, Any]) -> str:
+    status = str(check.get("status") or "")
+    return _STATUS_LABELS.get(status, status)
+
+
 def _unique_checks_by_id(checks: list[dict]) -> list[dict]:
     """First-seen check per check_id, in encounter order.
 
@@ -495,9 +500,33 @@ def _regulatory_evidence_rows(
             {
                 "check_id": check_id,
                 "requirement": check.get("check_name") or check_id.replace("_", " "),
-                "status": _STATUS_LABELS.get(check.get("status"), str(check.get("status"))),
-                "evidence_status": status_by_check.get(check_id, "unavailable"),
-                "citations": citations,
+                "status": _status_label(check),
+                "evidence_status": status_by_check.get(check_id, "evidence_unavailable"),
+                "citations": [c for c in citations if c.get("display_primary", True)],
+                "additional_citations": [
+                    c for c in citations if not c.get("display_primary", True)
+                ],
+            }
+        )
+    return rows
+
+
+def _system_scope_rows(
+    checks: list[dict], statements_by_check: dict[str, str]
+) -> list[dict[str, Any]]:
+    """One row per system-scope check - a software-coverage statement, never
+    a regulatory citation (see ``is_system_scope_check``)."""
+    rows: list[dict[str, Any]] = []
+    for check in _unique_checks_by_id(checks):
+        check_id = str(check.get("check_id") or "")
+        if check_id not in statements_by_check:
+            continue
+        rows.append(
+            {
+                "check_id": check_id,
+                "requirement": check.get("check_name") or check_id.replace("_", " "),
+                "status": _status_label(check),
+                "statement": statements_by_check[check_id],
             }
         )
     return rows
@@ -516,7 +545,7 @@ def _document_evidence_rows(
             {
                 "check_id": check_id,
                 "check_name": check.get("check_name") or check_id.replace("_", " "),
-                "status": _STATUS_LABELS.get(check.get("status"), str(check.get("status"))),
+                "status": _status_label(check),
                 "message": check.get("message"),
                 "evidence": evidence_by_check.get(check_id, []),
             }
@@ -619,6 +648,7 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     regulatory_evidence_by_check = state.get("regulatory_evidence_by_check") or {}
     regulatory_evidence_status_by_check = state.get("regulatory_evidence_status_by_check") or {}
     document_evidence_by_check = state.get("document_evidence_by_check") or {}
+    system_scope_statements_by_check = state.get("system_scope_statements_by_check") or {}
     return {
         "overall_result": result_label,
         "overall_reason": reason,
@@ -627,6 +657,7 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
             all_checks, regulatory_evidence_by_check, regulatory_evidence_status_by_check
         ),
         "document_evidence": _document_evidence_rows(all_checks, document_evidence_by_check),
+        "system_scope": _system_scope_rows(all_checks, system_scope_statements_by_check),
         "audit_metadata": _audit_metadata(state),
         # The two questions kept apart: were the uploaded documents sound, and
         # what paperwork is still owed before submission.

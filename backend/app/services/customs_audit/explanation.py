@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 from app.core.exceptions import StructuredExtractionProviderUnavailableError
@@ -32,6 +33,72 @@ EXPLANATION_PROMPT_VERSION = "v3"
 MIN_EXPLANATION_WORDS = 70
 _REQUIRED_SECTIONS = ("decision", "why this decision", "next steps")
 _MIN_REQUIRED_SECTIONS = 2
+
+#: CACE runs a pre-submission document audit. It has no authority to clear a
+#: shipment for customs, authenticate a document externally, or guarantee
+#: entry into any destination - only a real customs authority can make those
+#: claims. A narrator answer containing any of these is rejected outright,
+#: regardless of how well-written it otherwise is, and the deterministic
+#: template is used instead. Patterns, not literal phrases, so this is not
+#: tied to one destination country or one wording of the same claim.
+_PROHIBITED_CLAIM_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\bcustoms[\s\-]?clear(?:ed|ance)\b",
+        r"\bcleared\s+for\s+(?:customs|entry|export|import)\b",
+        r"\bcleared\s+(?:to|for)\s+(?:proceed|enter|ship)\b",
+        r"\bapproved\s+by\s+customs\b",
+        r"\bofficial(?:ly)?\s+compliant\b",
+        r"\bguarantee(?:d)?\s+compliant\b",
+        r"\bguarantee(?:s|d)?\s+(?:entry|approval|clearance)\b",
+        r"\bcan\s+proceed\s+without\s+any\s+(?:other|further|additional)\s+documents?\b",
+        r"\bno\s+(?:additional|further|other)\s+documentation\s+(?:can|will|is)\s+(?:be\s+)?required\b",
+        r"\bpermission\s+to\s+enter\b",
+        r"\bauthoriz(?:ed|ation)\s+(?:by|from)\s+customs\b",
+    )
+)
+
+
+#: A negation word anywhere earlier in the same sentence as a matched claim
+#: means the sentence is disclaiming the claim, not making it - e.g. the
+#: required disclaimer itself ("this is *not* official customs clearance,
+#: external document authentication, or permission to enter China") negates
+#: a whole list of claims from one "not", so the negation cue can sit well
+#: before the specific item being checked. A fixed character window missed
+#: exactly this list-of-three shape; scanning back to the last sentence
+#: boundary instead covers any negated list without weakening detection of a
+#: real claim, since an unrelated *previous* sentence's "not" never counts.
+_NEGATION_WORDS = re.compile(
+    r"\b(?:not|never|no|isn't|is not|without|cannot|can't|does not|doesn't)\b",
+    re.IGNORECASE,
+)
+_SENTENCE_BOUNDARY_CHARS = (".", "!", "?", "\n")
+
+
+def explanation_has_prohibited_claims(text: str) -> str | None:
+    """Return the first prohibited claim pattern found, or None if clean.
+
+    CACE's explanation may describe the deterministic result in plain
+    language, but it may never claim an authority this software does not
+    have - the frozen status is the only compliance decision, and the
+    explanation only narrates it. A negated occurrence ("is *not* cleared
+    for customs") is the required disclaimer, not a violation, so the text
+    from the start of the containing sentence up to each match is checked
+    for a negation cue before the match is treated as a real claim.
+    """
+    if not isinstance(text, str):
+        return None
+    for pattern in _PROHIBITED_CLAIM_PATTERNS:
+        for match in pattern.finditer(text):
+            sentence_start = (
+                max(text.rfind(char, 0, match.start()) for char in _SENTENCE_BOUNDARY_CHARS)
+                + 1
+            )
+            preceding = text[sentence_start : match.start()]
+            if _NEGATION_WORDS.search(preceding):
+                continue
+            return pattern.pattern
+    return None
 
 _MAX_ISSUES = 8
 _MAX_ACTIONS = 6
@@ -310,8 +377,9 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
             lines.append(f"{index}. {action}")
     elif status == "passed":
         lines.append(
-            "1. Keep the verified invoice and packing list with the shipment "
-            "record and continue the normal submission process."
+            "1. No document is outstanding under the rules configured for "
+            "this prototype and this test case. Keep the verified invoice "
+            "and packing list with the shipment record."
         )
     else:
         lines.append(
@@ -332,6 +400,20 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
                 "A person must confirm the unresolved points before submission.",
             ]
         )
+
+    destination = findings.get("shipment_context", {}).get("destination")
+    entry_clause = f"permission to enter {destination}" if destination else "permission to enter the destination country"
+    lines.extend(
+        [
+            "",
+            "Limitations",
+            (
+                "This result is a prototype pre-submission audit. It is not "
+                f"official customs clearance, external document authentication, "
+                f"or {entry_clause}."
+            ),
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -389,6 +471,13 @@ def generate_explanation_entry(
     if source == "llm" and not explanation_meets_bar(text):
         # The provider answered, but too thinly to be presented. Keep the
         # detailed template and record the fallback honestly.
+        text = _default_explanation("Explanation", findings)
+        source = "template_fallback"
+    elif source == "llm" and explanation_has_prohibited_claims(text):
+        # The provider claimed an authority CACE does not have (customs
+        # clearance, official approval, guaranteed entry...). This is a
+        # correctness rule, not a style preference, so it is enforced here
+        # regardless of how well-written the rest of the answer is.
         text = _default_explanation("Explanation", findings)
         source = "template_fallback"
 

@@ -92,9 +92,9 @@ def build_corpus(db: Session) -> None:
     add_evidence(
         db, key="sro_2486",
         source_document="SRO 2486(I)/2025 — amendment to Export Policy Order, 2022",
-        parent_text="S.R.O. 2486(I)/2025. Security deposit of 1% of the contract value with the State Bank of Pakistan and a confirmation letter before customs. An irrevocable letter of credit shall be opened and shipment completed within one hundred and eighty days.",
+        parent_text="S.R.O. 2486(I)/2025. Applicable to raw cotton under PCT Code 5201.0090. Security deposit of 1% of the contract value with the State Bank of Pakistan and a confirmation letter before customs. An irrevocable letter of credit shall be opened and shipment completed within one hundred and eighty days.",
         children=[
-            "S.R.O. 2486(I)/2025. Security deposit of 1% of the contract value with the State Bank of Pakistan before shipping cotton.",
+            "S.R.O. 2486(I)/2025. Applicable to raw cotton under PCT Code 5201.0090. Security deposit of 1% of the contract value with the State Bank of Pakistan before shipping cotton.",
             "An irrevocable letter of credit shall be opened and shipment completed within one hundred and eighty days.",
         ],
         pct_codes=["52010090"], validation_status="verified", sro_number="2486(I)/2025", page_number=1, section="SRO 2486(I)/2025", document_type="export_policy_amendment",
@@ -477,3 +477,162 @@ def test_existing_compliance_engine_unchanged() -> None:
     result = DeterministicComplianceRuleEngine().check(shipment)
     # The deterministic engine still decides; RAG never overrides it.
     assert result.overall_status in {ComplianceCheckStatus.FAILED, ComplianceCheckStatus.MANUAL_REVIEW}
+
+
+# --------------------------------------------------------------------------- #
+# Evidence-quality regression tests: reproduces (with a synthetic corpus) the
+# exact live bug - a Schedule-III negative-list page mistagged at ingestion
+# with a textile PCT code was surfacing as evidence for that product despite
+# being about something else entirely. Every check-specific query below is
+# built the same way production does (query_builder.build_compliance_query),
+# not a bare PCT code, since that is what actually reaches retrieval.
+# --------------------------------------------------------------------------- #
+_FORM_E_CHINA_TSHIRT_QUERY = ComplianceQueryInputs(
+    check_id="required_document_form_e",
+    check_name="Form-E is present",
+    pct_code="61091000",
+    required_document="form_e",
+    destination_country="China",
+)
+
+
+def _add_genuine_form_e_evidence(db: Session) -> None:
+    add_evidence(
+        db, key="genuine_form_e_tshirt",
+        source_document="PSW/TIPP textile product export requirements (curated)",
+        parent_text=(
+            "Common export clearance for cotton knitted t-shirts under PCT "
+            "6109.1000 requires a commercial invoice, a packing list and a "
+            "Form-E declaration to be present before shipment to any "
+            "destination, including China."
+        ),
+        pct_codes=["61091000"], validation_status="verified",
+        document_type="product_requirements_structured", section="common_export_clearance",
+    )
+
+
+# 26. A genuinely matching, check-specific passage is accepted.
+def test_a_matching_pct_document_destination_passage_is_accepted(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        _add_genuine_form_e_evidence(db)
+        query = build_compliance_query(_FORM_E_CHINA_TSHIRT_QUERY)
+        out = search_regulatory_evidence(
+            db, query=query, pct_code="61091000",
+            embedder=FakeEmbeddingProvider(), reranker=LexicalReranker(), verified_only=False,
+        )
+    assert out.status == "ok"
+    assert any(r.chunk.chunk_id.startswith("genuine_form_e_tshirt") for r in out.results)
+
+
+# 27. A medical-devices passage mistagged at ingestion with the query's own
+# PCT code (the exact live bug) is rejected despite passing the metadata
+# filter, because its real lexical overlap is noise.
+def test_b_medical_device_passage_mistagged_with_query_pct_code_is_rejected(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        _add_genuine_form_e_evidence(db)
+        add_evidence(
+            db, key="schedule_iii_medical",
+            source_document="Export Policy Order, 2022 - Schedule III (negative list)",
+            parent_text=(
+                "Schedule III lists prohibited and restricted export items: "
+                "used medical devices, seeds for sowing, plant material, "
+                "tobacco products and hazardous scrap. Exporters of these "
+                "PCT-classified items require special clearance under "
+                "separate rules."
+            ),
+            pct_codes=["61091000"], validation_status="verified", document_type="export_policy_order",
+        )
+        query = build_compliance_query(_FORM_E_CHINA_TSHIRT_QUERY)
+        out = search_regulatory_evidence(
+            db, query=query, pct_code="61091000",
+            embedder=FakeEmbeddingProvider(), reranker=LexicalReranker(), verified_only=False,
+        )
+    assert out.status == "ok"
+    assert not any(r.chunk.chunk_id.startswith("schedule_iii_medical") for r in out.results)
+    assert any(r.chunk.chunk_id.startswith("genuine_form_e_tshirt") for r in out.results)
+
+
+# 28. A toxic-chemicals passage, mistagged the same way, is rejected too -
+# the fix is general, not a special case for one product category.
+def test_c_toxic_chemical_passage_mistagged_with_query_pct_code_is_rejected(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        _add_genuine_form_e_evidence(db)
+        add_evidence(
+            db, key="schedule_iii_toxic",
+            source_document="Export Policy Order, 2022 - Schedule III (negative list)",
+            parent_text=(
+                "Schedule III also lists toxic and hazardous chemicals as "
+                "restricted export items requiring special environmental "
+                "clearance certificates before any shipment leaves Pakistan."
+            ),
+            pct_codes=["61091000"], validation_status="verified", document_type="export_policy_order",
+        )
+        query = build_compliance_query(_FORM_E_CHINA_TSHIRT_QUERY)
+        out = search_regulatory_evidence(
+            db, query=query, pct_code="61091000",
+            embedder=FakeEmbeddingProvider(), reranker=LexicalReranker(), verified_only=False,
+        )
+    assert out.status == "ok"
+    assert not any(r.chunk.chunk_id.startswith("schedule_iii_toxic") for r in out.results)
+
+
+# 29. A passage genuinely about a different PCT code never surfaces for this
+# query, even if its own text happens to say "PCT code" - the metadata
+# filter excludes it before lexical scoring ever runs.
+def test_d_passage_about_an_unrelated_pct_code_never_surfaces(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        _add_genuine_form_e_evidence(db)
+        add_evidence(
+            db, key="cigarette_excise",
+            source_document="Export Policy Order, 2022 - Schedule II",
+            parent_text=(
+                "PCT code 2402.1000 cigarettes containing tobacco require an "
+                "excise duty clearance certificate before any export "
+                "shipment, separate from the textile clearance procedure "
+                "described elsewhere in this Order."
+            ),
+            pct_codes=["24021000"], validation_status="verified", document_type="export_policy_order",
+        )
+        query = build_compliance_query(_FORM_E_CHINA_TSHIRT_QUERY)
+        out = search_regulatory_evidence(
+            db, query=query, pct_code="61091000",
+            embedder=FakeEmbeddingProvider(), reranker=LexicalReranker(), verified_only=False,
+        )
+    assert out.status == "ok"
+    assert not any(r.chunk.chunk_id.startswith("cigarette_excise") for r in out.results)
+
+
+# 30. Weak candidates (nothing clears the relevance floor) are reported as
+# evidence_not_found, never filled with a low-relevance passage.
+def test_e_only_weak_candidates_yields_evidence_not_found(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        add_evidence(
+            db, key="schedule_iii_medical_only",
+            source_document="Export Policy Order, 2022 - Schedule III (negative list)",
+            parent_text=(
+                "Schedule III lists prohibited and restricted export items: "
+                "used medical devices, seeds for sowing and plant material."
+            ),
+            pct_codes=["61091000"], validation_status="verified", document_type="export_policy_order",
+        )
+        query = build_compliance_query(_FORM_E_CHINA_TSHIRT_QUERY)
+        out = search_regulatory_evidence(
+            db, query=query, pct_code="61091000",
+            embedder=FakeEmbeddingProvider(), reranker=LexicalReranker(), verified_only=False,
+        )
+    assert out.status == "evidence_not_found"
+    assert out.results == []
