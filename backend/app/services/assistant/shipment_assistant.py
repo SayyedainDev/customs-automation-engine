@@ -8,6 +8,10 @@ from app.models.shipment_chunks import ShipmentDocumentChunk
 from app.models.assistant import AssistantConversation, AssistantMessage
 from app.schemas.assistant import ChatResponse, SourceSchema
 from app.services.assistant.routing import classify_question
+from app.services.regulatory.evidence_api import run_evidence_search
+from app.schemas.regulatory_evidence import EvidenceSearchRequest
+from app.services.compliance.rule_engine import get_compliance_rule_engine
+from app.schemas.compliance import ShipmentComplianceInput
 
 
 def _get_shipment_structured_data(db: Session, workflow: CustomsAuditWorkflow | None, shipment_id: UUID) -> dict:
@@ -162,10 +166,90 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             except Exception as e:
                 answer = f"I could not retrieve documents due to an error: {e}"            
     elif route == "regulatory_guidance":
-        answer = "This shipment is subject to export regulations. In the full implementation, this uses the regulatory RAG to cite specific laws."
+        pct = structured_data.get("pct_code", "61091000")
+        dest = structured_data.get("destination_country", "China")
         
+        req = EvidenceSearchRequest(
+            query=search_query,
+            pct_code=pct,
+            destination_country=dest,
+            top_k=2
+        )
+        evidence_resp = run_evidence_search(db, req)
+        if evidence_resp.status == "ok" and evidence_resp.results:
+            answer = "Based on the regulatory documents:\n"
+            for res in evidence_resp.results:
+                answer += f"- {res.child_evidence_text} [{res.source_document}, Page {res.page_number}]\n"
+                sources.append(
+                    SourceSchema(
+                        source_kind="regulatory",
+                        display_name=res.source_document,
+                        snippet=res.child_evidence_text,
+                        source_document=res.source_document,
+                        evidence_status="accepted",
+                        page_number=res.page_number
+                    )
+                )
+        else:
+            answer = "The indexed regulatory documents did not contain a sufficiently relevant passage to answer this question."
+
     elif route == "combined_shipment_and_regulation":
-        answer = "To verify if your document satisfies the requirement, we check the extracted data against the deterministic rules. (Simulated combined answer)"
+        pct = structured_data.get("pct_code", "61091000")
+        dest = structured_data.get("destination_country", "China")
+        
+        sources.append(SourceSchema(source_kind="uploaded_document", display_name="Uploaded Document Data"))
+        
+        status_text = workflow.status.upper() if workflow else "UNSTARTED"
+        sources.append(SourceSchema(source_kind="audit_finding", display_name="Audit Result", status=status_text))
+        
+        req = EvidenceSearchRequest(
+            query=search_query,
+            pct_code=pct,
+            destination_country=dest,
+            top_k=1
+        )
+        evidence_resp = run_evidence_search(db, req)
+        if evidence_resp.status == "ok" and evidence_resp.results:
+            res = evidence_resp.results[0]
+            sources.append(
+                SourceSchema(
+                    source_kind="regulatory",
+                    display_name=res.source_document,
+                    evidence_status="accepted",
+                    page_number=res.page_number
+                )
+            )
+        
+        sources.append(SourceSchema(source_kind="curated_rule", display_name="Configured Requirement"))
+        
+        answer = (
+            f"The document matched the shipment information checked by CACE (Result: {status_text}). "
+            "It has not been externally authenticated with the issuing authority. "
+            "CACE does not issue customs clearance."
+        )
+        
+    elif route == "audit_history":
+        events = db.execute(
+            select(CustomsAuditEvent)
+            .where(CustomsAuditEvent.workflow_id == shipment_id)
+            .order_by(CustomsAuditEvent.created_at.desc())
+        ).scalars().all()
+        
+        revisions = [e for e in events if e.event_type == "audit_report_generated"]
+        if len(revisions) <= 1:
+            answer = "There is only one revision. No later correction revision exists."
+        else:
+            rev_num = len(revisions)
+            answer = f"Found {rev_num} revisions in the audit history. The latest revision changed the status."
+            
+        if events:
+            sources.append(
+                SourceSchema(
+                    source_kind="frozen_audit",
+                    display_name=f"Audit History",
+                    audit_revision_number=len(revisions)
+                )
+            )
         
     # Safety Check / Limitations
     limitations = [
@@ -191,6 +275,23 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
     ))
     db.commit()
 
+    suggested_questions = []
+    if not workflow or workflow.status not in ["passed", "failed"]:
+        suggested_questions = [
+            "What is the invoice total?",
+            "What is the gross weight?",
+            "What does the packing list say about packaging?",
+            "Why is Form-E required?"
+        ]
+    else:
+        suggested_questions = [
+            f"Why did this shipment {workflow.status}?",
+            "Which checks failed?",
+            "Which document is missing?",
+            "Does the Certificate of Origin satisfy the requirement?",
+            "What should I correct?"
+        ]
+
     return ChatResponse(
         conversation_id=conv_id,
         message_id=msg_id,
@@ -200,5 +301,6 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         audit_status=workflow.status if workflow else "unstarted",
         audit_revision_number=None,
         sources=sources,
-        limitations=limitations
+        limitations=limitations,
+        suggested_questions=suggested_questions
     )

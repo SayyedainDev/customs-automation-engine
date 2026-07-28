@@ -8,7 +8,7 @@ class GuidanceRequest(BaseModel):
     pct_code: str
     destination: str
     planned_shipment_date: str | None = None
-    question: str
+    question: str = ""
 
 class ShipmentChatRequest(BaseModel):
     conversation_id: UUID | None = None
