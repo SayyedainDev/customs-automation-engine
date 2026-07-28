@@ -146,3 +146,60 @@ def test_j_long_snippet_is_truncated_not_silently_dropped():
     normalized = normalize_regulatory_evidence([{"evidence_text": long_text}])
     assert len(normalized[0]["snippet"]) <= 320
     assert normalized[0]["snippet"].endswith("…")
+
+
+# --------------------------------------------------------------------------- #
+# Found live: pure arithmetic checks were routed through RAG and cited an
+# unrelated regulatory passage, because any non-empty source_document counted
+# as "this needs a government citation" - including the internal label
+# arithmetic_checks.py uses to mark a check as "this is just math".
+# --------------------------------------------------------------------------- #
+def test_k_arithmetic_checks_are_never_treated_as_regulatory():
+    for check_id in (
+        "positive_quantity",
+        "positive_unit_price",
+        "invoice_line_calculation",
+        "invoice_total_consistency",
+    ):
+        check = {
+            "check_id": check_id,
+            "status": "passed",
+            "source_document": "Shipment invoice arithmetic",
+        }
+        assert is_regulatory_check(check) is False, check_id
+
+
+def test_l_a_real_government_source_is_still_treated_as_regulatory():
+    """The arithmetic-label exclusion must not swallow genuine citations."""
+    check = {
+        "check_id": "required_document_form_e",
+        "status": "passed",
+        "source_document": "TIPP Customs Clearance Procedure",
+    }
+    assert is_regulatory_check(check) is True
+
+
+def test_m_item_line_calculation_shows_the_three_values_it_depends_on():
+    """Found live: this check passed but its evidence read "Not extracted" -
+    it depends on three fields at once (quantity, unit price, line total),
+    and the field map only knew single-field comparisons."""
+    extraction = {
+        "invoice": {
+            "line_items": [
+                {
+                    "item_index": 1,
+                    "quantity": _field("100"),
+                    "unit_price": _field("5.50"),
+                    "line_total": _field("550.00"),
+                }
+            ]
+        },
+        "packing_list": {"items": []},
+        "items": [
+            {"item_reference": "invoice_line_1", "invoice_item_index": 1, "packing_item_index": None}
+        ],
+    }
+    check = {"check_id": "item_line_calculation", "status": "passed"}
+    evidence = document_evidence_for_check(check, extraction, item_reference="invoice_line_1")
+    values = {item["field_name"]: item["extracted_value"] for item in evidence}
+    assert values == {"quantity": "100", "unit_price": "5.50", "line_total": "550.00"}

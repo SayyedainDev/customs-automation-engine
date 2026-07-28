@@ -34,6 +34,27 @@ _ITEM_FIELD_MAP: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {
         (("invoice", "gross_weight"), ("packing_list", "gross_weight")),
     ),
     "item_pct_code_match": ("PCT code", (("invoice", "pct_code"),)),
+    # Depends on three invoice fields at once, not a single comparison - all
+    # three are shown so the arithmetic itself is visible, not just a page
+    # reference. Two check ids for the same real-world calculation (one from
+    # the cross-document layer, one from the compliance-rule layer - see
+    # line_item_checks.py and arithmetic_checks.py) share this mapping.
+    "item_line_calculation": (
+        "quantity, unit price and line total",
+        (
+            ("invoice", "quantity"),
+            ("invoice", "unit_price"),
+            ("invoice", "line_total"),
+        ),
+    ),
+    "invoice_line_calculation": (
+        "quantity, unit price and line total",
+        (
+            ("invoice", "quantity"),
+            ("invoice", "unit_price"),
+            ("invoice", "line_total"),
+        ),
+    ),
 }
 
 #: Same shape, for checks that compare a shipment/header-level field.
@@ -60,9 +81,25 @@ _DOCUMENT_LABELS = {"invoice": "Commercial invoice", "packing_list": "Packing li
 _SNIPPET_MAX_CHARS = 320
 
 
+#: Not a real citation source: arithmetic_checks.py uses this exact string as
+#: ``source_document`` on positive_quantity/positive_unit_price/
+#: invoice_line_calculation/invoice_total_consistency to label them as
+#: internal math, not a government rule. Found live: those checks were
+#: routed through RAG anyway (any non-empty source_document counted as
+#: "regulatory"), and a query built from "Quantity greater than zero" has no
+#: real regulatory content to match, so retrieval returned whatever
+#: low-relevance passage happened to be nearby - a citation to an unrelated
+#: Export Policy Order appendix, attached to a check that is just "is this
+#: number bigger than zero".
+_ARITHMETIC_SOURCE_LABEL = "Shipment invoice arithmetic"
+
+
 def is_regulatory_check(check: dict[str, Any]) -> bool:
     """A check that cites a government source, not a two-document comparison."""
-    return bool(check.get("source_document") or check.get("sro_number"))
+    source = check.get("source_document")
+    if source == _ARITHMETIC_SOURCE_LABEL:
+        return False
+    return bool(source or check.get("sro_number"))
 
 
 def _field_evidence(doc_key: str, field_name: str, field: Any) -> dict[str, Any] | None:
