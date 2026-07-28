@@ -13,7 +13,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from langgraph.types import interrupt
 
@@ -26,6 +26,10 @@ from app.core.exceptions import (
 )
 from app.schemas.multi_line_extraction import MultiLineShipmentRequest
 from app.services.customs_audit.consensus import compute_consensus
+from app.services.customs_audit.dependency_map import (
+    InvalidFieldPathError,
+    resolve_affected_checks,
+)
 from app.services.customs_audit.deps import WorkflowDeps
 from app.services.customs_audit.evidence import (
     document_evidence_for_check,
@@ -43,14 +47,22 @@ from app.services.customs_audit.safety import (
     validate_broker_report,
 )
 from app.services.customs_audit.state import (
+    MAX_HUMAN_REVIEW_ROUNDS,
     ActorType,
     AuditorReport,
+    AuditRevision,
     BrokerReport,
+    DisputedFieldDetail,
     HumanAction,
+    HumanCorrection,
     HumanReviewRequest,
     ProvenanceLabel,
     WorkflowStatus,
     utcnow_iso,
+)
+from app.services.multi_line_shipment_service import (
+    CorrectionValidationError,
+    FieldCorrection,
 )
 
 NodeFn = Callable[[dict[str, Any]], dict[str, Any]]
@@ -86,6 +98,196 @@ def _event(
 
 def _append(state: dict[str, Any], key: str, items: list[Any]) -> list[Any]:
     return list(state.get(key) or []) + items
+
+
+# --------------------------------------------------------------------------- #
+# Targeted human correction: field-level dispute detection and check-id
+# bookkeeping shared by interrupt_for_human_review and apply_human_correction.
+# --------------------------------------------------------------------------- #
+def _all_check_ids(extraction_result: dict[str, Any]) -> list[str]:
+    """Every check_id currently on this shipment, including data-driven
+    executable-rule checks (``xr_*``) - the regulatory-family expansion in
+    the dependency map needs the *real* rule ids, not just the Python-coded
+    checks."""
+    ids: list[str] = [
+        str(c.get("check_id")) for c in extraction_result.get("shipment_level_checks") or []
+    ]
+    for item in extraction_result.get("items") or []:
+        for check in item.get("item_checks") or []:
+            ids.append(str(check.get("check_id")))
+        compliance = item.get("compliance") or {}
+        for check in compliance.get("checks") or []:
+            ids.append(str(check.get("check_id")))
+        for check in compliance.get("executable_rule_checks") or []:
+            ids.append(str(check.get("check_id")))
+    return list(dict.fromkeys(ids))
+
+
+#: Only the item-comparison checks map to a single, human-confirmable value
+#: on each side (invoice vs packing list) - a missing-document or regulatory
+#: check is a different kind of problem (see PROVIDE_MISSING_DOCUMENT) and is
+#: deliberately not offered as a "disputed field" here.
+_FIELD_NAME_BY_CHECK = {
+    "item_quantity_match": "quantity",
+    "item_net_weight_match": "net_weight",
+    "item_gross_weight_match": "gross_weight",
+    "item_pct_code_match": "pct_code",
+}
+_REASON_CODE_BY_CHECK = {
+    "item_quantity_match": "quantity_mismatch",
+    "item_net_weight_match": "net_weight_mismatch",
+    "item_gross_weight_match": "gross_weight_mismatch",
+    "item_pct_code_match": "pct_code_mismatch",
+}
+_REVIEW_TITLE_BY_REASON = {
+    "quantity_mismatch": "Confirm shipment quantity",
+    "net_weight_mismatch": "Confirm net weight",
+    "gross_weight_mismatch": "Confirm gross weight",
+    "pct_code_mismatch": "Confirm product code",
+}
+
+
+def _item_index_by_reference(
+    extraction_result: dict[str, Any], item_reference: str | None
+) -> tuple[int | None, int | None]:
+    for item in extraction_result.get("items") or []:
+        if item.get("item_reference") == item_reference:
+            return item.get("invoice_item_index"), item.get("packing_item_index")
+    return None, None
+
+
+def _disputed_field_details_for_check(
+    check: dict[str, Any], item_reference: str | None, extraction_result: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """The invoice-side and packing-side values behind one failed/uncertain
+    item-comparison check, each traceable to a document, page and
+    confidence - the precise thing a reviewer is being asked to look at."""
+    field_name = _FIELD_NAME_BY_CHECK.get(str(check.get("check_id") or ""))
+    if field_name is None or item_reference is None:
+        return []
+    invoice_index, packing_index = _item_index_by_reference(extraction_result, item_reference)
+    details: list[dict[str, Any]] = []
+    for doc_key, document_type, items_key, path_root, item_index in (
+        ("invoice", "commercial_invoice", "line_items", "invoice.line_items", invoice_index),
+        ("packing_list", "packing_list", "items", "packing_list.items", packing_index),
+    ):
+        if item_index is None:
+            continue
+        document = extraction_result.get(doc_key) or {}
+        item_data = next(
+            (i for i in document.get(items_key) or [] if i.get("item_index") == item_index),
+            None,
+        )
+        if item_data is None:
+            continue
+        field = item_data.get(field_name) or {}
+        details.append(
+            {
+                "field_path": f"{path_root}[{item_index}].{field_name}",
+                "document_type": document_type,
+                "document_id": None,
+                "page": field.get("source_page"),
+                "value": field.get("value"),
+                "confidence": field.get("confidence"),
+                "extraction_method": field.get("extraction_method"),
+            }
+        )
+    return details
+
+
+def _review_title(reason_code: str) -> str:
+    return _REVIEW_TITLE_BY_REASON.get(reason_code, "Human review required")
+
+
+def _plain_language_question(reason_code: str, details: list[dict[str, Any]]) -> str:
+    if len(details) >= 2 and reason_code in _REVIEW_TITLE_BY_REASON:
+        first, second = details[0], details[1]
+        return (
+            f"The {first['document_type'].replace('_', ' ')} says {first['value']}, "
+            f"while the {second['document_type'].replace('_', ' ')} says {second['value']}. "
+            "Which value matches the physical shipment?"
+        )
+    return "A value could not be safely confirmed automatically. Please review the flagged item."
+
+
+def _review_task_id(state: dict[str, Any], revision_number: int) -> str:
+    """Deterministic, not ``uuid4()``: LangGraph re-runs a node's body from
+    the top when it resumes past an ``interrupt()`` call inside it, so
+    anything computed before that call must be a pure function of
+    (unchanged) state - a random id here would differ between what the
+    reviewer was shown and what gets recorded after resume."""
+    round_number = int(state.get("human_review_round", 0)) + 1
+    seed = f"{state.get('workflow_id')}:{revision_number}:{round_number}"
+    return "review-" + hashlib.sha256(seed.encode()).hexdigest()[:24]
+
+
+def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
+    consensus = state.get("consensus_result") or {}
+    extraction_result = state.get("extraction_result") or {}
+    revision_number = len(state.get("deterministic_result_history") or []) or 1
+
+    disputed_details: list[dict[str, Any]] = []
+    affected_check_ids: list[str] = []
+    reason_code = "manual_review_required"
+    present_check_ids = _all_check_ids(extraction_result)
+    for item in extraction_result.get("items") or []:
+        reference = item.get("item_reference")
+        for check in item.get("item_checks") or []:
+            if check.get("status") not in ("failed", "manual_review"):
+                continue
+            details = _disputed_field_details_for_check(check, reference, extraction_result)
+            if not details:
+                continue
+            if not disputed_details:
+                reason_code = _REASON_CODE_BY_CHECK.get(
+                    str(check.get("check_id") or ""), reason_code
+                )
+            disputed_details.extend(details)
+            for detail in details:
+                try:
+                    dependency = resolve_affected_checks(detail["field_path"])
+                except (InvalidFieldPathError, KeyError):
+                    continue
+                for check_id in dependency.resolve_check_ids(present_check_ids):
+                    if check_id not in affected_check_ids:
+                        affected_check_ids.append(check_id)
+
+    return HumanReviewRequest(
+        reason=consensus.get("reason", "human review required"),
+        disputed_fields=list(
+            dict.fromkeys(
+                consensus.get("disagreed_fields", []) + list(state.get("manual_review_reasons", []))
+            )
+        ),
+        source_document_pages=[
+            {
+                "document_type": r.get("document_type"),
+                "page_number": r.get("page_number"),
+                "requires_ocr": r.get("requires_ocr"),
+            }
+            for r in extraction_result.get("page_reviews", [])
+        ],
+        deterministic_status=consensus.get("deterministic_status"),
+        evidence_passages=state.get("retrieved_evidence", [])[:5],
+        allowed_actions=[
+            HumanAction.CONFIRM_EXTRACTED_VALUE,
+            HumanAction.CORRECT_EXTRACTED_VALUE,
+            HumanAction.PROVIDE_MISSING_DOCUMENT,
+            HumanAction.ACCEPT_MANUAL_REVIEW,
+            HumanAction.REQUEST_REPROCESSING,
+            HumanAction.REJECT_SUBMISSION,
+            HumanAction.ADD_REVIEW_NOTE,
+        ],
+        created_at=utcnow_iso(),
+        review_status="open",
+        review_task_id=_review_task_id(state, revision_number),
+        revision_number=revision_number,
+        reason_code=reason_code,
+        title=_review_title(reason_code),
+        plain_language_question=_plain_language_question(reason_code, disputed_details),
+        disputed_field_details=[DisputedFieldDetail(**d) for d in disputed_details],
+        affected_check_ids=affected_check_ids,
+    )
 
 
 def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
@@ -245,25 +447,27 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "updated_at": utcnow_iso(),
         }
 
-    def auditor_agent(state: dict[str, Any]) -> dict[str, Any]:
-        extraction_result = state.get("extraction_result")
-        if not extraction_result:
-            auditor = AuditorReport(
-                compliance_status_confirmed=False,
-                recommended_workflow_action="technical_failure",  # type: ignore[arg-type]
-                critical_anomalies=["technical_extraction_failure"],
-                observed_deterministic_status=None,
-            )
-            return {
-                "auditor_report": auditor.model_dump(mode="json"),
-                "audit_events": _append(
-                    state, "audit_events",
-                    [_event(event_type="auditor_skipped", node_name="auditor_agent", actor=ActorType.AUDITOR)],
-                ),
-            }
+    def _gather_evidence_and_audit(
+        extraction_result: dict[str, Any],
+        broker_report_dict: dict[str, Any],
+        *,
+        reuse_regulatory_evidence_by_check: dict[str, list[dict[str, Any]]] | None = None,
+        reuse_regulatory_evidence_status_by_check: dict[str, str] | None = None,
+        regulatory_checks_to_requery: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """Evidence-gathering + independent Auditor re-derivation, shared by
+        the first pass (auditor_agent) and a post-correction recheck
+        (auditor_recheck_revision).
 
+        When ``regulatory_checks_to_requery`` is given (the correction path),
+        a regulatory check_id *not* in that set reuses its prior citation
+        from ``reuse_regulatory_evidence_by_check`` instead of calling RAG
+        again - "do not rerun RAG for a correction that did not change the
+        regulatory context". When it is ``None`` (the first pass), every
+        regulatory check is queried, exactly as before this helper existed.
+        """
         deterministic_status = str(extraction_result.get("overall_status"))
-        broker = BrokerReport.model_validate(state.get("broker_report") or {})
+        broker = BrokerReport.model_validate(broker_report_dict or {})
 
         # Gather evidence for every check the deterministic engine produced -
         # passed, failed, and manual_review alike. Regulatory checks (ones
@@ -290,6 +494,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         document_evidence_by_check: dict[str, list[dict[str, Any]]] = {}
         system_scope_statements_by_check: dict[str, str] = {}
         all_evidence: list[dict[str, Any]] = []
+        reused_check_ids: list[str] = []
         with deps.session_factory() as db:
             for check, item_reference in checks_with_context:
                 check_id = str(check.get("check_id"))
@@ -312,6 +517,22 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                         )
                 elif is_regulatory_check(check):
                     if check_id in evidence_by_check:
+                        continue
+                    if (
+                        regulatory_checks_to_requery is not None
+                        and check_id not in regulatory_checks_to_requery
+                        and reuse_regulatory_evidence_by_check is not None
+                        and check_id in reuse_regulatory_evidence_by_check
+                    ):
+                        regulatory_evidence_by_check[check_id] = (
+                            reuse_regulatory_evidence_by_check[check_id]
+                        )
+                        regulatory_evidence_status_by_check[check_id] = (
+                            (reuse_regulatory_evidence_status_by_check or {}).get(
+                                check_id, "evidence_unavailable"
+                            )
+                        )
+                        reused_check_ids.append(check_id)
                         continue
                     query = query_for_check(check, extraction_result)
                     raw_evidence = deps.evidence_provider(db, check.get("pct_code"), query)
@@ -346,6 +567,38 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         injection_hits = detect_injection(
             " ".join(str(e.get("evidence_text", "")) for e in all_evidence)
         )
+        return {
+            "auditor_report": report,
+            "all_evidence": all_evidence,
+            "regulatory_evidence_by_check": regulatory_evidence_by_check,
+            "regulatory_evidence_status_by_check": regulatory_evidence_status_by_check,
+            "document_evidence_by_check": document_evidence_by_check,
+            "system_scope_statements_by_check": system_scope_statements_by_check,
+            "violations": violations,
+            "injection_hits": injection_hits,
+            "reused_regulatory_check_ids": reused_check_ids,
+        }
+
+    def auditor_agent(state: dict[str, Any]) -> dict[str, Any]:
+        extraction_result = state.get("extraction_result")
+        if not extraction_result:
+            auditor = AuditorReport(
+                compliance_status_confirmed=False,
+                recommended_workflow_action="technical_failure",  # type: ignore[arg-type]
+                critical_anomalies=["technical_extraction_failure"],
+                observed_deterministic_status=None,
+            )
+            return {
+                "auditor_report": auditor.model_dump(mode="json"),
+                "audit_events": _append(
+                    state, "audit_events",
+                    [_event(event_type="auditor_skipped", node_name="auditor_agent", actor=ActorType.AUDITOR)],
+                ),
+            }
+
+        result = _gather_evidence_and_audit(extraction_result, state.get("broker_report") or {})
+        report = result["auditor_report"]
+        violations = result["violations"]
 
         events = [
             _event(
@@ -359,22 +612,25 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 },
             )
         ]
-        if injection_hits:
+        if result["injection_hits"]:
             events.append(
                 _event(
                     event_type="injection_detected_in_evidence",
                     node_name="auditor_agent",
                     actor=ActorType.SYSTEM,
-                    payload={"phrases": injection_hits, "handling": "treated_as_data_not_obeyed"},
+                    payload={
+                        "phrases": result["injection_hits"],
+                        "handling": "treated_as_data_not_obeyed",
+                    },
                 )
             )
         return {
             "auditor_report": report.model_dump(mode="json"),
-            "retrieved_evidence": all_evidence,
-            "regulatory_evidence_by_check": regulatory_evidence_by_check,
-            "regulatory_evidence_status_by_check": regulatory_evidence_status_by_check,
-            "document_evidence_by_check": document_evidence_by_check,
-            "system_scope_statements_by_check": system_scope_statements_by_check,
+            "retrieved_evidence": result["all_evidence"],
+            "regulatory_evidence_by_check": result["regulatory_evidence_by_check"],
+            "regulatory_evidence_status_by_check": result["regulatory_evidence_status_by_check"],
+            "document_evidence_by_check": result["document_evidence_by_check"],
+            "system_scope_statements_by_check": result["system_scope_statements_by_check"],
             "critical_anomalies": _append(
                 state, "critical_anomalies", ["auditor_output_violation"] if violations else []
             ),
@@ -435,60 +691,75 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         }
 
     def interrupt_for_human_review(state: dict[str, Any]) -> dict[str, Any]:
-        consensus = state.get("consensus_result") or {}
-        extraction_result = state.get("extraction_result") or {}
-        request = HumanReviewRequest(
-            reason=consensus.get("reason", "human review required"),
-            disputed_fields=list(dict.fromkeys(
-                consensus.get("disagreed_fields", []) + list(state.get("manual_review_reasons", []))
-            )),
-            source_document_pages=[
-                {"document_type": r.get("document_type"), "page_number": r.get("page_number"), "requires_ocr": r.get("requires_ocr")}
-                for r in extraction_result.get("page_reviews", [])
-            ],
-            deterministic_status=consensus.get("deterministic_status"),
-            evidence_passages=state.get("retrieved_evidence", [])[:5],
-            allowed_actions=[
-                HumanAction.CONFIRM_EXTRACTED_VALUE,
-                HumanAction.CORRECT_EXTRACTED_VALUE,
-                HumanAction.PROVIDE_MISSING_DOCUMENT,
-                HumanAction.ACCEPT_MANUAL_REVIEW,
-                HumanAction.REQUEST_REPROCESSING,
-                HumanAction.REJECT_SUBMISSION,
-                HumanAction.ADD_REVIEW_NOTE,
-            ],
-            created_at=utcnow_iso(),
-            review_status="open",
-        )
+        request = _build_review_task(state)
+        events = [
+            _event(
+                event_type="human_review_task_created",
+                node_name="interrupt_for_human_review",
+                actor=ActorType.SYSTEM,
+                payload={
+                    "review_task_id": request.review_task_id,
+                    "revision_number": request.revision_number,
+                    "reason_code": request.reason_code,
+                    "affected_check_ids": request.affected_check_ids,
+                },
+            ),
+            _event(
+                event_type="workflow_interrupted",
+                node_name="interrupt_for_human_review",
+                actor=ActorType.SYSTEM,
+                payload={"review_task_id": request.review_task_id},
+            ),
+        ]
         # Pause here. On resume, `decision` is the submitted human decision dict.
         decision = interrupt(request.model_dump(mode="json"))
         return {
             "workflow_status": WorkflowStatus.RESUMING.value,
             "human_review_request": request.model_dump(mode="json"),
             "human_review_decision": decision,
+            "human_review_round": state.get("human_review_round", 0) + 1,
+            "audit_events": _append(state, "audit_events", events),
             "updated_at": utcnow_iso(),
         }
 
     def human_decision_received(state: dict[str, Any]) -> dict[str, Any]:
         decision = state.get("human_review_decision") or {}
+        action = decision.get("action")
         events = [
             _event(
                 event_type="human_decision_received",
                 node_name="human_decision_received",
                 actor=ActorType.HUMAN,
                 actor_reference=decision.get("reviewer_reference"),
-                payload={"action": decision.get("action")},
-            )
+                payload={"action": action},
+            ),
+            _event(
+                event_type="human_response_received",
+                node_name="human_decision_received",
+                actor=ActorType.HUMAN,
+                actor_reference=decision.get("reviewer_reference"),
+                payload={
+                    "action": action,
+                    "review_task_id": (state.get("human_review_request") or {}).get(
+                        "review_task_id"
+                    ),
+                },
+            ),
         ]
-        corrections = decision.get("corrections", [])
-        history = _append(state, "human_correction_history", corrections)
+        # A confirm/correct action's corrections are validated and applied by
+        # apply_human_correction (which appends the richer, dependency-mapped
+        # record); recording the raw submitted payload here too would create
+        # a duplicate, unvalidated entry in the same history list.
         return {
-            "human_correction_history": history,
             "audit_events": _append(state, "audit_events", events),
             "updated_at": utcnow_iso(),
         }
 
     def resume_workflow(state: dict[str, Any]) -> dict[str, Any]:
+        """The legacy-actions path: reject / accept-manual-review / add-note /
+        request-reprocessing / provide-missing-document. A confirm/correct
+        action never reaches this node - route_human_action sends it to
+        apply_human_correction instead (see below)."""
         decision = state.get("human_review_decision") or {}
         action = decision.get("action")
         updates: dict[str, Any] = {"updated_at": utcnow_iso()}
@@ -496,42 +767,352 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
 
         if action == HumanAction.REJECT_SUBMISSION.value:
             updates["workflow_status"] = WorkflowStatus.REJECTED.value
+            # Kept separate from deterministic_compliance_result.overall_status,
+            # which a human disposition never overwrites - see build_final_report.
+            updates["human_disposition"] = "rejected_current_submission"
             events.append(_event(event_type="submission_rejected", node_name="resume_workflow", actor=ActorType.HUMAN, actor_reference=decision.get("reviewer_reference")))
             updates["audit_events"] = _append(state, "audit_events", events)
             return updates
 
-        if action == HumanAction.CORRECT_EXTRACTED_VALUE.value and decision.get("corrections"):
-            # The correction is preserved in human_correction_history, but the
-            # frozen status cannot be recomputed safely from item inputs alone:
-            # that would discard shipment-level and supporting-document checks.
-            # Keep the authoritative result until a full pipeline rerun can
-            # apply the correction to every deterministic check.
-            deterministic = state.get("deterministic_compliance_result") or {}
+        events.append(
+            _event(
+                event_type="human_action_recorded",
+                node_name="resume_workflow",
+                actor=ActorType.HUMAN,
+                actor_reference=decision.get("reviewer_reference"),
+                payload={"action": action},
+            )
+        )
+        updates["audit_events"] = _append(state, "audit_events", events)
+        return updates
+
+    # ----------------------------------------------------------------- #
+    # Targeted correction path: confirm_extracted_value / correct_extracted_value.
+    # ----------------------------------------------------------------- #
+    def apply_human_correction(state: dict[str, Any]) -> dict[str, Any]:
+        decision = state.get("human_review_decision") or {}
+        review_task = state.get("human_review_request") or {}
+        reviewer = decision.get("reviewer_reference")
+        raw_corrections = decision.get("corrections") or []
+        extraction_result = state.get("extraction_result") or {}
+        revision_from = len(state.get("deterministic_result_history") or []) or 1
+        disputed_paths = {
+            d.get("field_path") for d in review_task.get("disputed_field_details") or []
+        }
+        present_check_ids = _all_check_ids(extraction_result)
+
+        def _fail(reason: str) -> dict[str, Any]:
+            events = [
+                _event(
+                    event_type="correction_validation_failed",
+                    node_name="apply_human_correction",
+                    actor=ActorType.SYSTEM,
+                    actor_reference=reviewer,
+                    payload={"reason": reason},
+                )
+            ]
+            return {
+                "correction_validation_errors": _append(
+                    state, "correction_validation_errors", [reason]
+                ),
+                "correction_applied": False,
+                "audit_events": _append(state, "audit_events", events),
+                "updated_at": utcnow_iso(),
+            }
+
+        if not raw_corrections:
+            return _fail("no corrections were submitted with a confirm/correct action")
+
+        field_corrections: list[FieldCorrection] = []
+        correction_records: list[dict[str, Any]] = []
+        all_affected_check_ids: list[str] = []
+        regulatory_context_changed = False
+        for raw in raw_corrections:
+            field_path = raw.get("field_path")
+            if disputed_paths and field_path not in disputed_paths:
+                return _fail(f"field_path not part of the active review task: {field_path}")
+            if not raw.get("reason"):
+                return _fail(f"a reason is required to correct {field_path}")
+            try:
+                dependency = resolve_affected_checks(field_path)
+            except (InvalidFieldPathError, KeyError) as exc:
+                return _fail(f"{field_path}: {exc}")
+
+            resolved_ids = dependency.resolve_check_ids(present_check_ids)
+            for check_id in resolved_ids:
+                if check_id not in all_affected_check_ids:
+                    all_affected_check_ids.append(check_id)
+            regulatory_context_changed = (
+                regulatory_context_changed or dependency.regulatory_context_changed
+            )
+            field_corrections.append(
+                FieldCorrection(
+                    field_path=field_path,
+                    corrected_value=raw.get("corrected_value"),
+                    reason=str(raw.get("reason")),
+                )
+            )
+            correction_records.append(
+                HumanCorrection(
+                    field_path=field_path,
+                    original_value=raw.get("original_value"),
+                    corrected_value=raw.get("corrected_value"),
+                    reviewer_reference=raw.get("reviewer_reference") or reviewer or "unknown",
+                    reason=str(raw.get("reason")),
+                    source=raw.get("source"),
+                    timestamp=raw.get("timestamp") or utcnow_iso(),
+                    correction_id=str(uuid4()),
+                    review_task_id=review_task.get("review_task_id"),
+                    revision_from=revision_from,
+                    source_document_id=raw.get("source_document_id"),
+                    source_page=raw.get("source_page"),
+                    affected_check_ids=resolved_ids,
+                ).model_dump(mode="json")
+            )
+
+        request = MultiLineShipmentRequest(
+            commercial_invoice_document_id=UUID(state["commercial_invoice_document_id"]),
+            packing_list_document_id=(
+                UUID(state["packing_list_document_id"])
+                if state.get("packing_list_document_id")
+                else None
+            ),
+            shipment_date=state.get("shipment_date"),
+            letter_of_credit_date=state.get("letter_of_credit_date"),
+            additional_uploaded_document_types=state.get("additional_uploaded_document_types", []),
+            supporting_documents=state.get("supporting_documents", []),
+        )
+        assert deps.recheck_pipeline is not None, "recheck_pipeline dependency is required"
+        try:
+            new_extraction_result = deps.recheck_pipeline(
+                extraction_result, request, field_corrections
+            )
+        except CorrectionValidationError as exc:
+            return _fail(str(exc))
+
+        # Revision 1 is captured retroactively, exactly once, from whatever
+        # is still in state at this instant (the correction below has not
+        # been applied to extraction_result yet) - see AuditRevision.
+        audit_revisions = list(state.get("audit_revisions") or [])
+        if not audit_revisions:
+            original_deterministic = state.get("deterministic_compliance_result") or {}
+            audit_revisions.append(
+                AuditRevision(
+                    revision_number=1,
+                    frozen_at=original_deterministic.get("frozen_at") or utcnow_iso(),
+                    triggered_by="initial",
+                    deterministic_result=original_deterministic,
+                    broker_report=state.get("broker_report"),
+                    auditor_report=state.get("auditor_report"),
+                    consensus_result=state.get("consensus_result"),
+                ).model_dump(mode="json")
+            )
+
+        events = [
+            _event(
+                event_type="human_correction_applied",
+                node_name="apply_human_correction",
+                actor=ActorType.HUMAN,
+                actor_reference=reviewer,
+                payload={
+                    "correction_count": len(field_corrections),
+                    "field_paths": [c.field_path for c in field_corrections],
+                },
+            ),
+            _event(
+                event_type="affected_checks_identified",
+                node_name="apply_human_correction",
+                actor=ActorType.SYSTEM,
+                payload={
+                    "affected_check_ids": all_affected_check_ids,
+                    "regulatory_context_changed": regulatory_context_changed,
+                },
+            ),
+            _event(
+                event_type="checks_recomputed",
+                node_name="apply_human_correction",
+                actor=ActorType.SYSTEM,
+                payload={
+                    "new_overall_status": new_extraction_result.get("overall_status"),
+                    "affected_check_ids": all_affected_check_ids,
+                },
+            ),
+        ]
+        return {
+            "extraction_result": new_extraction_result,
+            "matched_items": new_extraction_result.get("items", []),
+            "cross_document_checks": new_extraction_result.get("shipment_level_checks", []),
+            "human_correction_history": _append(
+                state, "human_correction_history", correction_records
+            ),
+            "audit_revisions": audit_revisions,
+            "affected_check_ids": all_affected_check_ids,
+            "correction_applied": True,
+            "audit_events": _append(state, "audit_events", events),
+            "updated_at": utcnow_iso(),
+        }
+
+    def freeze_corrected_revision(state: dict[str, Any]) -> dict[str, Any]:
+        extraction_result = state.get("extraction_result") or {}
+        history = state.get("deterministic_result_history") or []
+        frozen = {
+            "version": len(history) + 1,
+            "source": "deterministic_engine",
+            "overall_status": extraction_result.get("overall_status"),
+            "is_compliant": extraction_result.get("is_compliant"),
+            "rule_data_version": extraction_result.get("rule_data_version"),
+            "item_statuses": [
+                {"item_reference": i.get("item_reference"), "status": i.get("status")}
+                for i in extraction_result.get("items", [])
+            ],
+            "frozen_at": utcnow_iso(),
+            "triggered_by": "human_correction",
+        }
+        events = [
+            _event(
+                event_type="audit_revision_frozen",
+                node_name="freeze_corrected_revision",
+                actor=ActorType.SYSTEM,
+                payload={"version": frozen["version"], "overall_status": frozen["overall_status"]},
+            )
+        ]
+        return {
+            "deterministic_compliance_result": frozen,
+            "deterministic_result_history": _append(state, "deterministic_result_history", [frozen]),
+            "audit_events": _append(state, "audit_events", events),
+            "updated_at": utcnow_iso(),
+        }
+
+    def auditor_recheck_revision(state: dict[str, Any]) -> dict[str, Any]:
+        """Full independent re-derivation against the corrected data (see
+        _gather_evidence_and_audit's docstring for why this is a full rerun,
+        not a partial one) - RAG is only re-queried for checks the
+        correction is known to have changed the regulatory context for."""
+        extraction_result = state.get("extraction_result") or {}
+        deterministic_status = str(extraction_result.get("overall_status"))
+
+        # The Broker is also rerun (not just the Auditor): compute_consensus's
+        # first check compares broker.observed_deterministic_status against
+        # the new status, and a stale Broker report would always disagree
+        # with a status it never actually observed.
+        broker_report = deps.broker_agent.build_report(extraction_result, deterministic_status)
+        broker_violations = validate_broker_report(broker_report, deterministic_status)
+
+        affected = set(state.get("affected_check_ids") or [])
+        result = _gather_evidence_and_audit(
+            extraction_result,
+            broker_report.model_dump(mode="json"),
+            reuse_regulatory_evidence_by_check=state.get("regulatory_evidence_by_check"),
+            reuse_regulatory_evidence_status_by_check=state.get(
+                "regulatory_evidence_status_by_check"
+            ),
+            regulatory_checks_to_requery=affected,
+        )
+        auditor_report = result["auditor_report"]
+
+        events = [
+            _event(
+                event_type="auditor_revision_reviewed",
+                node_name="auditor_recheck_revision",
+                actor=ActorType.AUDITOR,
+                payload={
+                    "revision_reviewed": (state.get("deterministic_compliance_result") or {}).get(
+                        "version"
+                    ),
+                    "observed_deterministic_status": auditor_report.observed_deterministic_status,
+                    "recommended_action": auditor_report.recommended_workflow_action.value,
+                    "reused_regulatory_evidence_for": result["reused_regulatory_check_ids"],
+                    "violations": result["violations"] + broker_violations,
+                },
+            )
+        ]
+        return {
+            "broker_report": broker_report.model_dump(mode="json"),
+            "auditor_report": auditor_report.model_dump(mode="json"),
+            "retrieved_evidence": result["all_evidence"],
+            "regulatory_evidence_by_check": result["regulatory_evidence_by_check"],
+            "regulatory_evidence_status_by_check": result["regulatory_evidence_status_by_check"],
+            "document_evidence_by_check": result["document_evidence_by_check"],
+            "system_scope_statements_by_check": result["system_scope_statements_by_check"],
+            "critical_anomalies": _append(
+                state,
+                "critical_anomalies",
+                ["auditor_output_violation"] if result["violations"] else [],
+            ),
+            "audit_events": _append(state, "audit_events", events),
+            "updated_at": utcnow_iso(),
+        }
+
+    def recompute_consensus_after_correction(state: dict[str, Any]) -> dict[str, Any]:
+        extraction_result = state.get("extraction_result") or {}
+        broker = BrokerReport.model_validate(state.get("broker_report") or {})
+        auditor = AuditorReport.model_validate(state.get("auditor_report") or {})
+        deterministic_status = str(extraction_result.get("overall_status"))
+        consensus_obj = compute_consensus(
+            broker, auditor, deterministic_status,
+            human_review_required=deps.human_review_required,
+        )
+        reasons = list(consensus_obj.unresolved_issues)
+        if deterministic_status == "manual_review":
+            reasons.append("deterministic status is manual_review")
+
+        round_number = int(state.get("human_review_round", 0))
+        limit_reached = (
+            consensus_obj.requires_human_review and round_number >= MAX_HUMAN_REVIEW_ROUNDS
+        )
+
+        events = [
+            _event(
+                event_type="consensus_recomputed",
+                node_name="recompute_consensus_after_correction",
+                actor=ActorType.SYSTEM,
+                payload={
+                    "consensus_reached": consensus_obj.consensus_reached,
+                    "requires_human_review": consensus_obj.requires_human_review,
+                    "human_review_round": round_number,
+                },
+            )
+        ]
+        if limit_reached:
             events.append(
                 _event(
-                    event_type="human_correction_recorded_status_preserved",
-                    node_name="resume_workflow",
+                    event_type="human_review_limit_reached",
+                    node_name="recompute_consensus_after_correction",
                     actor=ActorType.SYSTEM,
                     payload={
-                        "correction_count": len(decision["corrections"]),
-                        "preserved_version": deterministic.get("version"),
-                        "preserved_status": deterministic.get("overall_status"),
-                        "reason": "full authoritative pipeline rerun required",
+                        "human_review_round": round_number,
+                        "max_human_review_rounds": MAX_HUMAN_REVIEW_ROUNDS,
                     },
                 )
             )
-        else:
-            events.append(
-                _event(
-                    event_type="human_action_recorded",
-                    node_name="resume_workflow",
-                    actor=ActorType.HUMAN,
-                    actor_reference=decision.get("reviewer_reference"),
-                    payload={"action": action},
-                )
-            )
-        updates["audit_events"] = _append(state, "audit_events", events)
-        return updates
+
+        # Append the now-complete revision bundle (deterministic + broker +
+        # auditor + consensus, all for the same corrected data) - revision 1
+        # was already captured retroactively in apply_human_correction.
+        deterministic = state.get("deterministic_compliance_result") or {}
+        audit_revisions = list(state.get("audit_revisions") or [])
+        audit_revisions.append(
+            AuditRevision(
+                revision_number=deterministic.get("version") or (len(audit_revisions) + 1),
+                frozen_at=deterministic.get("frozen_at") or utcnow_iso(),
+                triggered_by="human_correction",
+                correction_id=(
+                    (state.get("human_correction_history") or [{}])[-1].get("correction_id")
+                ),
+                deterministic_result=deterministic,
+                broker_report=state.get("broker_report"),
+                auditor_report=state.get("auditor_report"),
+                consensus_result=consensus_obj.model_dump(mode="json"),
+            ).model_dump(mode="json")
+        )
+
+        return {
+            "consensus_result": consensus_obj.model_dump(mode="json"),
+            "manual_review_reasons": _append(state, "manual_review_reasons", reasons),
+            "audit_revisions": audit_revisions,
+            "audit_events": _append(state, "audit_events", events),
+            "updated_at": utcnow_iso(),
+        }
 
     def build_final_report(state: dict[str, Any]) -> dict[str, Any]:
         deterministic = state.get("deterministic_compliance_result")
@@ -577,6 +1158,10 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "explanation_results": state.get("explanation_results", []),
             "human_decisions": state.get("human_correction_history", []),
             "human_review_decision": state.get("human_review_decision"),
+            "audit_revisions": state.get("audit_revisions", []),
+            "human_disposition": state.get("human_disposition"),
+            "correction_validation_errors": state.get("correction_validation_errors", []),
+            "human_review_round": state.get("human_review_round", 0),
             "unresolved_issues": (state.get("consensus_result") or {}).get("unresolved_issues", []),
             "manual_review_reasons": state.get("manual_review_reasons", []),
             "rule_data_version": state.get("rule_data_version"),
@@ -675,6 +1260,10 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         "interrupt_for_human_review": interrupt_for_human_review,
         "human_decision_received": human_decision_received,
         "resume_workflow": resume_workflow,
+        "apply_human_correction": apply_human_correction,
+        "freeze_corrected_revision": freeze_corrected_revision,
+        "auditor_recheck_revision": auditor_recheck_revision,
+        "recompute_consensus_after_correction": recompute_consensus_after_correction,
         "build_final_report": build_final_report,
         "generate_explanation": generate_explanation,
         "persist_audit_record": persist_audit_record,
@@ -684,5 +1273,40 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
 def route_after_compare(state: dict[str, Any]) -> str:
     consensus = state.get("consensus_result") or {}
     if consensus.get("requires_human_review"):
+        return "interrupt_for_human_review"
+    return "build_final_report"
+
+
+def route_human_action(state: dict[str, Any]) -> str:
+    """confirm/correct go through the targeted-correction chain; every other
+    action (reject, accept, note, provide-document, reprocess) keeps the
+    existing resume_workflow behaviour unchanged."""
+    decision = state.get("human_review_decision") or {}
+    action = decision.get("action")
+    if action in (
+        HumanAction.CORRECT_EXTRACTED_VALUE.value,
+        HumanAction.CONFIRM_EXTRACTED_VALUE.value,
+    ):
+        return "apply_human_correction"
+    return "resume_workflow"
+
+
+def route_after_apply_correction(state: dict[str, Any]) -> str:
+    """A correction that failed validation never reaches the recompute
+    chain - it goes straight to the final report with the prior revision's
+    status untouched (see apply_human_correction's ``_fail`` helper)."""
+    if state.get("correction_applied"):
+        return "freeze_corrected_revision"
+    return "build_final_report"
+
+
+def route_after_correction_consensus(state: dict[str, Any]) -> str:
+    """Loop back for another review only while genuinely uncertain and the
+    round cap has not been reached (MAX_HUMAN_REVIEW_ROUNDS) - otherwise the
+    workflow finalizes in whatever state the deterministic engine and
+    consensus actually produced."""
+    consensus = state.get("consensus_result") or {}
+    round_number = int(state.get("human_review_round", 0))
+    if consensus.get("requires_human_review") and round_number < MAX_HUMAN_REVIEW_ROUNDS:
         return "interrupt_for_human_review"
     return "build_final_report"

@@ -176,16 +176,32 @@ class CustomsAuditService:
         task = self._open_task(db, workflow_id)
         if task is None:
             return None
+        workflow = self._get_workflow(db, workflow_id)
+        # The full structured review task (review_task_id, revision_number,
+        # reason_code, title, plain_language_question, disputed_field_details,
+        # affected_check_ids) already lives durably in the checkpointed graph
+        # state - the same interrupt payload interrupt_for_human_review built
+        # - so it is read from there rather than duplicated into new SQL
+        # columns. Falls back to the DB row's own fields if the checkpoint is
+        # ever unavailable (never a hard failure to view an open review).
+        live = self._interrupt_payload(workflow.thread_id) or {}
         return {
             "task_id": str(task.id),
             "workflow_id": str(task.workflow_id),
             "status": task.status,
-            "reason": task.reason,
+            "reason": live.get("reason", task.reason),
             "disputed_fields": task.disputed_fields or [],
             "requested_actions": task.requested_actions or [],
             "evidence": task.evidence or [],
             "deterministic_status": task.deterministic_status,
             "created_at": task.created_at.isoformat() if task.created_at else None,
+            "review_task_id": live.get("review_task_id"),
+            "revision_number": live.get("revision_number"),
+            "reason_code": live.get("reason_code"),
+            "title": live.get("title"),
+            "plain_language_question": live.get("plain_language_question"),
+            "disputed_field_details": live.get("disputed_field_details", []),
+            "affected_check_ids": live.get("affected_check_ids", []),
         }
 
     def get_events(self, db: Session, workflow_id: UUID) -> list[dict[str, Any]]:

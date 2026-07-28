@@ -377,6 +377,39 @@ def _bounded_system_scope(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return bounded
 
 
+_MAX_HUMAN_REVIEW_SUMMARY = 6
+
+
+def _bounded_human_review_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Already plain-language from report.py (field labels, not field_paths
+    or check_ids) - only length-bounding happens here."""
+    bounded: list[dict[str, Any]] = []
+    for row in rows[:_MAX_HUMAN_REVIEW_SUMMARY]:
+        bounded.append(
+            {
+                "field_label": _bounded_text(row.get("field_label")),
+                "original_value": _bounded_scalar(row.get("original_value")),
+                "corrected_value": _bounded_scalar(row.get("corrected_value")),
+                "reason": _bounded_text(row.get("reason")),
+                "was_confirmation": bool(row.get("was_confirmation")),
+            }
+        )
+    return bounded
+
+
+def _bounded_revision_history(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    bounded: list[dict[str, Any]] = []
+    for row in rows[:_MAX_HUMAN_REVIEW_SUMMARY]:
+        bounded.append(
+            {
+                "revision_number": row.get("revision_number"),
+                "status_label": _bounded_text(row.get("status_label")),
+                "triggered_by": row.get("triggered_by"),
+            }
+        )
+    return bounded
+
+
 def build_explanation_findings(
     state: dict[str, Any], final_report: dict[str, Any]
 ) -> dict[str, Any]:
@@ -481,6 +514,12 @@ def build_explanation_findings(
             report.get("regulatory_evidence") or []
         ),
         "system_scope": _bounded_system_scope(report.get("system_scope") or []),
+        "human_review_summary": _bounded_human_review_summary(
+            report.get("human_review_summary") or []
+        ),
+        "audit_revision_history": _bounded_revision_history(
+            report.get("audit_revision_history") or []
+        ),
     }
 
 
@@ -693,6 +732,57 @@ def _regulatory_evidence_section(findings: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _human_review_section(findings: dict[str, Any]) -> list[str]:
+    """Explain a human correction in plain terms - what was unclear, the
+    original value, the reviewed value, and why. Never mentions field_path,
+    check_id, revision, "state mutation" or "graph replay"."""
+    corrections = findings.get("human_review_summary") or []
+    review_status = findings.get("human_review_status")
+    if not corrections:
+        if review_status == "required_and_resolved":
+            return ["A required human review has been completed."]
+        if review_status == "required":
+            return ["A person must confirm the unresolved points before submission."]
+        return []
+    lines: list[str] = []
+    for entry in corrections:
+        field_label = entry.get("field_label") or "A value"
+        original = entry.get("original_value")
+        corrected = entry.get("corrected_value")
+        if entry.get("was_confirmation"):
+            lines.append(
+                f"{field_label} was uncertain. A reviewer confirmed that the "
+                f"correct value is {corrected}."
+            )
+        else:
+            lines.append(
+                f"{field_label} was unclear. The original extracted value was "
+                f"{original}. A reviewer confirmed that the correct value is "
+                f"{corrected}."
+            )
+        reason = entry.get("reason")
+        if reason:
+            lines.append(f"Reason given: {reason}.")
+    lines.append(
+        "The system re-checked every rule that depends on this value using "
+        "the corrected data."
+    )
+    return lines
+
+
+def _audit_history_section(findings: dict[str, Any]) -> list[str]:
+    """One line per frozen revision - only shown once a correction has
+    actually produced a second one; a single-revision shipment has nothing
+    to compare and this section is omitted entirely."""
+    revisions = findings.get("audit_revision_history") or []
+    if len(revisions) < 2:
+        return []
+    return [
+        f"Revision {revision.get('revision_number')}: {revision.get('status_label')}."
+        for revision in revisions
+    ]
+
+
 def _default_explanation(role: str, findings: dict[str, Any]) -> str:
     """Write a detailed, plain-language explanation from the frozen findings.
 
@@ -734,19 +824,13 @@ def _default_explanation(role: str, findings: dict[str, Any]) -> str:
             "have an authorized person confirm the correction."
         )
 
-    review_status = findings.get("human_review_status")
-    if review_status == "required_and_resolved":
-        lines.extend(
-            ["", "Human review", "A required human review has been completed."]
-        )
-    elif review_status == "required":
-        lines.extend(
-            [
-                "",
-                "Human review",
-                "A person must confirm the unresolved points before submission.",
-            ]
-        )
+    human_review_lines = _human_review_section(findings)
+    if human_review_lines:
+        lines.extend(["", "Human review", *human_review_lines])
+
+    audit_history_lines = _audit_history_section(findings)
+    if audit_history_lines:
+        lines.extend(["", "Audit history", *audit_history_lines])
 
     destination = findings.get("shipment_context", {}).get("destination")
     entry_clause = f"entry into {destination}" if destination else "entry into the destination country"

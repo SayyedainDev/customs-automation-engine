@@ -6,6 +6,7 @@ consensus and persistence are exercised for real with in-memory/sqlite backends.
 """
 
 import asyncio
+import copy
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -19,6 +20,7 @@ from app.core.database import Base, get_db_session
 from app.core.exceptions import StructuredExtractionProviderUnavailableError
 from app.main import app
 from app.models.customs_audit import CustomsAuditEvent
+from app.services.multi_line.field_paths import parse_field_path
 from app.services.customs_audit.agents import (
     DeterministicAuditorAgent,
     DeterministicBrokerAgent,
@@ -126,7 +128,7 @@ class SchemaFailBroker:
 # --------------------------------------------------------------------------- #
 # Harness.
 # --------------------------------------------------------------------------- #
-def make_service(engine, extraction, *, evidence_fn=None, broker=None, auditor=None, human_review_required=True, checkpointer=None, explanation_narrator=None, explanation_model_label="test-model"):
+def make_service(engine, extraction, *, evidence_fn=None, broker=None, auditor=None, human_review_required=True, checkpointer=None, explanation_narrator=None, explanation_model_label="test-model", recheck_fn=None):
     def pipeline(db, request):
         result = extraction() if callable(extraction) else extraction
         if isinstance(result, BaseException):
@@ -144,6 +146,7 @@ def make_service(engine, extraction, *, evidence_fn=None, broker=None, auditor=N
         vector_index_version_fn=lambda db: "vec-index-v1",
         explanation_narrator=explanation_narrator,
         explanation_model_label=explanation_model_label,
+        recheck_pipeline=recheck_fn or fake_recheck_pipeline,
     )
     return build_service(lambda: Session(engine), deps=deps, checkpointer=checkpointer or build_memory_checkpointer())
 
@@ -180,12 +183,91 @@ def review_task(service, engine, workflow_id):
         return service.get_review(db, UUID(workflow_id))
 
 
-def correction_decision(field_path, corrected):
-    return {"action": "correct_extracted_value", "corrections": [{"field_path": field_path, "original_value": None, "corrected_value": corrected, "reviewer_reference": "supervisor-001", "reason": "Confirmed from invoice page 1", "source": "invoice page 1", "timestamp": utcnow_iso()}], "reviewer_reference": "supervisor-001", "review_note": "OCR inserted a wrong character.", "timestamp": utcnow_iso()}
+def correction_decision(field_path, corrected, *, action="correct_extracted_value"):
+    return {"action": action, "corrections": [{"field_path": field_path, "original_value": None, "corrected_value": corrected, "reviewer_reference": "supervisor-001", "reason": "Confirmed from invoice page 1", "source": "invoice page 1", "timestamp": utcnow_iso()}], "reviewer_reference": "supervisor-001", "review_note": "OCR inserted a wrong character.", "timestamp": utcnow_iso()}
 
 
 def accept_decision():
     return {"action": "accept_manual_review", "corrections": [], "reviewer_reference": "supervisor-001", "timestamp": utcnow_iso()}
+
+
+_ITEM_CHECK_IDS_BY_FIELD = {
+    "quantity": "item_quantity_match",
+    "net_weight": "item_net_weight_match",
+    "gross_weight": "item_gross_weight_match",
+    "pct_code": "item_pct_code_match",
+}
+
+
+def fake_recheck_pipeline(extraction_result, request, corrections):
+    """Test-only stand-in for the real recompute (multi_line_shipment_service
+    .recheck_multi_line_shipment_from_correction): applies each correction's
+    value into a deep copy of the simplified fixture dict, and flips exactly
+    the one item-comparison check that field is known to feed (via the same
+    dependency map production code uses) from failed to passed - never
+    touching any other check. This is intentionally not a full re-derivation
+    (these fixtures are hand-built dicts, not real ExtractedField-shaped
+    data a Pydantic re-hydration could parse); the real recompute function's
+    correctness is covered separately in test_human_correction_recompute.py
+    against schema-conformant fixtures.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from app.services.customs_audit.dependency_map import resolve_affected_checks
+    from app.services.multi_line_shipment_service import CorrectionValidationError
+
+    _numeric_fields = {"quantity", "unit_price", "line_total", "net_weight", "gross_weight"}
+    result = copy.deepcopy(extraction_result)
+    for correction in corrections:
+        parsed = parse_field_path(correction.field_path)
+        if parsed.field in _numeric_fields:
+            try:
+                Decimal(str(correction.corrected_value))
+            except (InvalidOperation, ValueError) as exc:
+                raise CorrectionValidationError(
+                    f"{parsed.field} requires a numeric value, got {correction.corrected_value!r}"
+                ) from exc
+        doc_key = "invoice" if parsed.document == "invoice" else "packing_list"
+        items_key = "line_items" if parsed.document == "invoice" else "items"
+        for item in (result.get(doc_key) or {}).get(items_key) or []:
+            if item.get("item_index") == parsed.item_index and parsed.field in item:
+                item[parsed.field]["value"] = correction.corrected_value
+                item[parsed.field]["extraction_method"] = "human_review"
+
+        check_id = _ITEM_CHECK_IDS_BY_FIELD.get(parsed.field)
+        if check_id is None:
+            continue
+        try:
+            resolve_affected_checks(correction.field_path)
+        except (ValueError, KeyError):
+            continue
+        for result_item in result.get("items") or []:
+            for check in result_item.get("item_checks") or []:
+                if check.get("check_id") == check_id and check.get("status") == "failed":
+                    check["status"] = "passed"
+                    check["message"] = f"{check_id} resolved by human review."
+
+    all_statuses = []
+    for result_item in result.get("items") or []:
+        item_statuses = [c.get("status") for c in result_item.get("item_checks") or []]
+        compliance = result_item.get("compliance") or {}
+        item_statuses.extend(c.get("status") for c in compliance.get("checks") or [])
+        all_statuses.extend(item_statuses)
+        if "failed" in item_statuses:
+            result_item["status"] = "failed"
+        elif "manual_review" in item_statuses:
+            result_item["status"] = "manual_review"
+        else:
+            result_item["status"] = "passed"
+    all_statuses.extend(c.get("status") for c in result.get("shipment_level_checks") or [])
+    if "failed" in all_statuses:
+        result["overall_status"] = "failed"
+    elif "manual_review" in all_statuses:
+        result["overall_status"] = "manual_review"
+    else:
+        result["overall_status"] = "passed"
+    result["is_compliant"] = result["overall_status"] == "passed"
+    return result
 
 
 def reject_decision():
@@ -361,13 +443,20 @@ def test_18_human_correction_stored_separately(isolated_database: Engine) -> Non
     resumed = review(svc, isolated_database, result["workflow_id"], correction_decision("invoice.line_items[1].pct_code", "61091000"))
     report = resumed["final_report"]
     assert report["original_deterministic_status"] == "manual_review"
-    # A field correction is recorded, but the frozen status is preserved until
-    # every shipment and supporting-document check can be rerun together.
-    assert report["deterministic_result_current_version"] == 1
+    # The correction is applied and a NEW revision is frozen (version 2) even
+    # though this fixture's real blocker (the China certificate-of-origin
+    # check) is untouched by a PCT-code correction, so consensus correctly
+    # asks for another review rather than silently completing.
+    assert report["deterministic_result_current_version"] == 2
     assert report["deterministic_compliance_status"] == "manual_review"
-    correction = report["human_decisions"][0]
+
+    snapshot = svc._graph.get_state({"configurable": {"thread_id": resumed["thread_id"]}})
+    correction = snapshot.values["human_correction_history"][0]
     assert correction["corrected_value"] == "61091000"
     assert correction["reviewer_reference"] == "supervisor-001"
+    assert correction["correction_id"]
+    assert "item_pct_code_match" in correction["affected_check_ids"]
+    assert len(snapshot.values["deterministic_result_history"]) == 2
 
 
 def test_19_human_decision_resumes_same_thread(isolated_database: Engine) -> None:
@@ -378,25 +467,48 @@ def test_19_human_decision_resumes_same_thread(isolated_database: Engine) -> Non
     assert resumed["status"] == "completed"
 
 
-def test_20_corrected_value_preserves_status_until_full_pipeline_rerun(
+def test_20_correction_recomputes_status_from_corrected_data(
     isolated_database: Engine,
 ) -> None:
-    svc = make_service(isolated_database, manual_review_extraction())
+    """The gap this whole feature fixes: a correction used to be preserved-
+    but-inert (see the old event name this test used to check for,
+    'human_correction_recorded_status_preserved'). Now Python recalculates
+    the status from the corrected data - the human never sets it."""
+    extraction = make_extraction(
+        [
+            line(
+                status="failed",
+                compliance_checks=[PASSED_LEGAL_CHECK],
+                item_checks=[{"check_id": "item_quantity_match", "status": "failed", "message": "Quantity mismatch: invoice has '100' and packing list has '99'."}],
+            )
+        ],
+        "failed",
+    )
+    svc = make_service(isolated_database, extraction)
     result = start(svc, isolated_database)
+    assert result["deterministic_status"] == "failed"
+
     resumed = review(
         svc,
         isolated_database,
         result["workflow_id"],
-        correction_decision("invoice.line_items[1].pct_code", "61091000"),
+        correction_decision("invoice.line_items[1].quantity", "100"),
     )
-    preserved_events = [
-        e
-        for e in events(svc, isolated_database, result["workflow_id"])
-        if e["event_type"] == "human_correction_recorded_status_preserved"
-    ]
-    assert preserved_events
-    assert preserved_events[0]["event_payload"]["preserved_version"] == 1
-    assert resumed["deterministic_status"] == "manual_review"
+
+    event_types = [e["event_type"] for e in events(svc, isolated_database, result["workflow_id"])]
+    assert "human_correction_applied" in event_types
+    assert "affected_checks_identified" in event_types
+    assert "checks_recomputed" in event_types
+    assert "audit_revision_frozen" in event_types
+    assert "auditor_revision_reviewed" in event_types
+    assert "consensus_recomputed" in event_types
+    assert "human_correction_recorded_status_preserved" not in event_types
+
+    assert resumed["status"] == "completed"
+    assert resumed["deterministic_status"] == "passed"
+    assert resumed["final_report"]["deterministic_compliance_status"] == "passed"
+    assert resumed["final_report"]["original_deterministic_status"] == "failed"
+    assert resumed["final_report"]["deterministic_result_current_version"] == 2
 
 
 def test_21_audit_event_for_every_transition(isolated_database: Engine) -> None:
@@ -477,14 +589,24 @@ def test_23_retry_of_technical_failure(isolated_database: Engine) -> None:
     new_decision = correction_decision(
         "invoice.line_items[1].quantity", "100"
     )
-    completed = review(
+    resumed_again = review(
         svc, isolated_database, result["workflow_id"], new_decision
     )
-    assert completed["final_report"]["original_deterministic_status"] == "failed"
-    assert completed["final_report"]["human_decisions"] == [
-        original_correction,
-        new_decision["corrections"][0],
-    ]
+    # This fixture's real blocker (the China certificate-of-origin check) is
+    # never addressed by either correction, so consensus correctly keeps
+    # asking for review rather than silently completing - the
+    # original_deterministic_status must still read the very first attempt's
+    # verdict throughout, carried across the retry's thread swap.
+    final_snapshot = svc._graph.get_state(
+        {"configurable": {"thread_id": resumed_again["thread_id"]}}
+    )
+    assert final_snapshot.values["deterministic_result_history"][0]["overall_status"] == "failed"
+    history = final_snapshot.values["human_correction_history"]
+    assert len(history) == 2
+    assert history[0]["corrected_value"] == original_correction["corrected_value"]
+    assert history[1]["field_path"] == "invoice.line_items[1].quantity"
+    assert history[1]["corrected_value"] == "100"
+    assert history[1]["correction_id"]  # the real (not carried-forward) correction is enriched
 
 
 def test_24_retry_cannot_bypass_human_review(isolated_database: Engine) -> None:
@@ -771,7 +893,23 @@ def test_40_supporting_required_fields_are_type_specific() -> None:
 def test_41_human_correction_cannot_erase_existing_document_failure(
     isolated_database: Engine,
 ) -> None:
-    svc = make_service(isolated_database, mismatch_extraction())
+    """A correction only ever resolves the specific check(s) its own
+    dependency mapping says it affects - a *different*, still-uncorrected
+    failure on the same shipment must survive the correction untouched."""
+    extraction = make_extraction(
+        [
+            line(
+                status="failed",
+                compliance_checks=[PASSED_LEGAL_CHECK],
+                item_checks=[
+                    {"check_id": "item_quantity_match", "status": "failed", "message": "Quantity mismatch: invoice has '100' and packing list has '99'."},
+                    {"check_id": "item_pct_code_match", "status": "failed", "message": "PCT code mismatch: invoice has '6109.1000' and packing list has '6110.1000'."},
+                ],
+            )
+        ],
+        "failed",
+    )
+    svc = make_service(isolated_database, extraction)
     started = start(svc, isolated_database)
     assert started["status"] == "awaiting_human_review"
     assert started["deterministic_status"] == "failed"
@@ -783,6 +921,17 @@ def test_41_human_correction_cannot_erase_existing_document_failure(
         correction_decision("invoice.line_items[1].quantity", "100"),
     )
 
+    # The quantity check the correction actually targeted is resolved...
+    snapshot = svc._graph.get_state({"configurable": {"thread_id": resumed["thread_id"]}})
+    item_checks = {
+        c["check_id"]: c["status"]
+        for item in snapshot.values["extraction_result"]["items"]
+        for c in item["item_checks"]
+    }
+    assert item_checks["item_quantity_match"] == "passed"
+    # ...but the separate, uncorrected PCT-code failure is not silently
+    # cleared, so the shipment as a whole is still not ready.
+    assert item_checks["item_pct_code_match"] == "failed"
     assert resumed["deterministic_status"] == "failed"
     assert resumed["final_report"]["deterministic_compliance_status"] == "failed"
     assert resumed["final_report"]["original_deterministic_status"] == "failed"

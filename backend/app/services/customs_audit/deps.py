@@ -27,6 +27,10 @@ from app.services.customs_audit.agents import (
 SessionFactory = Callable[[], Session]
 PipelineFn = Callable[[Session, MultiLineShipmentRequest], dict[str, Any]]
 EvidenceProvider = Callable[[Session, str | None, str], list[dict[str, Any]]]
+#: Applies validated field corrections to an already-extracted shipment and
+#: reruns matching + checks - never touches a document, OCR or the LLM. See
+#: multi_line_shipment_service.recheck_multi_line_shipment_from_correction.
+RecheckFn = Callable[[dict[str, Any], MultiLineShipmentRequest, list[Any]], dict[str, Any]]
 
 
 @dataclass
@@ -43,6 +47,7 @@ class WorkflowDeps:
     #: None means every explanation uses the deterministic template.
     explanation_narrator: NarratorFn | None = None
     explanation_model_label: str = ""
+    recheck_pipeline: RecheckFn | None = None
 
 
 def default_run_pipeline(db: Session, request: MultiLineShipmentRequest) -> dict[str, Any]:
@@ -52,6 +57,20 @@ def default_run_pipeline(db: Session, request: MultiLineShipmentRequest) -> dict
 
     response = extract_match_and_check_multi_line_shipment(db, request)
     return response.model_dump(mode="json")
+
+
+def default_recheck_pipeline(
+    extraction_result: dict[str, Any],
+    request: MultiLineShipmentRequest,
+    corrections: list[Any],
+) -> dict[str, Any]:
+    from app.services.multi_line_shipment_service import (
+        recheck_multi_line_shipment_from_correction,
+    )
+
+    return recheck_multi_line_shipment_from_correction(
+        extraction_result=extraction_result, request=request, corrections=corrections
+    )
 
 
 def default_evidence_provider(
@@ -147,4 +166,5 @@ def build_default_deps(session_factory: SessionFactory) -> WorkflowDeps:
         vector_index_version_fn=default_vector_index_version,
         explanation_narrator=explanation_narrator,
         explanation_model_label=explanation_model_label,
+        recheck_pipeline=default_recheck_pipeline,
     )

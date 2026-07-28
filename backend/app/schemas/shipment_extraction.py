@@ -25,6 +25,10 @@ class ExtractionMethod(str, Enum):
         "tesseract_ocr_llm_structured_output"
     )
     NOT_EXTRACTED_OCR_REQUIRED = "not_extracted_ocr_required"
+    #: A reviewer confirmed or corrected this value during human review - it
+    #: was never read off the PDF by this value. See HumanCorrection for the
+    #: reviewer, reason and original value this replaced.
+    HUMAN_REVIEW = "human_review"
 
 
 class Phase2AStatus(str, Enum):

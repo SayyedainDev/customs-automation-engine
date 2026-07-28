@@ -17,6 +17,7 @@ from app.services.compliance.document_requirements import (
     collect_outstanding_documents,
     is_outstanding_document_check,
 )
+from app.services.multi_line.field_paths import InvalidFieldPathError, parse_field_path
 
 # --------------------------------------------------------------------------- #
 # Check categorisation. Every id below is an existing deterministic check.
@@ -599,6 +600,82 @@ def _audit_metadata(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: Plain labels for a corrected field - never the raw field_path or check_id.
+_CORRECTION_FIELD_LABELS = {
+    "quantity": "quantity",
+    "unit_price": "unit price",
+    "line_total": "line total",
+    "net_weight": "net weight",
+    "gross_weight": "gross weight",
+    "pct_code": "PCT code",
+    "product_name": "product name",
+    "destination_country": "destination",
+    "exporter_name": "exporter",
+    "invoice_total": "invoice total",
+    "declared_net_weight_total": "declared net weight",
+    "declared_gross_weight_total": "declared gross weight",
+}
+
+
+def _correction_field_label(field_path: str) -> str:
+    try:
+        parsed = parse_field_path(field_path)
+    except InvalidFieldPathError:
+        return field_path
+    document_label = "Invoice" if parsed.document == "invoice" else "Packing list"
+    field_label = _CORRECTION_FIELD_LABELS.get(parsed.field, parsed.field.replace("_", " "))
+    return f"{document_label} {field_label}"
+
+
+def _human_review_rows(corrections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One plain-language row per human correction - what was unclear, the
+    original value, the reviewed value, and why - never the raw field_path,
+    check_id, or internal correction_id."""
+    rows: list[dict[str, Any]] = []
+    for correction in corrections:
+        original = correction.get("original_value")
+        corrected = correction.get("corrected_value")
+        rows.append(
+            {
+                "field_label": _correction_field_label(str(correction.get("field_path") or "")),
+                "original_value": original,
+                "corrected_value": corrected,
+                "reason": correction.get("reason"),
+                "reviewer_reference": correction.get("reviewer_reference"),
+                "was_confirmation": (
+                    original is not None and str(original) == str(corrected)
+                ),
+                "affected_check_count": len(correction.get("affected_check_ids") or []),
+            }
+        )
+    return rows
+
+
+_REVISION_STATUS_LABELS = {
+    "passed": "Passed",
+    "failed": "Failed",
+    "manual_review": "Manual review",
+}
+
+
+def _audit_revision_rows(revisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per frozen revision - revision 1 is never edited, a
+    correction only ever appends a later entry (see AuditRevision)."""
+    rows: list[dict[str, Any]] = []
+    for revision in revisions:
+        deterministic = revision.get("deterministic_result") or {}
+        status = str(deterministic.get("overall_status") or "")
+        rows.append(
+            {
+                "revision_number": revision.get("revision_number"),
+                "status_label": _REVISION_STATUS_LABELS.get(status, status.title() or "Unknown"),
+                "triggered_by": revision.get("triggered_by"),
+                "frozen_at": revision.get("frozen_at"),
+            }
+        )
+    return rows
+
+
 def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     """Assemble the full, business-readable audit report dict from state."""
     extraction = state.get("extraction_result") or {}
@@ -680,6 +757,8 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
         "document_evidence": _document_evidence_rows(all_checks, document_evidence_by_check),
         "system_scope": _system_scope_rows(all_checks, system_scope_statements_by_check),
         "evidence_search_explanation": EVIDENCE_SEARCH_EXPLANATION,
+        "human_review_summary": _human_review_rows(state.get("human_correction_history") or []),
+        "audit_revision_history": _audit_revision_rows(state.get("audit_revisions") or []),
         "audit_metadata": _audit_metadata(state),
         # The two questions kept apart: were the uploaded documents sound, and
         # what paperwork is still owed before submission.

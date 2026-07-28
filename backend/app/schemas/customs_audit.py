@@ -44,6 +44,14 @@ class ReviewTaskResponse(BaseModel):
     evidence: list[Any]
     deterministic_status: str | None
     created_at: str | None
+    # -- Structured review-task fields (targeted correction workflow) ----- #
+    review_task_id: str | None = None
+    revision_number: int | None = None
+    reason_code: str | None = None
+    title: str | None = None
+    plain_language_question: str | None = None
+    disputed_field_details: list[Any] = Field(default_factory=list)
+    affected_check_ids: list[Any] = Field(default_factory=list)
 
 
 class SubmitReviewRequest(BaseModel):

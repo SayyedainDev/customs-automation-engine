@@ -426,6 +426,45 @@ export function useDocumentReview() {
     }
   }
 
+  // Confirms or corrects exactly one disputed field the backend already
+  // included in the open review task - the frontend can never submit a
+  // field_path the backend has not itself offered (see SubmitCorrectionRequest).
+  async function submitCorrection(
+    action: "confirm_extracted_value" | "correct_extracted_value",
+    fieldPath: string,
+    originalValue: unknown,
+    correctedValue: unknown,
+    reason: string,
+  ) {
+    if (!workflow || decisionBusy) return;
+    setDecisionBusy(true);
+    setAgentError(null);
+    try {
+      const next = await api.submitReview(workflow.workflow_id, {
+        action,
+        field_path: fieldPath,
+        original_value: originalValue,
+        corrected_value: correctedValue,
+        reviewer_reference: "cace-class-demo-reviewer",
+        reason,
+        review_note:
+          action === "confirm_extracted_value"
+            ? "Reviewer confirmed the extracted value in the operations console."
+            : "Reviewer corrected the extracted value in the operations console.",
+        provided_document_ids: [],
+      });
+      setWorkflow(next);
+      setReviewTask(null);
+      if (!pollingStatuses.has(next.status)) {
+        await loadWorkflowAssets(next);
+      }
+    } catch (requestError) {
+      setAgentError(readableError(requestError));
+    } finally {
+      setDecisionBusy(false);
+    }
+  }
+
   function startOver() {
     setInvoiceFile(null);
     setPackingFile(null);
@@ -508,6 +547,7 @@ export function useDocumentReview() {
     runCompliance,
     startAgentAudit,
     submitDecision,
+    submitCorrection,
     startOver,
     dismissError: () => setError(null),
     dismissAgentError: () => setAgentError(null),

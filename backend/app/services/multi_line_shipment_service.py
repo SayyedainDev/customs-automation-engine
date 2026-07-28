@@ -15,9 +15,10 @@ document:
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
-from typing import TypeVar
+from decimal import Decimal, InvalidOperation
+from typing import Any, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
@@ -53,6 +54,7 @@ from app.schemas.shipment_extraction import (
     CandidateField,
     CrossDocumentCheck,
     ExtractedField,
+    ExtractionMethod,
     FieldValidationStatus,
     SourcePageReview,
 )
@@ -95,6 +97,7 @@ from app.services.extraction.staged_multi_line import (
     extract_packing_staged,
 )
 from app.services.extraction.telemetry import DocumentTelemetry
+from app.services.multi_line.field_paths import InvalidFieldPathError, parse_field_path
 from app.services.multi_line.item_matching import ItemMatch, match_line_items
 from app.services.multi_line.line_item_checks import (
     per_item_checks,
@@ -103,6 +106,7 @@ from app.services.multi_line.line_item_checks import (
 from app.services.structured_extraction_service import (
     extract_structured_model_from_text,
 )
+from app.schemas.supporting_documents import SupportingDocumentResult
 from app.services.supporting_document_service import (
     verified_document_types,
     verify_supporting_documents,
@@ -1171,6 +1175,231 @@ def _invoice_header_manual_fields(
         if getattr(invoice, name).validation_status
         == FieldValidationStatus.MANUAL_REVIEW
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Human-review correction: rerun matching + checks from a corrected
+# structured value, never by re-uploading or re-extracting a document.
+#
+# Only the steps that touch a PDF, OCR or the LLM (_extract_invoice /
+# _extract_packing_list) are skipped here. Matching, per-item checks,
+# shipment-level checks and the deterministic rule engine are the exact same
+# pure functions the first pass used, called again against the corrected
+# values - so a correction can never see different compliance logic than the
+# original run did. Supporting-document verification is reused as-is: a
+# correction to an invoice/packing-list field does not change what was
+# uploaded as a supporting document, so re-verifying it would be wasted work
+# (and, for a Certificate of Origin, a wasted RAG query).
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class FieldCorrection:
+    """One validated field correction, decoupled from any caller's request
+    schema (see ``app.services.customs_audit.state.HumanCorrection`` for the
+    typed audit record this is built from)."""
+
+    field_path: str
+    corrected_value: Any
+    reason: str
+
+
+class CorrectionValidationError(ValueError):
+    """A correction could not be safely applied: unknown/out-of-scope field,
+    wrong-typed value, or an item_index that does not exist on this
+    shipment. Always raised instead of silently ignored or partially
+    applied."""
+
+
+#: The only fields a human correction may ever touch, and the type each one
+#: must parse into. This is the authoritative allowlist - a field_path that
+#: parses correctly (see field_paths.py) but names anything not listed here
+#: is rejected before any attribute of the real model is ever read or
+#: written, so no Pydantic method or internal (e.g. ``model_dump``) can be
+#: reached through this path even though it would also happen to match the
+#: field-path grammar.
+_CORRECTABLE_FIELD_TYPES: dict[str, type] = {
+    "quantity": Decimal,
+    "unit_price": Decimal,
+    "line_total": Decimal,
+    "net_weight": Decimal,
+    "gross_weight": Decimal,
+    "pct_code": str,
+    "product_name": str,
+    "destination_country": str,
+    "exporter_name": str,
+    "declared_net_weight_total": Decimal,
+    "declared_gross_weight_total": Decimal,
+    "invoice_total": Decimal,
+}
+
+
+def _typed_value(field_name: str, raw_value: Any) -> Any:
+    target_type = _CORRECTABLE_FIELD_TYPES.get(field_name)
+    if target_type is None:
+        raise CorrectionValidationError(f"field is not correctable: {field_name!r}")
+    if target_type is Decimal:
+        try:
+            return Decimal(str(raw_value))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise CorrectionValidationError(
+                f"{field_name} requires a numeric value, got {raw_value!r}"
+            ) from exc
+    if target_type is str:
+        text = str(raw_value).strip()
+        if not text:
+            raise CorrectionValidationError(f"{field_name} requires a non-empty value")
+        return text
+    raise CorrectionValidationError(f"unsupported field type for {field_name!r}")  # pragma: no cover
+
+
+def _corrected_field(original: ExtractedField[Any], *, value: Any, reason: str) -> ExtractedField[Any]:
+    """A new ExtractedField carrying a human-reviewed value.
+
+    Preserves the original document/page provenance (the value still came
+    from that page) while honestly relabeling *this* value as human-reviewed
+    - never presented as read directly off the PDF. See
+    ``ExtractionMethod.HUMAN_REVIEW``.
+    """
+    return original.model_copy(
+        update={
+            "value": value,
+            "extraction_method": ExtractionMethod.HUMAN_REVIEW,
+            "confidence": Decimal("1.0"),
+            "ocr_confidence": None,
+            "validation_status": FieldValidationStatus.VERIFIED,
+            "validation_note": f"Human-reviewed: {reason}",
+        }
+    )
+
+
+def apply_field_corrections(
+    invoice: MultiLineCommercialInvoiceExtraction,
+    packing_list: MultiLinePackingListExtraction,
+    corrections: list[FieldCorrection],
+) -> tuple[MultiLineCommercialInvoiceExtraction, MultiLinePackingListExtraction]:
+    """Return NEW invoice/packing_list models with each correction applied.
+
+    Never mutates the caller's objects (each is deep-copied once up front).
+    Raises ``CorrectionValidationError`` for any correction this shipment's
+    real document shape cannot support - the caller (customs_audit) has
+    already checked the field_path was one of the fields the active review
+    task disputed; this is the second, independent check against the actual
+    typed model.
+    """
+    invoice = invoice.model_copy(deep=True)
+    packing_list = packing_list.model_copy(deep=True)
+    for correction in corrections:
+        try:
+            parsed = parse_field_path(correction.field_path)
+        except InvalidFieldPathError as exc:
+            raise CorrectionValidationError(str(exc)) from exc
+        typed_value = _typed_value(parsed.field, correction.corrected_value)
+
+        if parsed.item_index is not None:
+            item: InvoiceLineItem | PackingListItem | None
+            if parsed.document == "invoice":
+                item = next(
+                    (i for i in invoice.line_items if i.item_index == parsed.item_index), None
+                )
+            else:
+                item = next(
+                    (i for i in packing_list.items if i.item_index == parsed.item_index), None
+                )
+            if item is None:
+                raise CorrectionValidationError(
+                    f"{parsed.document} has no item with item_index={parsed.item_index}"
+                )
+            target: Any = item
+        else:
+            target = invoice if parsed.document == "invoice" else packing_list
+
+        if parsed.field not in type(target).model_fields:
+            raise CorrectionValidationError(
+                f"{parsed.document} has no correctable field {parsed.field!r}"
+            )
+        original_field = getattr(target, parsed.field)
+        setattr(
+            target,
+            parsed.field,
+            _corrected_field(original_field, value=typed_value, reason=correction.reason),
+        )
+    return invoice, packing_list
+
+
+def recheck_multi_line_shipment_from_correction(
+    *,
+    extraction_result: dict[str, Any],
+    request: MultiLineShipmentRequest,
+    corrections: list[FieldCorrection],
+) -> dict[str, Any]:
+    """Apply corrections to an already-extracted shipment and rerun matching
+    and checks - the "revision 2" computation. Never touches a document, OCR
+    or the LLM; reuses supporting-document verification from
+    ``extraction_result`` unchanged.
+
+    Returns a new dict shaped exactly like
+    ``MultiLineShipmentResponse.model_dump(mode="json")``, ready to replace
+    ``extraction_result`` in the customs-audit graph state.
+    """
+    if request.packing_list_document_id is None:
+        # Unreachable in practice: this function only ever runs against an
+        # extraction_result from a shipment that already completed the full
+        # pipeline once, which itself requires a packing-list document id.
+        raise ShipmentExtractionInputError(
+            "A packing-list document ID is required to recheck a correction."
+        )
+    invoice = MultiLineCommercialInvoiceExtraction.model_validate(extraction_result["invoice"])
+    packing_list = MultiLinePackingListExtraction.model_validate(extraction_result["packing_list"])
+    invoice, packing_list = apply_field_corrections(invoice, packing_list, corrections)
+
+    matches = match_line_items(invoice.line_items, packing_list.items)
+
+    supporting_results = [
+        SupportingDocumentResult.model_validate(d)
+        for d in extraction_result.get("supporting_documents") or []
+    ]
+    present_document_types = verified_document_types(supporting_results)
+
+    engine = DeterministicComplianceRuleEngine()
+    items = [
+        _build_item_result(
+            request=request,
+            invoice=invoice,
+            match=match,
+            engine=engine,
+            present_document_types=present_document_types,
+        )
+        for match in matches
+    ]
+    shipment_checks = shipment_level_checks(invoice, packing_list, matches)
+    supporting_checks = [check for result in supporting_results for check in result.checks]
+    overall_status = _overall_shipment_status(items, [*shipment_checks, *supporting_checks])
+
+    manual_fields = _invoice_header_manual_fields(invoice)
+    for item in items:
+        manual_fields.extend(item.fields_requiring_manual_review)
+
+    all_checks = _all_shipment_checks(items, [*shipment_checks, *supporting_checks])
+    outstanding = collect_outstanding_documents(all_checks)
+
+    response = MultiLineShipmentResponse(
+        supporting_documents=supporting_results,
+        document_review_status=_uploaded_document_review_status(items, all_checks, manual_fields),
+        outstanding_documents=outstanding,
+        overall_status=overall_status,
+        is_compliant=overall_status == ComplianceCheckStatus.PASSED,
+        rule_data_version=load_compliance_rules().rule_data_version,
+        commercial_invoice_document_id=request.commercial_invoice_document_id,
+        packing_list_document_id=request.packing_list_document_id,
+        invoice=invoice,
+        packing_list=packing_list,
+        page_reviews=[
+            SourcePageReview.model_validate(r) for r in extraction_result.get("page_reviews") or []
+        ],
+        shipment_level_checks=shipment_checks,
+        items=items,
+        fields_requiring_manual_review=manual_fields,
+    )
+    return response.model_dump(mode="json")
 
 
 def extract_match_and_check_multi_line_shipment(

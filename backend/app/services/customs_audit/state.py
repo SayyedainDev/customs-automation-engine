@@ -138,6 +138,22 @@ class ConsensusResult(BaseModel):
     auditor_recommendation: str | None = None
 
 
+class DisputedFieldDetail(BaseModel):
+    """One specific extracted value behind a review task - where it came
+    from, on which page, and how confident the extractor was. This is what
+    lets a reviewer (and the frontend) see *which* value is in question
+    without reading raw field paths, and what a correction is later
+    validated against (see ``field_path`` in ``HumanCorrection``)."""
+
+    field_path: str
+    document_type: str
+    document_id: str | None = None
+    page: int | None = None
+    value: Any = None
+    confidence: float | None = None
+    extraction_method: str | None = None
+
+
 class HumanReviewRequest(BaseModel):
     reason: str
     disputed_fields: list[str] = Field(default_factory=list)
@@ -147,6 +163,25 @@ class HumanReviewRequest(BaseModel):
     allowed_actions: list[HumanAction] = Field(default_factory=list)
     created_at: str | None = None
     review_status: str = "open"
+
+    # -- Structured review-task fields (targeted correction workflow) ----- #
+    #: Stable id for this specific review task, distinct from the workflow
+    #: id - a workflow can have more than one review task across rounds.
+    review_task_id: str | None = None
+    #: Which audit revision this task is reviewing (1 for the first pass).
+    revision_number: int = 1
+    #: Short machine-stable code for *why* (e.g. "quantity_mismatch"),
+    #: independent of the human-readable ``reason``/``plain_language_question``.
+    reason_code: str | None = None
+    title: str | None = None
+    plain_language_question: str | None = None
+    #: The precise values in dispute, each traceable to a document and page -
+    #: the answer to "does the interrupt payload identify the exact disputed
+    #: field" (see field-to-check dependency map for how these map onward).
+    disputed_field_details: list[DisputedFieldDetail] = Field(default_factory=list)
+    #: check_ids a correction to any of the above fields would rerun - shown
+    #: to the reviewer so they know what "submit" actually does.
+    affected_check_ids: list[str] = Field(default_factory=list)
 
 
 class HumanCorrection(BaseModel):
@@ -158,6 +193,18 @@ class HumanCorrection(BaseModel):
     source: str | None = None
     timestamp: str
 
+    # -- Structured correction-record fields ------------------------------ #
+    correction_id: str | None = None
+    review_task_id: str | None = None
+    #: The revision this correction was applied to (it produces the next one).
+    revision_from: int | None = None
+    source_document_id: str | None = None
+    source_page: int | None = None
+    #: check_ids this specific field is known to affect - computed by the
+    #: dependency map at apply-time, stored here so the audit record is
+    #: self-explanatory without recomputing it later.
+    affected_check_ids: list[str] = Field(default_factory=list)
+
 
 class HumanReviewDecision(BaseModel):
     action: HumanAction
@@ -167,6 +214,31 @@ class HumanReviewDecision(BaseModel):
     reason: str | None = None
     review_note: str | None = None
     timestamp: str
+
+
+#: A human correction changes *input data*; Python recalculates the status
+#: from that data exactly as it did the first time - this bundle is what
+#: "recalculated, not reassigned" looks like on the wire. One entry per
+#: revision, append-only: revision 1 is never edited or replaced, a
+#: correction only ever adds a new entry.
+class AuditRevision(BaseModel):
+    revision_number: int
+    frozen: bool = True
+    frozen_at: str
+    #: "initial" for the first pass, "human_correction" for every revision a
+    #: correction produced.
+    triggered_by: str
+    correction_id: str | None = None
+    deterministic_result: dict[str, Any]
+    broker_report: dict[str, Any] | None = None
+    auditor_report: dict[str, Any] | None = None
+    consensus_result: dict[str, Any] | None = None
+
+
+#: After this many human-review rounds still leave the shipment uncertain,
+#: the graph stops looping and leaves it in manual review rather than
+#: interrupting a person indefinitely.
+MAX_HUMAN_REVIEW_ROUNDS = 2
 
 
 # --------------------------------------------------------------------------- #
@@ -222,6 +294,33 @@ class CustomsAuditState(TypedDict, total=False):
     human_review_request: dict[str, Any] | None
     human_review_decision: dict[str, Any] | None
     human_correction_history: list[dict[str, Any]]
+    #: One AuditRevision dict per frozen revision, oldest first. Revision 1 is
+    #: appended once, right after the first deterministic result exists; a
+    #: correction never edits it, only appends revision 2, 3, ...
+    audit_revisions: list[dict[str, Any]]
+    #: How many times interrupt_for_human_review has actually paused the
+    #: workflow (first pass counts as round 1) - compared against
+    #: MAX_HUMAN_REVIEW_ROUNDS to stop an uncertain correction loop.
+    human_review_round: int
+    #: Set only when correction validation rejects a submitted decision
+    #: (bad field path, wrong type, protected field, ...) - never silently
+    #: dropped, always visible on the report. Accumulates across every round
+    #: (the full audit trail); routing after a correction uses the
+    #: round-local ``correction_applied`` flag instead, so a stale failure
+    #: from an earlier round can never mis-route a later, valid one.
+    correction_validation_errors: list[str]
+    #: Whether *this* round's correction was successfully applied and
+    #: rechecked - overwritten every round, unlike the accumulating error
+    #: list above. Drives routing straight after apply_human_correction.
+    correction_applied: bool
+    #: check_ids the most recent correction is known to affect (from the
+    #: dependency map) - read by auditor_recheck_revision to decide which
+    #: regulatory checks must requery RAG versus reuse their prior citation.
+    affected_check_ids: list[str]
+    #: "rejected_current_submission" when the reviewer rejected the
+    #: submission - kept separate from deterministic_compliance_result's own
+    #: overall_status, which a human disposition never overwrites.
+    human_disposition: str | None
 
     final_report: dict[str, Any] | None
     rule_data_version: str | None

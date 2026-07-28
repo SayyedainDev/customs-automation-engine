@@ -153,6 +153,16 @@ export interface WorkflowStatusResponse {
   completed_at: string | null;
 }
 
+export interface DisputedFieldDetail {
+  field_path: string;
+  document_type: string;
+  document_id: string | null;
+  page: number | null;
+  value: unknown;
+  confidence: number | null;
+  extraction_method: string | null;
+}
+
 export interface ReviewTaskResponse {
   task_id: string;
   workflow_id: string;
@@ -163,6 +173,23 @@ export interface ReviewTaskResponse {
   evidence: unknown[];
   deterministic_status: string | null;
   created_at: string | null;
+  review_task_id: string | null;
+  revision_number: number | null;
+  reason_code: string | null;
+  title: string | null;
+  plain_language_question: string | null;
+  disputed_field_details: DisputedFieldDetail[];
+  affected_check_ids: string[];
+}
+
+export interface SubmitCorrectionRequest {
+  action: "confirm_extracted_value" | "correct_extracted_value";
+  field_path: string;
+  original_value?: unknown;
+  corrected_value: unknown;
+  reviewer_reference: string;
+  reason: string;
+  source?: string;
 }
 
 export interface AuditEvent {

@@ -2664,3 +2664,79 @@ textarea:focus {
     display: none;
   }
 }
+
+/* -------------------------------------------------------------------- */
+/* Targeted human correction                                            */
+/* -------------------------------------------------------------------- */
+.correction-panel {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.correction-panel__question {
+  margin: 0;
+  font-weight: 650;
+  color: #344054;
+}
+
+.correction-panel__options {
+  display: grid;
+  gap: 8px;
+}
+
+.correction-panel__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #344054;
+  cursor: pointer;
+}
+
+.correction-panel__option input {
+  width: auto;
+  min-height: 0;
+  margin-top: 3px;
+}
+
+.correction-panel__custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-left: 24px;
+}
+
+.correction-panel__reason {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #344054;
+}
+
+.human-review-list li {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.human-review-list p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.revision-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #344054;
+}

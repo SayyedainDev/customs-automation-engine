@@ -110,6 +110,15 @@ export function NewReviewPage() {
           events={review.events}
           busy={review.decisionBusy}
           onDecision={(action) => void review.submitDecision(action)}
+          onCorrection={(action, fieldPath, originalValue, correctedValue, reason) =>
+            void review.submitCorrection(
+              action,
+              fieldPath,
+              originalValue,
+              correctedValue,
+              reason,
+            )
+          }
         />
       ) : null}
     </>

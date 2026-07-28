@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -5,17 +6,21 @@ import {
   Clock3,
   FileSearch,
   FileText,
+  History,
   UserCheck,
   Workflow,
   XCircle,
 } from "lucide-react";
 import type {
   AuditEvent,
+  DisputedFieldDetail,
   ReviewTaskResponse,
   WorkflowStatusResponse,
 } from "../api/types";
 import { displayValue, formatDate, labelize } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
+
+type CorrectionAction = "confirm_extracted_value" | "correct_extracted_value";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -334,6 +339,210 @@ function auditDecision(status: unknown): {
   }
 }
 
+//: Plain labels for a rerun check - never a raw check_id in the main UI
+//: (only inside the collapsed technical details below).
+const CHECK_LABELS: Record<string, string> = {
+  item_quantity_match: "Quantity",
+  item_net_weight_match: "Net weight",
+  item_gross_weight_match: "Gross weight",
+  item_pct_code_match: "PCT code",
+  positive_quantity: "Quantity",
+  positive_unit_price: "Unit price",
+  item_line_calculation: "Line total calculation",
+  invoice_line_calculation: "Line total calculation",
+  sum_line_totals_match_invoice_total: "Invoice total",
+  invoice_total_consistency: "Invoice total",
+  invoice_net_weight_total: "Invoice net weight total",
+  invoice_gross_weight_total: "Invoice gross weight total",
+  packing_net_weight_total: "Packing list net weight total",
+  packing_gross_weight_total: "Packing list gross weight total",
+  weight_consistency: "Weight consistency",
+  mvp_pct_support: "Supported product code",
+};
+
+function checkLabel(checkId: string): string {
+  if (CHECK_LABELS[checkId]) return CHECK_LABELS[checkId];
+  if (checkId.startsWith("xr_")) return "Regulatory requirement";
+  return labelize(checkId);
+}
+
+/**
+ * Lets a reviewer confirm or correct exactly one of the disputed values the
+ * backend already surfaced on the open review task - never a free-text
+ * field path. Submitting always targets one of `disputed_field_details`
+ * (or, for a custom value, one of those same fields), so the backend's own
+ * field-to-check dependency map is always what decides what gets rerun.
+ */
+function CorrectionPanel({
+  reviewTask,
+  busy,
+  onCorrection,
+}: {
+  reviewTask: ReviewTaskResponse;
+  busy: boolean;
+  onCorrection: (
+    action: CorrectionAction,
+    fieldPath: string,
+    originalValue: unknown,
+    correctedValue: unknown,
+    reason: string,
+  ) => void;
+}) {
+  const details: DisputedFieldDetail[] = reviewTask.disputed_field_details;
+  const [selectedValue, setSelectedValue] = useState<string>(
+    details.length ? String(details[0].value) : "",
+  );
+  const [useCustom, setUseCustom] = useState(false);
+  const [customTargetIndex, setCustomTargetIndex] = useState(0);
+  const [customValue, setCustomValue] = useState("");
+  const [reason, setReason] = useState("");
+
+  if (!details.length) return null;
+
+  const canSubmit =
+    reason.trim().length > 0 && (!useCustom || customValue.trim().length > 0);
+
+  function handleSubmit() {
+    const reasonText = reason.trim();
+    if (!reasonText) return;
+    if (useCustom) {
+      const target = details[customTargetIndex];
+      const value = customValue.trim();
+      if (!value) return;
+      const action: CorrectionAction =
+        String(target.value) === value
+          ? "confirm_extracted_value"
+          : "correct_extracted_value";
+      onCorrection(action, target.field_path, target.value, value, reasonText);
+      return;
+    }
+    const mismatched = details.find((d) => String(d.value) !== selectedValue);
+    if (mismatched) {
+      onCorrection(
+        "correct_extracted_value",
+        mismatched.field_path,
+        mismatched.value,
+        selectedValue,
+        reasonText,
+      );
+    } else if (details.length === 1) {
+      onCorrection(
+        "confirm_extracted_value",
+        details[0].field_path,
+        details[0].value,
+        selectedValue,
+        reasonText,
+      );
+    }
+  }
+
+  return (
+    <div className="correction-panel">
+      {reviewTask.plain_language_question ? (
+        <p className="correction-panel__question">
+          {reviewTask.plain_language_question}
+        </p>
+      ) : null}
+
+      <div className="correction-panel__options">
+        {details.map((detail, index) => (
+          <label className="correction-panel__option" key={index}>
+            <input
+              type="radio"
+              name="correction-value"
+              checked={!useCustom && selectedValue === String(detail.value)}
+              onChange={() => {
+                setUseCustom(false);
+                setSelectedValue(String(detail.value));
+              }}
+            />
+            <span>
+              Use the {labelize(detail.document_type)} value:{" "}
+              <strong>{displayValue(detail.value)}</strong>
+              {detail.page ? ` (page ${detail.page})` : ""}
+            </span>
+          </label>
+        ))}
+        <label className="correction-panel__option">
+          <input
+            type="radio"
+            name="correction-value"
+            checked={useCustom}
+            onChange={() => setUseCustom(true)}
+          />
+          <span>Enter a different value</span>
+        </label>
+        {useCustom ? (
+          <div className="correction-panel__custom">
+            <select
+              value={customTargetIndex}
+              onChange={(event) => setCustomTargetIndex(Number(event.target.value))}
+            >
+              {details.map((detail, index) => (
+                <option key={index} value={index}>
+                  Correct the {labelize(detail.document_type)} value
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={customValue}
+              onChange={(event) => setCustomValue(event.target.value)}
+              placeholder="Corrected value"
+            />
+          </div>
+        ) : null}
+      </div>
+
+      <label className="correction-panel__reason">
+        Reason
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="e.g. Confirmed against the corrected packing list"
+          rows={2}
+        />
+      </label>
+
+      {reviewTask.affected_check_ids.length ? (
+        <p className="muted">
+          This will re-check:{" "}
+          {Array.from(new Set(reviewTask.affected_check_ids.map(checkLabel))).join(
+            ", ",
+          )}
+          .
+        </p>
+      ) : null}
+
+      <button
+        className="button button--primary"
+        type="button"
+        disabled={busy || !canSubmit}
+        onClick={handleSubmit}
+      >
+        <CheckCircle2 aria-hidden="true" size={16} />
+        {busy ? "Submitting…" : "Submit"}
+      </button>
+
+      <details className="technical-details">
+        <summary>Technical details</summary>
+        <ul className="plain-list">
+          {details.map((detail, index) => (
+            <li key={index}>
+              {detail.field_path} · confidence{" "}
+              {detail.confidence != null
+                ? `${Math.round(detail.confidence * 100)}%`
+                : "n/a"}{" "}
+              · {detail.extraction_method ?? "unknown method"}
+            </li>
+          ))}
+          <li>Affected check IDs: {reviewTask.affected_check_ids.join(", ")}</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
 function Report({
   finalReport,
 }: {
@@ -361,6 +570,12 @@ function Report({
   const evidenceSearchExplanation = report.evidence_search_explanation
     ? displayValue(report.evidence_search_explanation)
     : null;
+  const humanReviewSummary = asList(report.human_review_summary)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const auditRevisionHistory = asList(report.audit_revision_history)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
   const uploadedResult = String(report.uploaded_document_result ?? "");
   const problems = asRecord(report.problems);
   const problemEntries = problems
@@ -587,6 +802,55 @@ function Report({
         </section>
       ) : null}
 
+      {humanReviewSummary.length ? (
+        <section className="report-section">
+          <h3>Human review</h3>
+          <ul className="plain-list human-review-list">
+            {humanReviewSummary.map((entry, index) => (
+              <li key={index}>
+                <strong>{displayValue(entry.field_label)}</strong>
+                {entry.was_confirmation ? (
+                  <p>
+                    Confirmed as <strong>{displayValue(entry.corrected_value)}</strong>.
+                  </p>
+                ) : (
+                  <p>
+                    Changed from {displayValue(entry.original_value)} to{" "}
+                    <strong>{displayValue(entry.corrected_value)}</strong>.
+                  </p>
+                )}
+                {entry.reason ? (
+                  <p className="muted">Reason: {displayValue(entry.reason)}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {auditRevisionHistory.length > 1 ? (
+        <section className="report-section">
+          <h3>
+            <History aria-hidden="true" size={16} /> Audit history
+          </h3>
+          <p className="section-intro">
+            Revision 1 is never changed - a correction only ever adds a new,
+            separately frozen revision below it.
+          </p>
+          <ol className="revision-list">
+            {auditRevisionHistory.map((revision, index) => (
+              <li key={index}>
+                Revision {displayValue(revision.revision_number)}:{" "}
+                <strong>{displayValue(revision.status_label)}</strong>
+                {revision.triggered_by === "human_correction" ? (
+                  <span className="muted"> · after a human correction</span>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
       {explanation ? (
         <section className="report-section explanation-section">
           <div className="explanation-section__heading">
@@ -624,12 +888,20 @@ export function AgentAuditResult({
   events,
   busy,
   onDecision,
+  onCorrection,
 }: {
   workflow: WorkflowStatusResponse;
   reviewTask: ReviewTaskResponse | null;
   events: AuditEvent[];
   busy: boolean;
   onDecision: (action: "accept_manual_review" | "reject_submission") => void;
+  onCorrection?: (
+    action: CorrectionAction,
+    fieldPath: string,
+    originalValue: unknown,
+    correctedValue: unknown,
+    reason: string,
+  ) => void;
 }) {
   return (
     <section className="panel agent-audit" aria-labelledby="agent-audit-heading">
@@ -662,10 +934,16 @@ export function AgentAuditResult({
           <div className="notice notice--warning">
             <UserCheck aria-hidden="true" size={19} />
             <div>
-              <strong>Human decision required</strong>
+              <strong>{reviewTask.title || "Human decision required"}</strong>
               <p>{reviewTask.reason}</p>
 
-              {reviewTask.disputed_fields.length ? (
+              {onCorrection && reviewTask.disputed_field_details.length ? (
+                <CorrectionPanel
+                  reviewTask={reviewTask}
+                  busy={busy}
+                  onCorrection={onCorrection}
+                />
+              ) : reviewTask.disputed_fields.length ? (
                 <div>
                   <strong>Disputed fields</strong>
                   <ul className="plain-list">
