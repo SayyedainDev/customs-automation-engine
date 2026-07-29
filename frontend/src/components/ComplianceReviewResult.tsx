@@ -435,25 +435,68 @@ export function ComplianceReviewResult({
       const presenceLabel = {
         shipment_matched: "Matched to this shipment",
         shipment_mismatched: "Uploaded but does not match this shipment",
-        unresolved: "Uploaded; matching needs review",
+        unresolved: "Uploaded, but some information needs confirmation",
         invalid: "Uploaded but invalid",
       }[presenceStatus];
+      const failedChecks = document.checks.filter(
+        (check) => check.status === "failed" || check.status === "manual_review",
+      );
+      const issue =
+        presenceStatus === "unresolved"
+          ? failedChecks.find(
+              (check) =>
+                check.check_id.endsWith("_required_fields") ||
+                check.check_id.endsWith("_exporter_match"),
+            )?.message ??
+            "CACE could not reliably read all information needed to match this document."
+          : presenceStatus === "shipment_mismatched"
+            ? "The document was read, but one or more verified values differ from this shipment."
+            : presenceStatus === "invalid"
+              ? "The uploaded file could not be accepted as this supporting-document type."
+              : null;
       return {
         documentType,
+        documentId: document.document_id,
         label: documentLabel(normalizedDocumentKey(documentType)),
         summary: summary ?? "Extraction result unavailable",
         presenceStatus,
         presenceLabel,
+        issue,
         requiredAction: document.required_action,
-        failedChecks: document.checks.filter(
-          (check) => check.status === "failed" || check.status === "manual_review",
-        ),
+        failedChecks,
       };
     },
   );
-  const supportingProblems = supportingExtractionStatuses.filter(
-    (document) => document.presenceStatus !== "shipment_matched",
+  const matchedSupporting = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus === "shipment_matched",
   );
+  const supportingNeedsConfirmation = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus === "unresolved",
+  );
+  const mismatchedSupporting = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus === "shipment_mismatched",
+  );
+  const invalidSupporting = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus === "invalid",
+  );
+  const uploadedSupportingKeys = new Set(
+    result.supporting_documents
+      .filter((document) => document.uploaded)
+      .flatMap((document) => [
+        normalizedDocumentKey(document.canonical_document_type),
+        normalizedDocumentKey(document.claimed_document_type),
+      ]),
+  );
+  const stillMissing = outstanding.filter(
+    (document) =>
+      !uploadedSupportingKeys.has(normalizedDocumentKey(document.document_type)),
+  );
+  const supportingGroups = [
+    { heading: "Matched", documents: matchedSupporting },
+    { heading: "Needs confirmation", documents: supportingNeedsConfirmation },
+    { heading: "Does not match", documents: mismatchedSupporting },
+    { heading: "Cannot be accepted", documents: invalidSupporting },
+  ];
   const decision = decisionCopy(documentStatus);
   return (
     <div className="review-result">
@@ -482,7 +525,7 @@ export function ComplianceReviewResult({
           <div className="submission-readiness">
             <div>
               <span className="eyebrow">Customs submission readiness</span>
-              <p>{submissionCopy(result.overall_status, outstanding.length)}</p>
+              <p>{submissionCopy(result.overall_status, stillMissing.length)}</p>
             </div>
             <StatusBadge status={result.overall_status} />
           </div>
@@ -494,7 +537,7 @@ export function ComplianceReviewResult({
             </div>
             <div className="summary-item">
               <span>Documents still to obtain</span>
-              <strong>{outstanding.length}</strong>
+              <strong>{stillMissing.length}</strong>
             </div>
             <div className="summary-item">
               <span>Shipment lines matched</span>
@@ -528,31 +571,91 @@ export function ComplianceReviewResult({
         </div>
       </section>
 
-      {supportingExtractionStatuses.length ? (
-        <section className="panel" aria-labelledby="supporting-extraction-heading">
+      {supportingExtractionStatuses.length || stillMissing.length ? (
+        <section className="panel" aria-labelledby="supporting-documents-heading">
           <div className="panel__header">
             <div>
-              <h2 id="supporting-extraction-heading">
-                Supporting-document extraction
-              </h2>
+              <h2 id="supporting-documents-heading">Supporting documents</h2>
               <p>
-                AI assistance is reported only for the fields that required it.
+                Matched documents, documents needing confirmation, mismatches,
+                invalid files, and paperwork not yet uploaded are shown
+                separately.
               </p>
             </div>
             <FileCheck2 aria-hidden="true" size={19} />
           </div>
-          <div className="panel__body">
-            <ul className="document-checklist">
-              {supportingExtractionStatuses.map((document) => (
-                <li key={document.documentType}>
-                  <div className="document-checklist__head">
-                    <strong>{document.label}</strong>
-                    <span>{document.presenceLabel}</span>
-                  </div>
-                  <small>{document.summary}</small>
-                </li>
-              ))}
-            </ul>
+          <div className="panel__body supporting-document-groups">
+            {supportingGroups.map(({ heading, documents }) =>
+              documents.length ? (
+                <section className="supporting-document-group" key={heading}>
+                  <h3>{heading}</h3>
+                  <ul className="document-checklist">
+                    {documents.map((document) => (
+                      <li
+                        key={`${document.documentType}-${document.documentId ?? "unavailable"}`}
+                        data-presence-status={document.presenceStatus}
+                      >
+                        <div className="document-checklist__head">
+                          <strong>{document.label}</strong>
+                          <span className="supporting-status">
+                            {document.presenceLabel}
+                          </span>
+                        </div>
+                        <small>{document.summary}</small>
+                        {document.issue ? <p>{document.issue}</p> : null}
+                        {document.requiredAction ? (
+                          <small>{document.requiredAction}</small>
+                        ) : null}
+                        {document.failedChecks.length ? (
+                          <details className="technical-details">
+                            <summary>Technical check details</summary>
+                            <ul className="plain-list">
+                              {document.failedChecks.map((check) => (
+                                <li key={check.check_id}>{check.message}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null,
+            )}
+            {stillMissing.length ? (
+              <section className="supporting-document-group">
+                <h3>Still missing</h3>
+                <ul className="document-checklist">
+                  {stillMissing.map((document) => (
+                    <li
+                      key={document.document_type}
+                      data-presence-status="missing"
+                    >
+                      <div className="document-checklist__head">
+                        <strong>{document.display_name}</strong>
+                        <span
+                          className={`requirement-tag requirement-tag--${document.requirement}`}
+                        >
+                          {document.requirement === "required"
+                            ? "Required"
+                            : "Confirm whether it applies"}
+                        </span>
+                      </div>
+                      {document.reasons.length ? (
+                        <ul className="plain-list">
+                          {document.reasons.map((reason) => (
+                            <li key={reason}>{reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {document.sources.length ? (
+                        <small>Source: {document.sources.join(" · ")}</small>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -603,71 +706,6 @@ export function ComplianceReviewResult({
           )}
         </div>
       </section>
-
-      {outstanding.length || supportingProblems.length ? (
-        <section className="panel" aria-labelledby="outstanding-heading">
-          <div className="panel__header">
-            <div>
-              <h2 id="outstanding-heading">
-                Missing or mismatched supporting documents
-              </h2>
-              <p>
-                Missing paperwork and uploaded documents that do not match this
-                shipment are kept distinct.
-              </p>
-            </div>
-            <FileCheck2 aria-hidden="true" size={19} />
-          </div>
-          <div className="panel__body">
-            <ul className="document-checklist">
-              {outstanding.map((document) => (
-                <li key={document.document_type}>
-                  <div className="document-checklist__head">
-                    <strong>{document.display_name}</strong>
-                    <span
-                      className={`requirement-tag requirement-tag--${document.requirement}`}
-                    >
-                      {document.requirement === "required"
-                        ? "Required"
-                        : "Confirm whether it applies"}
-                    </span>
-                  </div>
-                  {document.reasons.length ? (
-                    <ul className="plain-list">
-                      {document.reasons.map((reason) => (
-                        <li key={reason}>{reason}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {document.sources.length ? (
-                    <small>Source: {document.sources.join(" · ")}</small>
-                  ) : null}
-                </li>
-              ))}
-              {supportingProblems.map((document) => (
-                <li key={`problem-${document.documentType}`}>
-                  <div className="document-checklist__head">
-                    <strong>{document.label}</strong>
-                    <span className="requirement-tag requirement-tag--required">
-                      {document.presenceLabel}
-                    </span>
-                  </div>
-                  {document.failedChecks.length ? (
-                    <ul className="plain-list">
-                      {document.failedChecks.map((check) => (
-                        <li key={check.check_id}>{check.message}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {document.requiredAction ? (
-                    <small>{document.requiredAction}</small>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      ) : null}
 
       <section className="panel" aria-labelledby="checked-heading">
         <div className="panel__header">

@@ -285,24 +285,6 @@ class SupportingDocumentResult(BaseModel):
 
     @model_validator(mode="after")
     def set_user_facing_extraction_summary(self) -> "SupportingDocumentResult":
-        if self.extraction_summary is None and self.extraction is not None:
-            recovered = [
-                getattr(self.extraction, name)
-                for name in SupportingDocumentCandidates.model_fields
-                if getattr(self.extraction, name).value is not None
-            ]
-            methods = {field.extraction_method.value for field in recovered}
-            if "llm_gapfill" in methods:
-                self.extraction_summary = "Extracted with AI assistance"
-            elif methods & {"regex_label", "ocr_regex"}:
-                self.extraction_summary = "Extracted deterministically"
-            elif recovered:
-                self.extraction_summary = "Extracted with AI assistance"
-            else:
-                self.extraction_summary = "Partially extracted — retry available"
-            if self.content_status == "manual_review" and not recovered:
-                self.extraction_summary = "Manual review required"
-
         if self.presence_status is None:
             failed_matches = any(
                 check.status.value == "failed" and check.check_id.endswith("_match")
@@ -323,4 +305,30 @@ class SupportingDocumentResult(BaseModel):
                 self.presence_status = "shipment_matched"
             else:
                 self.presence_status = "unresolved"
+
+        if self.extraction_summary is None and self.extraction is not None:
+            recovered = [
+                getattr(self.extraction, name)
+                for name in SupportingDocumentCandidates.model_fields
+                if getattr(self.extraction, name).value is not None
+            ]
+            methods = {field.extraction_method.value for field in recovered}
+            if self.presence_status == "shipment_mismatched":
+                self.extraction_summary = (
+                    "Extracted, but does not match this shipment"
+                )
+            elif self.presence_status == "unresolved":
+                self.extraction_summary = (
+                    "Partially extracted — confirmation required"
+                )
+            elif "llm_gapfill" in methods:
+                self.extraction_summary = "Extracted with AI assistance"
+            elif methods & {"regex_label", "ocr_regex"}:
+                self.extraction_summary = "Extracted deterministically"
+            elif recovered:
+                self.extraction_summary = "Extracted with AI assistance"
+            else:
+                self.extraction_summary = (
+                    "Partially extracted — confirmation required"
+                )
         return self

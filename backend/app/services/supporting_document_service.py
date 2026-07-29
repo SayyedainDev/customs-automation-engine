@@ -16,8 +16,10 @@ Division of responsibility:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -152,6 +154,36 @@ _AMOUNT_MUST_EQUAL_INVOICE = frozenset(
     }
 )
 
+_USER_FIELD_LABELS = {
+    "document_number": "the document or certificate number",
+    "exporter_or_applicant": "the exporter’s name",
+    "invoice_reference": "the invoice reference",
+    "destination_country": "the destination country",
+    "issuing_authority": "the issuing authority",
+}
+
+
+def _missing_required_message(fields: list[str]) -> str:
+    readable = [_USER_FIELD_LABELS.get(name, name.replace("_", " ")) for name in fields]
+    if len(readable) == 1:
+        joined = readable[0]
+    else:
+        joined = ", ".join(readable[:-1]) + f" and {readable[-1]}"
+    return f"CACE could not reliably read {joined}."
+
+
+def _validated_supporting_value(
+    document_type: SupportingDocumentType,
+    field_name: str,
+    value: object | None,
+) -> object | None:
+    if value is None or not supporting_document_hybrid.supports_hybrid(document_type):
+        return value
+    spec = supporting_document_hybrid._field_spec(document_type, field_name)
+    if spec is None:
+        return value
+    return spec.normalizer(str(value))
+
 
 # --------------------------------------------------------------------------- #
 # Extraction
@@ -165,6 +197,8 @@ def _current_extraction_fingerprint(
         if document_type is None
         else (
             f"supporting_mode:{supporting_document_hybrid.PARSER_VERSION}:"
+            f"{supporting_document_hybrid.LABEL_VOCABULARY_VERSION}:"
+            f"{supporting_document_hybrid.CANDIDATE_VALIDATOR_VERSION}:"
             f"{supporting_document_hybrid.GAPFILL_VERSION}:{document_type.value}:"
             f"max_completion_tokens="
             f"{get_settings().groq_supporting_gapfill_max_completion_tokens}:"
@@ -188,6 +222,8 @@ def _current_extraction_fingerprint(
 def _cached_supporting_candidates(
     document: DocumentUploadRecord,
     fingerprint: StructuredExtractionFingerprint,
+    *,
+    require_complete: bool = False,
 ) -> SupportingDocumentCandidates | None:
     """Read only Pydantic-valid provider output with an exact fingerprint."""
     structured_data = document.structured_data
@@ -197,6 +233,12 @@ def _cached_supporting_candidates(
     if not isinstance(cached, dict):
         return None
     if cached.get("status") not in {"extracted", "manual_review"}:
+        return None
+    if require_complete and cached.get("status") != "extracted":
+        # A hybrid profile with unresolved important fields is retryable. Keep
+        # the persisted deterministic evidence, but rerun validation/gap-fill
+        # from the already stored text instead of freezing an incomplete cache
+        # entry or requiring another upload.
         return None
     if cached.get("fingerprint") != fingerprint.to_json():
         return None
@@ -384,6 +426,7 @@ def extract_supporting_document(
     document_type: SupportingDocumentType | None = None,
     *,
     prepared_hybrid: SupportingDeterministicExtraction | None = None,
+    gapfill_token_budget: supporting_document_hybrid.GapfillTokenBudget | None = None,
 ) -> tuple[SupportingDocumentExtraction, DocumentTextBundle | None]:
     """Reuse the existing text/OCR pipeline, then structure the document."""
     with structured_extraction_document_lock(document_id):
@@ -410,12 +453,20 @@ def extract_supporting_document(
         )
         fingerprint = _current_extraction_fingerprint(marked_text, hybrid_type)
         document = get_uploaded_document_by_id(db=db, document_id=document_id)
-        cached = _cached_supporting_candidates(document, fingerprint)
+        cached = _cached_supporting_candidates(
+            document,
+            fingerprint,
+            require_complete=hybrid_type is not None,
+        )
         if cached is not None:
             return _materialize(cached, bundle), bundle
 
         refresh_extraction_cache_record(db, document)
-        cached = _cached_supporting_candidates(document, fingerprint)
+        cached = _cached_supporting_candidates(
+            document,
+            fingerprint,
+            require_complete=hybrid_type is not None,
+        )
         if cached is not None:
             return _materialize(cached, bundle), bundle
 
@@ -443,7 +494,9 @@ def extract_supporting_document(
             }
             try:
                 updates, gapfill_telemetry = supporting_document_hybrid.gapfill(
-                    deterministic, unresolved_before
+                    deterministic,
+                    unresolved_before,
+                    token_budget=gapfill_token_budget,
                 )
                 conflicts = supporting_document_hybrid.merge_gapfill(
                     deterministic, updates
@@ -540,25 +593,39 @@ def _compare(
     normalizer=None,
 ) -> CrossDocumentCheck:
     if document_value is None or shipment_value is None:
+        missing_message = (
+            "CACE could not reliably read the exporter’s name, so it could not "
+            "compare it with the shipment."
+            if name == "Exporter"
+            else f"{name} could not be compared because one side is missing or uncertain."
+        )
         return _check(
             check_id,
             name,
             ComplianceCheckStatus.MANUAL_REVIEW,
-            f"{name} could not be compared because one side is missing or uncertain.",
+            missing_message,
             page,
         )
     left = normalizer(document_value) if normalizer else document_value
     right = normalizer(shipment_value) if normalizer else shipment_value
     if left == right:
         return _check(
-            check_id, name, ComplianceCheckStatus.PASSED, f"{name} matches.", page
+            check_id,
+            name,
+            ComplianceCheckStatus.PASSED,
+            (
+                f"{name} matches after normalization "
+                f"('{document_value}' → '{left}', '{shipment_value}' → '{right}')."
+            ),
+            page,
         )
     return _check(
         check_id,
         name,
         ComplianceCheckStatus.FAILED,
         f"{name} mismatch: the document states '{document_value}' but the "
-        f"shipment states '{shipment_value}'.",
+        f"shipment states '{shipment_value}' (normalized as '{left}' and "
+        f"'{right}').",
         page,
     )
 
@@ -575,6 +642,25 @@ def _text(value: object | None) -> str | None:
         return None
     normalized = " ".join(str(value).split()).casefold()
     return normalized[:-1] if normalized.endswith(".") else normalized
+
+
+_OCR_SPACED_COMPANY_WORD = re.compile(
+    r"\b(?:[A-Za-z][ \t]+){2,}[A-Za-z]\b"
+)
+
+
+def _company_name(value: object | None) -> str | None:
+    """Normalize only safe presentation variants of an organization name."""
+    if value is None:
+        return None
+    text = " ".join(str(value).split())
+    text = _OCR_SPACED_COMPANY_WORD.sub(
+        lambda match: re.sub(r"[ \t]+", "", match.group(0)),
+        text,
+    )
+    tokens = re.findall(r"[a-z0-9]+", text.casefold())
+    aliases = {"private": "pvt", "limited": "ltd"}
+    return " ".join(aliases.get(token, token) for token in tokens) or None
 
 
 def _digits(value: object | None) -> str | None:
@@ -737,7 +823,12 @@ def verify_supporting_document(
                 else SupportingDocumentState.TYPE_MISMATCH
             ),
             detected_document_type=detected_raw,
-            document_number=extraction.document_number.value,
+            document_number=cast(
+                str | None,
+                _validated_supporting_value(
+                    canonical, "document_number", extraction.document_number.value
+                ),
+            ),
             source_page=page,
             extraction_confidence=extraction.document_confidence,
             ocr_confidence=ocr_confidence,
@@ -773,7 +864,12 @@ def verify_supporting_document(
     missing_required = [
         name
         for name in REQUIRED_FIELDS.get(canonical, ())
-        if getattr(extraction, name).value is None
+        if _validated_supporting_value(
+            canonical,
+            name,
+            getattr(extraction, name).value,
+        )
+        is None
     ]
     if missing_required:
         checks.append(
@@ -781,9 +877,7 @@ def verify_supporting_document(
                 f"supporting_{canonical.value}_required_fields",
                 "Supporting document required fields",
                 ComplianceCheckStatus.MANUAL_REVIEW,
-                "Could not read required field(s): "
-                + ", ".join(missing_required)
-                + ".",
+                _missing_required_message(missing_required),
                 page,
             )
         )
@@ -803,10 +897,14 @@ def verify_supporting_document(
         _compare(
             check_id=f"supporting_{canonical.value}_exporter_match",
             name="Exporter",
-            document_value=extraction.exporter_or_applicant.value,
+            document_value=_validated_supporting_value(
+                canonical,
+                "exporter_or_applicant",
+                extraction.exporter_or_applicant.value,
+            ),
             shipment_value=shipment_exporter,
             page=page,
-            normalizer=_text,
+            normalizer=_company_name,
         )
     )
     if canonical in {
@@ -859,7 +957,7 @@ def verify_supporting_document(
                 document_value=extraction.exporter_or_applicant.value,
                 shipment_value=shipment_exporter,
                 page=page,
-                normalizer=_text,
+                normalizer=_company_name,
             )
         )
         deadline = extraction.shipment_deadline.value
@@ -1066,7 +1164,12 @@ def verify_supporting_document(
         uploaded=True,
         state=state,
         detected_document_type=detected_raw,
-        document_number=extraction.document_number.value,
+        document_number=cast(
+            str | None,
+            _validated_supporting_value(
+                canonical, "document_number", extraction.document_number.value
+            ),
+        ),
         source_page=page,
         extraction_confidence=extraction.document_confidence,
         ocr_confidence=ocr_confidence,
@@ -1121,6 +1224,9 @@ def verify_supporting_documents(
     uploaded_types: set[SupportingDocumentType] = set()
 
     prepared_hybrid: dict[UUID, SupportingDeterministicExtraction] = {}
+    gapfill_token_budget = supporting_document_hybrid.GapfillTokenBudget(
+        get_settings().groq_supporting_gapfill_tpm_budget
+    )
     # Parse every Form-E/COO deterministically before the first possible Groq
     # request. If both have gaps, subsequent provider calls remain sequential.
     if db is not None:
@@ -1167,6 +1273,7 @@ def verify_supporting_documents(
                     reference.document_id,
                     reference.canonical_type,
                     prepared_hybrid=prepared,
+                    gapfill_token_budget=gapfill_token_budget,
                 )
             if output_bundle is not None:
                 confidences = [

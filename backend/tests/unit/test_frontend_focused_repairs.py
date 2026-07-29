@@ -14,6 +14,7 @@ REVIEW_HOOK = (ROOT / "frontend/src/hooks/useDocumentReview.ts").read_text()
 REVIEW_RESULT = (
     ROOT / "frontend/src/components/ComplianceReviewResult.tsx"
 ).read_text()
+NEW_REVIEW = (ROOT / "frontend/src/pages/NewReviewPage.tsx").read_text()
 AUDIT_RESULT = (ROOT / "frontend/src/components/AgentAuditResult.tsx").read_text()
 API_CLIENT = (ROOT / "frontend/src/api/client.ts").read_text()
 SUPPORTING = (ROOT / "frontend/src/lib/supportingDocuments.ts").read_text()
@@ -89,6 +90,24 @@ def test_all_document_ids_and_revision_are_bound_to_one_request() -> None:
     assert "...supportingDocuments.map((document) => document.document_id)" in REVIEW_HOOK
 
 
+def test_agent_audit_cannot_cross_review_revisions() -> None:
+    assert "activeReviewRevisionRef" in REVIEW_HOOK
+    assert "workflowRevisionId" in REVIEW_HOOK
+    assert "activeReviewRevisionRef.current = null" in REVIEW_HOOK
+    assert "activeReviewRevisionRef.current = reviewRevisionId" in REVIEW_HOOK
+    assert (
+        "activeReviewRevisionRef.current !== expectedRevisionId"
+        in REVIEW_HOOK
+    )
+    assert "next.review_revision_id !== expectedRevisionId" in REVIEW_HOOK
+    assert "loadWorkflowAssets(next, expectedRevisionId)" in REVIEW_HOOK
+    assert "review.workflowIsCurrent" in NEW_REVIEW
+    assert (
+        "review.compliance && review.workflow && review.workflowIsCurrent"
+        in NEW_REVIEW
+    )
+
+
 def test_canonical_form_e_and_coo_values_are_sent() -> None:
     assert 'value: "form_e_or_psw_export_declaration"' in SUPPORTING
     assert 'value: "certificate_of_origin"' in SUPPORTING
@@ -97,12 +116,52 @@ def test_canonical_form_e_and_coo_values_are_sent() -> None:
 def test_review_sections_use_latest_response_and_clear_order() -> None:
     headings = [
         REVIEW_RESULT.index("Customs submission readiness"),
-        REVIEW_RESULT.index("Supporting-document extraction"),
+        REVIEW_RESULT.index("Supporting documents"),
         REVIEW_RESULT.index("Findings in the uploaded documents"),
-        REVIEW_RESULT.index("Missing or mismatched supporting documents"),
         REVIEW_RESULT.index("What was checked"),
         REVIEW_RESULT.index("Technical details: extracted fields and matched lines"),
     ]
     assert headings == sorted(headings)
     assert "result.review_revision_id" in REVIEW_RESULT
     assert "Uploaded but does not match this shipment" in REVIEW_RESULT
+
+
+def test_supporting_document_states_are_rendered_in_separate_groups() -> None:
+    for state_filter in (
+        'document.presenceStatus === "shipment_matched"',
+        'document.presenceStatus === "unresolved"',
+        'document.presenceStatus === "shipment_mismatched"',
+        'document.presenceStatus === "invalid"',
+    ):
+        assert state_filter in REVIEW_RESULT
+    for heading in (
+        '{ heading: "Matched"',
+        '{ heading: "Needs confirmation"',
+        '{ heading: "Does not match"',
+        '{ heading: "Cannot be accepted"',
+        "<h3>Still missing</h3>",
+    ):
+        assert heading in REVIEW_RESULT
+    assert "Missing or mismatched supporting documents" not in REVIEW_RESULT
+    assert 'data-presence-status={document.presenceStatus}' in REVIEW_RESULT
+    assert 'data-presence-status="missing"' in REVIEW_RESULT
+
+
+def test_uploaded_unresolved_document_is_not_also_rendered_as_missing() -> None:
+    assert "const uploadedSupportingKeys = new Set(" in REVIEW_RESULT
+    assert "const stillMissing = outstanding.filter(" in REVIEW_RESULT
+    assert (
+        "!uploadedSupportingKeys.has(normalizedDocumentKey(document.document_type))"
+        in REVIEW_RESULT
+    )
+    assert "submissionCopy(result.overall_status, stillMissing.length)" in REVIEW_RESULT
+    assert "<strong>{stillMissing.length}</strong>" in REVIEW_RESULT
+
+
+def test_raw_supporting_check_messages_are_collapsed() -> None:
+    technical_summary = REVIEW_RESULT.index(
+        "<summary>Technical check details</summary>"
+    )
+    raw_message = REVIEW_RESULT.index("{check.message}", technical_summary)
+    closing_details = REVIEW_RESULT.index("</details>", technical_summary)
+    assert technical_summary < raw_message < closing_details

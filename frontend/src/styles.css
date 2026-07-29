@@ -2043,12 +2043,69 @@ textarea:focus {
   background: var(--surface);
 }
 
+.supporting-document-groups,
+.supporting-document-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.supporting-document-group + .supporting-document-group {
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.supporting-document-group h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.document-checklist > li[data-presence-status="shipment_matched"] {
+  border-left-color: var(--success-border);
+  background: var(--success-bg);
+}
+
+.document-checklist > li[data-presence-status="unresolved"] {
+  border-left-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.document-checklist > li[data-presence-status="shipment_mismatched"],
+.document-checklist > li[data-presence-status="invalid"],
+.document-checklist > li[data-presence-status="missing"] {
+  border-left-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
 .document-checklist__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 6px;
+}
+
+.supporting-status {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+[data-presence-status="shipment_matched"] .supporting-status {
+  color: var(--success);
+}
+
+[data-presence-status="unresolved"] .supporting-status {
+  color: var(--warning);
+}
+
+[data-presence-status="shipment_mismatched"] .supporting-status,
+[data-presence-status="invalid"] .supporting-status {
+  color: var(--danger);
+}
+
+.supporting-document-group .technical-details {
+  margin-top: 10px;
 }
 
 .document-checklist small {

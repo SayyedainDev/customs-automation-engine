@@ -48,7 +48,7 @@ export function NewReviewPage() {
         <ComplianceReviewResult result={review.compliance} />
       ) : null}
 
-      {review.compliance && !review.workflow ? (
+      {review.compliance && !review.workflowIsCurrent ? (
         <section className="panel" aria-labelledby="agent-offer-heading">
           <div className="panel__header">
             <div>
@@ -103,7 +103,7 @@ export function NewReviewPage() {
         />
       ) : null}
 
-      {review.workflow ? (
+      {review.compliance && review.workflow && review.workflowIsCurrent ? (
         <AgentAuditResult
           workflow={review.workflow}
           reviewTask={review.reviewTask}

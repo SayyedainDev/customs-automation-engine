@@ -118,18 +118,24 @@ export function useDocumentReview() {
   const [requestPayload, setRequestPayload] =
     useState<MultiLineShipmentRequest | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowStatusResponse | null>(null);
+  const [workflowRevisionId, setWorkflowRevisionId] = useState<string | null>(
+    null,
+  );
   const [reviewTask, setReviewTask] = useState<ReviewTaskResponse | null>(null);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
+  const activeReviewRevisionRef = useRef<string | null>(null);
 
   const reviewBusy = !["idle", "complete"].includes(phase);
 
   const clearWorkflow = useCallback(() => {
+    activeReviewRevisionRef.current = null;
     setCompliance(null);
     setRequestPayload(null);
     setWorkflow(null);
+    setWorkflowRevisionId(null);
     setReviewTask(null);
     setEvents([]);
     setAgentError(null);
@@ -211,19 +217,27 @@ export function useDocumentReview() {
   );
 
   const loadWorkflowAssets = useCallback(
-    async (current: WorkflowStatusResponse) => {
+    async (current: WorkflowStatusResponse, expectedRevisionId: string) => {
       try {
         const eventResponse = await api.getEvents(current.workflow_id);
+        if (activeReviewRevisionRef.current !== expectedRevisionId) return;
         setEvents(eventResponse.events);
       } catch (assetError) {
-        setAgentError(readableError(assetError));
+        if (activeReviewRevisionRef.current === expectedRevisionId) {
+          setAgentError(readableError(assetError));
+        }
       }
 
+      if (activeReviewRevisionRef.current !== expectedRevisionId) return;
       if (current.status === "awaiting_human_review") {
         try {
-          setReviewTask(await api.getReview(current.workflow_id));
+          const nextReviewTask = await api.getReview(current.workflow_id);
+          if (activeReviewRevisionRef.current !== expectedRevisionId) return;
+          setReviewTask(nextReviewTask);
         } catch (assetError) {
-          setAgentError(readableError(assetError));
+          if (activeReviewRevisionRef.current === expectedRevisionId) {
+            setAgentError(readableError(assetError));
+          }
         }
       } else {
         setReviewTask(null);
@@ -238,7 +252,7 @@ export function useDocumentReview() {
   );
 
   useEffect(() => {
-    if (!workflowId || !shouldPoll) return;
+    if (!workflowId || !shouldPoll || !workflowRevisionId) return;
 
     let cancelled = false;
     let timeout: number | undefined;
@@ -246,15 +260,36 @@ export function useDocumentReview() {
     const poll = async () => {
       try {
         const next = await api.getWorkflow(workflowId);
-        if (cancelled) return;
+        if (
+          cancelled ||
+          activeReviewRevisionRef.current !== workflowRevisionId
+        ) {
+          return;
+        }
+        if (
+          next.review_revision_id &&
+          next.review_revision_id !== workflowRevisionId
+        ) {
+          setWorkflow(null);
+          setWorkflowRevisionId(null);
+          setAgentError(
+            "The agent audit belongs to an older document selection and was not displayed.",
+          );
+          return;
+        }
         setWorkflow(next);
         if (pollingStatuses.has(next.status)) {
           timeout = window.setTimeout(poll, 2_500);
         } else {
-          await loadWorkflowAssets(next);
+          await loadWorkflowAssets(next, workflowRevisionId);
         }
       } catch (pollError) {
-        if (!cancelled) setAgentError(readableError(pollError));
+        if (
+          !cancelled &&
+          activeReviewRevisionRef.current === workflowRevisionId
+        ) {
+          setAgentError(readableError(pollError));
+        }
       }
     };
 
@@ -263,7 +298,7 @@ export function useDocumentReview() {
       cancelled = true;
       if (timeout !== undefined) window.clearTimeout(timeout);
     };
-  }, [loadWorkflowAssets, shouldPoll, workflowId]);
+  }, [loadWorkflowAssets, shouldPoll, workflowId, workflowRevisionId]);
 
   async function runCompliance() {
     if (reviewBusy) return;
@@ -274,8 +309,10 @@ export function useDocumentReview() {
 
     setError(null);
     setAgentError(null);
+    activeReviewRevisionRef.current = null;
     setCompliance(null);
     setWorkflow(null);
+    setWorkflowRevisionId(null);
     setReviewTask(null);
     setEvents([]);
 
@@ -401,10 +438,14 @@ export function useDocumentReview() {
         supporting_documents: supportingDocuments,
       };
 
+      activeReviewRevisionRef.current = reviewRevisionId;
       setRequestPayload(payload);
       setPhase("checking");
       const result = await api.checkMultiLine(payload);
-      if (result.review_revision_id !== reviewRevisionId) {
+      if (
+        result.review_revision_id !== reviewRevisionId ||
+        activeReviewRevisionRef.current !== reviewRevisionId
+      ) {
         throw new Error(
           "The compliance response belongs to an older document selection. Run the review again.",
         );
@@ -420,23 +461,47 @@ export function useDocumentReview() {
       );
       setPhase("complete");
     } catch (requestError) {
+      activeReviewRevisionRef.current = null;
+      setRequestPayload(null);
       setError(readableError(requestError));
       setPhase("idle");
     }
   }
 
   async function startAgentAudit() {
-    if (!requestPayload || agentBusy || workflow) return;
+    if (
+      !requestPayload ||
+      !compliance ||
+      agentBusy ||
+      workflow ||
+      compliance.review_revision_id !== requestPayload.review_revision_id ||
+      activeReviewRevisionRef.current !== requestPayload.review_revision_id
+    ) {
+      return;
+    }
+    const expectedRevisionId = requestPayload.review_revision_id;
     setAgentBusy(true);
     setAgentError(null);
     try {
       const next = await api.startWorkflow(requestPayload);
+      if (activeReviewRevisionRef.current !== expectedRevisionId) return;
+      if (
+        next.review_revision_id &&
+        next.review_revision_id !== expectedRevisionId
+      ) {
+        throw new Error(
+          "The agent audit belongs to an older document selection and was not displayed.",
+        );
+      }
+      setWorkflowRevisionId(expectedRevisionId);
       setWorkflow(next);
       if (!pollingStatuses.has(next.status)) {
-        await loadWorkflowAssets(next);
+        await loadWorkflowAssets(next, expectedRevisionId);
       }
     } catch (requestError) {
-      setAgentError(readableError(requestError));
+      if (activeReviewRevisionRef.current === expectedRevisionId) {
+        setAgentError(readableError(requestError));
+      }
     } finally {
       setAgentBusy(false);
     }
@@ -445,7 +510,15 @@ export function useDocumentReview() {
   async function submitDecision(
     action: "accept_manual_review" | "reject_submission",
   ) {
-    if (!workflow || decisionBusy) return;
+    if (
+      !workflow ||
+      !workflowRevisionId ||
+      decisionBusy ||
+      activeReviewRevisionRef.current !== workflowRevisionId
+    ) {
+      return;
+    }
+    const expectedRevisionId = workflowRevisionId;
     if (
       action === "reject_submission" &&
       !window.confirm(
@@ -471,13 +544,24 @@ export function useDocumentReview() {
             : "Submission rejected in the operations console.",
         provided_document_ids: [],
       });
+      if (activeReviewRevisionRef.current !== expectedRevisionId) return;
+      if (
+        next.review_revision_id &&
+        next.review_revision_id !== expectedRevisionId
+      ) {
+        throw new Error(
+          "The agent audit belongs to an older document selection and was not displayed.",
+        );
+      }
       setWorkflow(next);
       setReviewTask(null);
       if (!pollingStatuses.has(next.status)) {
-        await loadWorkflowAssets(next);
+        await loadWorkflowAssets(next, expectedRevisionId);
       }
     } catch (requestError) {
-      setAgentError(readableError(requestError));
+      if (activeReviewRevisionRef.current === expectedRevisionId) {
+        setAgentError(readableError(requestError));
+      }
     } finally {
       setDecisionBusy(false);
     }
@@ -493,7 +577,15 @@ export function useDocumentReview() {
     correctedValue: unknown,
     reason: string,
   ) {
-    if (!workflow || decisionBusy) return;
+    if (
+      !workflow ||
+      !workflowRevisionId ||
+      decisionBusy ||
+      activeReviewRevisionRef.current !== workflowRevisionId
+    ) {
+      return;
+    }
+    const expectedRevisionId = workflowRevisionId;
     setDecisionBusy(true);
     setAgentError(null);
     try {
@@ -510,13 +602,24 @@ export function useDocumentReview() {
             : "Reviewer corrected the extracted value in the operations console.",
         provided_document_ids: [],
       });
+      if (activeReviewRevisionRef.current !== expectedRevisionId) return;
+      if (
+        next.review_revision_id &&
+        next.review_revision_id !== expectedRevisionId
+      ) {
+        throw new Error(
+          "The agent audit belongs to an older document selection and was not displayed.",
+        );
+      }
       setWorkflow(next);
       setReviewTask(null);
       if (!pollingStatuses.has(next.status)) {
-        await loadWorkflowAssets(next);
+        await loadWorkflowAssets(next, expectedRevisionId);
       }
     } catch (requestError) {
-      setAgentError(readableError(requestError));
+      if (activeReviewRevisionRef.current === expectedRevisionId) {
+        setAgentError(readableError(requestError));
+      }
     } finally {
       setDecisionBusy(false);
     }
@@ -575,6 +678,14 @@ export function useDocumentReview() {
       state: stageState(Boolean(compliance), false),
     },
   ];
+  const workflowIsCurrent = Boolean(
+    compliance &&
+      workflow &&
+      workflowRevisionId === compliance.review_revision_id &&
+      activeReviewRevisionRef.current === compliance.review_revision_id &&
+      (!workflow.review_revision_id ||
+        workflow.review_revision_id === compliance.review_revision_id),
+  );
 
   return {
     invoiceFile,
@@ -591,6 +702,7 @@ export function useDocumentReview() {
     error,
     compliance,
     workflow,
+    workflowIsCurrent,
     reviewTask,
     events,
     agentBusy,

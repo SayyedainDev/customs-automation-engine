@@ -345,6 +345,71 @@ def test_25b_trailing_abbreviation_period_is_not_an_exporter_mismatch() -> None:
     assert exporter_check.status == ComplianceCheckStatus.PASSED.value
 
 
+@pytest.mark.parametrize(
+    "printed",
+    [
+        "Lahore Cotton Garments Pvt Ltd",
+        "LAHORE COTTON GARMENTS PRIVATE LIMITED",
+        "L a h o r e Cotton Garments (Pvt.) Ltd.",
+    ],
+)
+def test_company_name_presentation_variants_match(printed: str) -> None:
+    result = _verify(
+        "certificate_of_origin",
+        _coo_extraction(exporter_or_applicant=printed),
+    )
+    exporter_check = next(
+        check for check in result.checks if check.check_id.endswith("_exporter_match")
+    )
+    assert exporter_check.status == ComplianceCheckStatus.PASSED
+    assert result.presence_status == "shipment_matched"
+
+
+@pytest.mark.parametrize(
+    "printed",
+    [
+        "Lahore Cotton Traders Ltd.",
+        "Lahore Cotton Garments International Ltd.",
+    ],
+)
+def test_materially_different_company_names_remain_mismatched(printed: str) -> None:
+    result = _verify(
+        "certificate_of_origin",
+        _coo_extraction(exporter_or_applicant=printed),
+    )
+    exporter_check = next(
+        check for check in result.checks if check.check_id.endswith("_exporter_match")
+    )
+    assert exporter_check.status == ComplianceCheckStatus.FAILED
+    assert result.presence_status == "shipment_mismatched"
+
+
+def test_invalid_exporter_label_fragment_is_unresolved_not_mismatched() -> None:
+    result = _verify(
+        "certificate_of_origin",
+        _coo_extraction(exporter_or_applicant="or Applicant"),
+    )
+    exporter_check = next(
+        check for check in result.checks if check.check_id.endswith("_exporter_match")
+    )
+    assert exporter_check.status == ComplianceCheckStatus.MANUAL_REVIEW
+    assert result.presence_status == "unresolved"
+    assert result.extraction_summary == "Partially extracted — confirmation required"
+    assert all("mismatch" not in check.message.casefold() for check in result.checks)
+    assert all("or Applicant" not in check.message for check in result.checks)
+
+
+def test_complete_mismatch_uses_an_honest_extraction_summary() -> None:
+    result = _verify(
+        "certificate_of_origin",
+        _coo_extraction(exporter_or_applicant="Sialkot Sports Textiles Ltd."),
+    )
+    assert result.presence_status == "shipment_mismatched"
+    assert result.extraction_summary == (
+        "Extracted, but does not match this shipment"
+    )
+
+
 def test_26_valid_form_e_declaration() -> None:
     form_e = _extraction(
         detected_document_type="form_e_or_psw_export_declaration",

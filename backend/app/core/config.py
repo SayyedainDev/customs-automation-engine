@@ -41,6 +41,12 @@ class Settings(BaseSettings):
         le=1024,
         validation_alias="GROQ_SUPPORTING_GAPFILL_MAX_COMPLETION_TOKENS",
     )
+    groq_supporting_gapfill_tpm_budget: int = Field(
+        default=8_000,
+        ge=1_000,
+        le=100_000,
+        validation_alias="GROQ_SUPPORTING_GAPFILL_TPM_BUDGET",
+    )
     supporting_gapfill_snippets_per_field: int = Field(
         default=2,
         ge=1,
