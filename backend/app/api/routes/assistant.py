@@ -9,10 +9,20 @@ from app.models.assistant import AssistantConversation, AssistantMessage
 from app.schemas.assistant import (
     GuidanceRequest,
     GuidanceResponse,
+    RegulatoryChatRequest,
+    RegulatoryChatResponse,
     ShipmentChatRequest,
     ChatResponse,
 )
 from app.services.assistant.guidance import generate_pre_submission_guidance
+from app.services.assistant.regulatory_chat import (
+    SUGGESTED_QUESTIONS,
+    answer_regulatory_question,
+)
+from app.services.assistant.scopes import (
+    get_knowledge_corpus_scope,
+    supported_compliance_scope_labels,
+)
 from app.services.assistant.shipment_assistant import answer_shipment_question
 
 
@@ -34,6 +44,53 @@ def get_guidance(
         planned_shipment_date=payload.planned_shipment_date,
         conversation_id=payload.conversation_id
     )
+
+@router.post("/regulatory/chat", response_model=RegulatoryChatResponse)
+def post_regulatory_chat(
+    payload: RegulatoryChatRequest,
+    db: Session = Depends(get_db_session),
+) -> RegulatoryChatResponse:
+    """Ask CACE about the indexed regulatory corpus.
+
+    Needs no shipment, upload, audit workflow or supported PCT code. Answers are
+    informational: the deterministic compliance engine still decides only the
+    five supported textile PCT codes, and this endpoint never issues a verdict.
+    """
+    if payload.conversation_id:
+        conv = db.get(AssistantConversation, payload.conversation_id)
+        if conv and conv.shipment_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Conversation is bound to a shipment and cannot be reused for "
+                    "general regulatory questions."
+                ),
+            )
+    return answer_regulatory_question(
+        db,
+        question=payload.question,
+        conversation_id=payload.conversation_id,
+        pct_code=payload.pct_code,
+        destination=payload.destination,
+        source_document=payload.source_document,
+        top_k=payload.top_k,
+    )
+
+
+@router.get("/regulatory/scope")
+def get_regulatory_scope(db: Session = Depends(get_db_session)):
+    """What the assistant can search versus what the engine can decide."""
+    corpus = get_knowledge_corpus_scope(db)
+    return {
+        "knowledge_corpus_scope": {
+            "source_documents": list(corpus.source_documents),
+            "document_types": list(corpus.document_types),
+            "chunk_count": corpus.chunk_count,
+        },
+        "deterministic_compliance_scope": supported_compliance_scope_labels(),
+        "suggested_questions": list(SUGGESTED_QUESTIONS),
+    }
+
 
 @router.post("/shipments/{shipment_id}/chat", response_model=ChatResponse)
 def post_shipment_chat(

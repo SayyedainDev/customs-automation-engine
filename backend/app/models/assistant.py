@@ -25,7 +25,8 @@ class AssistantConversation(Base):
     shipment_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("customs_audit_workflows.id"), nullable=True, index=True
     )
-    mode: Mapped[str] = mapped_column(String(64))  # pre_submission_guidance | shipment_assistant
+    # pre_submission_guidance | shipment_assistant | regulatory_assistant
+    mode: Mapped[str] = mapped_column(String(64))
     pct_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     destination: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
