@@ -65,6 +65,26 @@ def default_offline_reranker():
 
 
 @pytest.fixture(autouse=True)
+def default_no_groq_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Blank the Groq credential for every test by default.
+
+    Ask CACE gained a real Groq-calling path (``generate_grounded_explanation``)
+    for its regulatory chat, on top of the existing structured-extraction calls.
+    Nothing before this fixture stopped a test from picking up a real key from
+    the developer's shell or ``.env`` and making a live network call the moment
+    it exercised that code path - the project's "no real Groq calls during
+    pytest" rule was only ever true because every invocation happened to be
+    prefixed with ``GROQ_API_KEY=""`` by hand. With the key blanked here,
+    ``_get_groq_client()`` raises ``StructuredExtractionConfigurationError``
+    immediately, before any network attempt, so a test exercising that path
+    exercises the fallback rather than the network. Tests that need to verify
+    the Groq call itself inject a fake/raising client directly instead of
+    relying on this fixture's default.
+    """
+    monkeypatch.setattr(get_settings(), "groq_api_key", None)
+
+
+@pytest.fixture(autouse=True)
 def isolated_database() -> Generator[Engine, None, None]:
     """Use a fresh in-memory database for every test."""
     engine = create_engine(

@@ -46,6 +46,7 @@ from app.services.assistant.foundation import SUPPORTED_PCT_PRODUCTS
 from app.services.assistant.plain_language import (
     Concept,
     NO_DESTINATION_RULE_NOTE,
+    contains_internal_tokens,
     detect_concepts,
     explain_concepts,
     sanitize_for_display,
@@ -65,6 +66,8 @@ from app.services.assistant.scopes import (
     UNSUPPORTED_PCT_NOTICE,
     supported_compliance_scope_labels,
 )
+from app.core.exceptions import StructuredExtractionProviderError
+from app.services.structured_extraction_service import generate_grounded_explanation
 from app.services.regulatory.citation_validation import (
     DraftCitation,
     validate_rag_output,
@@ -660,6 +663,59 @@ def _concept_relevant_citations(
     return kept or citations
 
 
+#: How many words a generated answer may run to before it is treated as a
+#: validation failure rather than trimmed - trimming an LLM answer risks
+#: cutting a sentence half-way through a claim.
+_MAX_GROQ_ANSWER_WORDS = 220
+_MIN_GROQ_ANSWER_WORDS = 8
+
+
+def _groq_answer_is_acceptable(answer: str) -> bool:
+    """The same checks every other visible answer in this module passes.
+
+    Independent of whatever the system prompt asked for: the prompt is
+    instructions to a model that can be wrong, this is the actual gate.
+    """
+    if not answer or not answer.strip():
+        return False
+    word_count = len(answer.split())
+    if not (_MIN_GROQ_ANSWER_WORDS <= word_count <= _MAX_GROQ_ANSWER_WORDS):
+        return False
+    if contains_internal_tokens(answer):
+        return False
+    if not validate_answer(answer, has_accepted_evidence=True).ok:
+        return False
+    return True
+
+
+def _groq_explanation_or_none(
+    question: str, citations: list[RegulatoryCitationSchema]
+) -> str | None:
+    """Try a grounded, Groq-generated explanation; None on any failure.
+
+    Every failure mode falls back to the deterministic composer rather than
+    surfacing to the caller: no Groq credential configured, the provider
+    rejecting/rate-limiting/erroring, and a generated answer that fails the
+    same validation every other answer in this module has to pass. Nothing
+    here retries - one user question makes at most one Groq call.
+    """
+    passages = [c.accepted_passage for c in citations if c.accepted_passage]
+    if not passages:
+        return None
+    try:
+        raw = generate_grounded_explanation(
+            question=question, evidence_passages=passages[:5]
+        )
+    except StructuredExtractionProviderError:
+        return None
+    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
+        return None
+    safe = sanitize_for_display(raw)
+    if not _groq_answer_is_acceptable(safe):
+        return None
+    return safe
+
+
 def _render_plain_explanation(
     question: str,
     citations: list[RegulatoryCitationSchema],
@@ -668,21 +724,41 @@ def _render_plain_explanation(
 ) -> tuple[str, list[str], list[RegulatoryCitationSchema]]:
     """Answer first, in plain words, with citations kept below as support.
 
-    Returns the answer, the quoted snippets it contains (none - templates quote
-    nothing), and the citations to display. When the question names a concept
-    CACE has a written explanation for, that explanation is the answer. Only
-    when it names none does the composer fall back to summarising passages, and
-    even then every line passes the display sanitizer.
+    Returns the answer, the quoted snippets it contains (none - the answer is
+    either a generated paraphrase or a template, never a raw quotation), and
+    the citations to display.
+
+    Order of preference:
+
+    1. A Groq-generated explanation grounded in the retrieved, evidence-gated
+       passages - only those passages, per the system prompt, and only kept if
+       it passes the same forbidden-claim and internal-token checks every
+       other answer here passes.
+    2. A written template, when the question names one of the concepts CACE
+       has one for. Needs no network call, so this is what runs when Groq is
+       not configured, is unavailable, or produced something that didn't pass.
+    3. A sanitized one-line lead into the sources themselves, when neither of
+       the above has anything to work with.
     """
     concepts = detect_concepts(question)
+    relevant_citations = (
+        _concept_relevant_citations(citations, concepts)[:3] if concepts else citations[:3]
+    )
+
+    groq_answer = _groq_explanation_or_none(question, relevant_citations or citations)
+    if groq_answer:
+        if destination:
+            groq_answer = f"{groq_answer}\n\n{NO_DESTINATION_RULE_NOTE}"
+        return groq_answer, [], relevant_citations or citations[:3]
+
     if concepts:
         answer = explain_concepts(question, concepts)
         if destination:
             answer = f"{answer}\n\n{NO_DESTINATION_RULE_NOTE}"
-        return answer, [], _concept_relevant_citations(citations, concepts)[:3]
+        return answer, [], relevant_citations
 
-    # No known concept: summarise, but never publish an internal token and
-    # never lead with retrieval language.
+    # No known concept and no usable Groq answer: summarise, but never publish
+    # an internal token and never lead with retrieval language.
     if not citations:
         return "", [], []
     lead = sanitize_for_display(_first_sentences(citations[0].accepted_passage, 320))
