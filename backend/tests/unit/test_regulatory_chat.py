@@ -191,7 +191,10 @@ def test_supported_pct_question_uses_deterministic_guidance(
     assert response.intent == "supported_pct_guidance"
     assert response.informational_only is False
     assert "Commercial Invoice" in response.answer
-    assert "deterministic supported-PCT checklist" in response.answer
+    # The checklist replaced the old prose sentence; assert the structure.
+    assert response.answer_mode == "checklist"
+    assert "Required documents" in response.answer
+    assert [d.display_name for d in response.required_documents]
 
 
 # 11. The full corpus is searchable for general questions, not just five codes.

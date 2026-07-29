@@ -384,6 +384,17 @@ export interface RegulatoryCitation {
   referenced_official_source?: string | null;
 }
 
+export interface ChecklistDocument {
+  display_name: string;
+  requirement: "required" | "conditional";
+  condition?: string | null;
+}
+
+export interface ProductCandidate {
+  pct_code: string;
+  product_name: string;
+}
+
 export interface RegulatoryChatResponse {
   conversation_id: string;
   message_id: string;
@@ -392,6 +403,14 @@ export interface RegulatoryChatResponse {
   intent: string;
   evidence_status: string;
   evidence_scope: string;
+  answer_mode: string;
+  required_documents: ChecklistDocument[];
+  conditional_documents: ChecklistDocument[];
+  product_candidates: ProductCandidate[];
+  interpreted_as: Record<string, string>;
+  resolved_product?: string | null;
+  resolved_pct_code?: string | null;
+  destination?: string | null;
   sources: RegulatoryCitation[];
   limitations: string[];
   supported_compliance_scope: string[];

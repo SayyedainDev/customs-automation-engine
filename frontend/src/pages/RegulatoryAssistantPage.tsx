@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { api } from "../api/client";
 import type {
+  ChecklistDocument,
+  ProductCandidate,
   RegulatoryCitation,
   RegulatoryChatResponse,
 } from "../api/types";
@@ -26,6 +28,15 @@ const SUGGESTED_QUESTIONS = [
   "Search for references to PCT 52010090.",
   "How does CACE distinguish official sources from curated summaries?",
 ];
+
+const MODE_LABELS: Record<string, string> = {
+  checklist: "Document checklist",
+  clarification: "Needs one detail",
+  explanation: "Explanation",
+  evidence_lookup: "Source lookup",
+  document_search: "Document search",
+  refusal: "Out of scope",
+};
 
 const INTENT_LABELS: Record<string, string> = {
   general_regulatory_information: "Regulatory information",
@@ -58,10 +69,70 @@ interface ChatMessage {
   intent?: string;
   evidenceStatus?: string;
   evidenceScope?: string;
+  answerMode?: string;
+  requiredDocuments?: ChecklistDocument[];
+  conditionalDocuments?: ChecklistDocument[];
+  productCandidates?: ProductCandidate[];
+  interpretedAs?: Record<string, string>;
   informationalOnly?: boolean;
   sources?: RegulatoryCitation[];
   limitations?: string[];
   supportedScope?: string[];
+}
+
+function ChecklistSections({
+  required,
+  conditional,
+  candidates,
+}: {
+  required: ChecklistDocument[];
+  conditional: ChecklistDocument[];
+  candidates: ProductCandidate[];
+}) {
+  if (required.length === 0 && conditional.length === 0 && candidates.length === 0) {
+    return null;
+  }
+  return (
+    <div className="checklist">
+      {required.length > 0 ? (
+        <section className="checklist__group">
+          <h4>Required documents</h4>
+          <ul className="plain-list">
+            {required.map((doc) => (
+              <li key={doc.display_name}>{doc.display_name}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {conditional.length > 0 ? (
+        <section className="checklist__group">
+          <h4>Conditional documents</h4>
+          <ul className="plain-list">
+            {conditional.map((doc) => (
+              <li key={doc.display_name}>
+                {doc.display_name}
+                {doc.condition ? (
+                  <span className="muted"> — {doc.condition}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {candidates.length > 0 ? (
+        <section className="checklist__group">
+          <h4>Which product do you mean?</h4>
+          <ul className="plain-list">
+            {candidates.map((candidate) => (
+              <li key={candidate.pct_code}>
+                {candidate.product_name} — PCT {candidate.pct_code}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
 function SourceCard({ citation }: { citation: RegulatoryCitation }) {
@@ -197,6 +268,11 @@ export function RegulatoryAssistantPage() {
           intent: response.intent,
           evidenceStatus: response.evidence_status,
           evidenceScope: response.evidence_scope,
+          answerMode: response.answer_mode,
+          requiredDocuments: response.required_documents,
+          conditionalDocuments: response.conditional_documents,
+          productCandidates: response.product_candidates,
+          interpretedAs: response.interpreted_as,
           informationalOnly: response.informational_only,
           sources: response.sources,
           limitations: response.limitations,
@@ -249,9 +325,11 @@ export function RegulatoryAssistantPage() {
                 >
                   <header className="chat-message__head">
                     <strong>{message.role === "user" ? "You" : "CACE"}</strong>
-                    {message.intent ? (
+                    {message.answerMode ? (
                       <span className="evidence-chip evidence-chip--neutral">
-                        {INTENT_LABELS[message.intent] ?? message.intent}
+                        {MODE_LABELS[message.answerMode] ??
+                          INTENT_LABELS[message.intent ?? ""] ??
+                          message.answerMode}
                       </span>
                     ) : null}
                     {message.evidenceScope &&
@@ -280,7 +358,21 @@ export function RegulatoryAssistantPage() {
                     ) : null}
                   </header>
 
-                  <p className="chat-message__text">{message.text}</p>
+                  <p className="chat-message__text">
+                    {message.answerMode === "checklist" ||
+                    message.answerMode === "clarification"
+                      ? message.text.split("\n\n")[0]
+                      : message.text}
+                  </p>
+
+                  {message.answerMode === "checklist" ||
+                  message.answerMode === "clarification" ? (
+                    <ChecklistSections
+                      required={message.requiredDocuments ?? []}
+                      conditional={message.conditionalDocuments ?? []}
+                      candidates={message.productCandidates ?? []}
+                    />
+                  ) : null}
 
                   {message.informationalOnly && message.role === "assistant" ? (
                     <div className="notice notice--warning">
@@ -288,8 +380,10 @@ export function RegulatoryAssistantPage() {
                       <div>
                         <strong>Informational answer</strong>
                         <p>
-                          Deterministic compliance decisions cover only:{" "}
-                          {(message.supportedScope ?? []).join("; ")}.
+                          This is informational. Deterministic compliance
+                          decisions cover{" "}
+                          {(message.supportedScope ?? []).length} validated
+                          textile PCT codes.
                         </p>
                       </div>
                     </div>

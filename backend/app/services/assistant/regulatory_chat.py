@@ -30,6 +30,8 @@ from sqlalchemy.orm import Session
 
 from app.models.assistant import AssistantConversation, AssistantMessage
 from app.schemas.assistant import (
+    ChecklistDocumentSchema,
+    ProductCandidateSchema,
     RegulatoryChatResponse,
     RegulatoryCitationSchema,
 )
@@ -38,6 +40,7 @@ from app.services.assistant.domain_guard import (
     contains_injection,
     validate_answer,
 )
+from app.services.assistant.destinations import canonical_destination
 from app.services.assistant.foundation import SUPPORTED_PCT_PRODUCTS
 from app.services.assistant.guidance import generate_pre_submission_guidance
 from app.services.assistant.regulatory_intent import (
@@ -206,7 +209,7 @@ def _normalize_for_retrieval(question: str, pct_code: str | None) -> str:
     return " ".join(ordered)
 
 
-def _first_sentences(text: str, max_chars: int = 420) -> str:
+def _first_sentences(text: str | None, max_chars: int = 420) -> str:
     """A readable prefix of an accepted passage, cut on a clean boundary."""
     normalized = " ".join((text or "").split())
     if len(normalized) <= max_chars:
@@ -428,6 +431,168 @@ def _compose_grounded_answer(
     return "\n".join(lines).strip(), snippets
 
 
+
+NO_USA_SPECIFIC_RULE = (
+    "CACE did not find an additional USA-specific requirement in its current "
+    "validated rules."
+)
+
+#: Topics that can never be primary evidence for a garment or made-up checklist,
+#: however often they say "cotton". The failing query returned passages about
+#: cotton seeds, cotton waste, agricultural phytosanitary rules and vegetable
+#: ghee, all of which share only the word "cotton" with a question about
+#: trousers.
+_NON_PRODUCT_TOPICS = re.compile(
+    r"cotton\s+seed|seeds?\s+for\s+sowing|cotton\s+waste|linters"
+    r"|vegetable\s+ghee|cooking\s+oil|edible\s+oil"
+    r"|plant\s+protection|phytosanitary|plant\s+quarantine|nppo"
+    r"|wheat|pulses|tobacco|scrap",
+    re.IGNORECASE,
+)
+
+#: Products whose rules genuinely do concern plant material, so the filter above
+#: must not be applied to them.
+_AGRICULTURAL_CATEGORIES = frozenset({"raw_material"})
+
+
+def _is_product_relevant(passage: str, category: str | None) -> bool:
+    """Whether a passage may back a product checklist for this category."""
+    if category in _AGRICULTURAL_CATEGORIES:
+        return True
+    return not _NON_PRODUCT_TOPICS.search(passage or "")
+
+
+def _checklist_documents(
+    guidance,  # type: ignore[no-untyped-def]
+) -> tuple[list[ChecklistDocumentSchema], list[ChecklistDocumentSchema]]:
+    """Split the deterministic checklist into required and conditional lines."""
+    required: list[ChecklistDocumentSchema] = []
+    conditional: list[ChecklistDocumentSchema] = []
+    for doc in guidance.documents:
+        line = ChecklistDocumentSchema(
+            display_name=doc.display_name,
+            requirement=doc.requirement,
+            condition=(doc.summary or None) if doc.requirement == "conditional" else None,
+        )
+        (required if doc.requirement == "required" else conditional).append(line)
+    return required, conditional
+
+
+def _render_checklist(
+    guidance,  # type: ignore[no-untyped-def]
+    *,
+    destination: str | None,
+    corrections: dict[str, str],
+) -> str:
+    """A short exporter-facing checklist, not a pile of quotations."""
+    required, conditional = _checklist_documents(guidance)
+    lines: list[str] = []
+    if corrections:
+        readable = "; ".join(f"'{typed}' as '{used}'" for typed, used in corrections.items())
+        lines.append(f"Interpreting {readable}.")
+    where = f" to {destination}" if destination else ""
+    lines.append(
+        f"For {guidance.product} (PCT {guidance.pct_code}){where}, CACE's configured "
+        "rules expect the following documents."
+    )
+    if required:
+        lines += ["", "Required documents"]
+        lines += [f"- {d.display_name}" for d in required]
+    if conditional:
+        lines += ["", "Conditional documents"]
+        for d in conditional:
+            note = f" - {_first_sentences(d.condition, 160)}" if d.condition else ""
+            lines.append(f"- {d.display_name}{note}")
+    lines += ["", "Scope"]
+    if destination == "USA":
+        lines.append(f"- {NO_USA_SPECIFIC_RULE}")
+    lines.append(
+        "- This is pre-submission guidance from CACE's configured rules, not "
+        "customs clearance."
+    )
+    return "\n".join(lines)
+
+
+def _render_clarification(
+    candidates: list[tuple[str, str]],
+    *,
+    guidance_pairs,  # type: ignore[no-untyped-def]
+    destination: str | None,
+    corrections: dict[str, str],
+    matched_term: str | None,
+) -> str:
+    """Ask which product was meant, and show what they already share."""
+    lines: list[str] = []
+    if corrections:
+        readable = "; ".join(f"'{typed}' as '{used}'" for typed, used in corrections.items())
+        lines.append(f"Interpreting {readable}.")
+    names = " or ".join(name for _, name in candidates)
+    subject = f"Cotton {matched_term}" if matched_term else "That product"
+    lines.append(f"{subject} could mean {names}.")
+
+    shared_required, shared_conditional = guidance_pairs
+    if shared_required:
+        lines += ["", "Documents commonly required for either option:", "", "Required"]
+        lines += [f"- {name}" for name in shared_required]
+    if shared_conditional:
+        lines += ["", "Conditional"]
+        for name, condition in shared_conditional:
+            note = f" - {_first_sentences(condition, 160)}" if condition else ""
+            lines.append(f"- {name}{note}")
+    lines += ["", "Please choose:"]
+    lines += [f"- {name} - PCT {code}" for code, name in candidates]
+    lines += ["", "Scope"]
+    if destination == "USA":
+        lines.append(f"- {NO_USA_SPECIFIC_RULE}")
+    lines.append(
+        "- No compliance decision is issued until the product is resolved. This "
+        "is pre-submission guidance, not customs clearance."
+    )
+    return "\n".join(lines)
+
+
+def _render_explanation(citations: list[RegulatoryCitationSchema]) -> str:
+    """Two to four sentences plus key points, ahead of any source card."""
+    lead = _first_sentences(citations[0].accepted_passage, 320) if citations else ""
+    lines = ["Answer", lead, "", "Key points"]
+    seen: set[str] = set()
+    for citation in citations[:4]:
+        point = _first_sentences(citation.accepted_passage, 150)
+        if point in seen:
+            continue
+        seen.add(point)
+        where = f" ({citation.title}"
+        where += f", page {citation.page_number})" if citation.page_number else ")"
+        lines.append(f"- {point}{where}")
+    lines += ["", "Sources are listed below; expand one to read the accepted passage."]
+    return "\n".join(lines)
+
+
+def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
+    """One short answer with the exact source and page."""
+    if not citations:
+        return NO_EVIDENCE_MESSAGE
+    top = citations[0]
+    where = f"{top.title}"
+    if top.page_number is not None:
+        where += f", page {top.page_number}"
+    elif top.section:
+        where += f", {top.section}"
+    lines = [
+        f"{where} ({top.source_kind_label}) is the closest supporting source in "
+        "the indexed corpus.",
+        "",
+        f'"{_first_sentences(top.accepted_passage, 300)}"',
+    ]
+    if len(citations) > 1:
+        others = ", ".join(
+            f"{c.title}{f' p.{c.page_number}' if c.page_number else ''}"
+            for c in citations[1:3]
+        )
+        lines += ["", f"Also relevant: {others}."]
+    return "\n".join(lines)
+
+
 def _persist(
     db: Session,
     *,
@@ -510,6 +675,10 @@ def answer_regulatory_question(
     conv_id = conversation_id or uuid4()
     existing = db.get(AssistantConversation, conv_id) if conversation_id else None
     scope_labels = supported_compliance_scope_labels()
+    # An explicit filter wins; otherwise the destination is read from the
+    # question against a country vocabulary. Both go through the same
+    # canonicaliser so 'usa', 'U.S.A.' and 'United States' agree.
+    destination_used = canonical_destination(destination) or destination
 
     def respond(
         *,
@@ -520,6 +689,13 @@ def answer_regulatory_question(
         limitations: list[str],
         informational_only: bool = True,
         evidence_scope: str = NO_PCT_SCOPE,
+        answer_mode: str = "explanation",
+        required_documents: list[ChecklistDocumentSchema] | None = None,
+        conditional_documents: list[ChecklistDocumentSchema] | None = None,
+        product_candidates: list[ProductCandidateSchema] | None = None,
+        interpreted_as: dict[str, str] | None = None,
+        resolved_product: str | None = None,
+        resolved_pct_code: str | None = None,
     ) -> RegulatoryChatResponse:
         _persist(
             db,
@@ -537,6 +713,14 @@ def answer_regulatory_question(
             intent=intent,
             evidence_status=evidence_status,
             evidence_scope=evidence_scope,
+            answer_mode=answer_mode,
+            required_documents=required_documents or [],
+            conditional_documents=conditional_documents or [],
+            product_candidates=product_candidates or [],
+            interpreted_as=interpreted_as or {},
+            resolved_product=resolved_product,
+            resolved_pct_code=resolved_pct_code,
+            destination=destination_used,
             sources=citations,
             limitations=limitations,
             supported_compliance_scope=scope_labels,
@@ -555,6 +739,7 @@ def answer_regulatory_question(
             evidence_status="not_applicable",
             citations=[],
             limitations=[GENERAL_LIMITATION],
+            answer_mode="refusal",
         )
 
     if decision.requires_shipment_context:
@@ -566,6 +751,7 @@ def answer_regulatory_question(
             evidence_status="not_applicable",
             citations=[],
             limitations=[GENERAL_LIMITATION],
+            answer_mode="refusal",
         )
 
     effective_pct = decision.pct_code
@@ -575,27 +761,112 @@ def answer_regulatory_question(
     # question, so it is answered by the compliance guidance service rather
     # than by summarising passages. This is the one path where the answer is
     # not merely informational.
-    if decision.intent == "supported_pct_guidance" and effective_pct:
-        country = destination or _extract_destination(question)
-        if country:
+    if decision.destination and not destination_used:
+        destination_used = decision.destination
+
+    corrections = dict(decision.product.corrections) if decision.product else {}
+
+    # A product the user named ambiguously: ask, and meanwhile show what the
+    # candidates already agree on, rather than dumping passages.
+    if decision.intent == "product_clarification_required":
+        product = decision.product
+        candidates = [
+            (code, SUPPORTED_PCT_PRODUCTS[code])
+            for code in (product.candidates if product else ())
+            if code in SUPPORTED_PCT_PRODUCTS
+        ]
+        if not candidates:
             return respond(
-                answer=_render_guidance_answer(
-                    generate_pre_submission_guidance(
-                        db,
-                        product=SUPPORTED_PCT_PRODUCTS[effective_pct],
-                        pct_code=effective_pct,
-                        destination=country,
-                    )
+                answer=(
+                    "I could not tell which supported product you mean. Name the "
+                    "product more precisely, or give its eight-digit PCT code."
                 ),
-                intent="supported_pct_guidance",
-                evidence_status="accepted",
+                intent=decision.intent,
+                evidence_status="not_applicable",
                 citations=[],
                 limitations=[GENERAL_LIMITATION],
-                informational_only=False,
-                evidence_scope=EXACT_PCT,
+                answer_mode="clarification",
+                interpreted_as=corrections,
             )
+        country = destination_used or "China"
+        shared_required: list[str] | None = None
+        shared_conditional: list[tuple[str, str | None]] | None = None
+        for code, name in candidates:
+            guidance = generate_pre_submission_guidance(
+                db, product=name, pct_code=code, destination=country
+            )
+            required, conditional = _checklist_documents(guidance)
+            req_names = [d.display_name for d in required]
+            cond_pairs = [(d.display_name, d.condition) for d in conditional]
+            if shared_required is None:
+                shared_required, shared_conditional = req_names, cond_pairs
+            else:
+                shared_required = [n for n in shared_required if n in req_names]
+                shared_conditional = [
+                    pair for pair in (shared_conditional or []) if pair[0] in
+                    {n for n, _ in cond_pairs}
+                ]
+        return respond(
+            answer=_render_clarification(
+                candidates,
+                guidance_pairs=(shared_required or [], shared_conditional or []),
+                destination=destination_used,
+                corrections=corrections,
+                matched_term=decision.product.matched_term if decision.product else None,
+            ),
+            intent=decision.intent,
+            evidence_status="not_applicable",
+            citations=[],
+            limitations=[GENERAL_LIMITATION],
+            answer_mode="clarification",
+            required_documents=[
+                ChecklistDocumentSchema(display_name=n, requirement="required")
+                for n in (shared_required or [])
+            ],
+            conditional_documents=[
+                ChecklistDocumentSchema(
+                    display_name=n, requirement="conditional", condition=c
+                )
+                for n, c in (shared_conditional or [])
+            ],
+            product_candidates=[
+                ProductCandidateSchema(pct_code=code, product_name=name)
+                for code, name in candidates
+            ],
+            interpreted_as=corrections,
+        )
 
-    # --- Layer 2: retrieval over the full active corpus -------------------
+    # A checklist question about a supported code is a deterministic-compliance
+    # question, so it is answered by the compliance guidance service rather
+    # than by summarising passages. This is the one path where the answer is
+    # not merely informational.
+    if decision.intent == "supported_pct_guidance" and effective_pct:
+        country = destination_used or "China"
+        guidance = generate_pre_submission_guidance(
+            db,
+            product=SUPPORTED_PCT_PRODUCTS[effective_pct],
+            pct_code=effective_pct,
+            destination=country,
+        )
+        required, conditional = _checklist_documents(guidance)
+        return respond(
+            answer=_render_checklist(
+                guidance, destination=destination_used, corrections=corrections
+            ),
+            intent="supported_pct_guidance",
+            evidence_status="accepted",
+            citations=[],
+            limitations=[GENERAL_LIMITATION],
+            informational_only=False,
+            evidence_scope=EXACT_PCT,
+            answer_mode="checklist",
+            required_documents=required,
+            conditional_documents=conditional,
+            interpreted_as=corrections,
+            resolved_product=guidance.product,
+            resolved_pct_code=effective_pct,
+        )
+
     evidence, evidence_scope = _staged_retrieve(
         db,
         question=question,
@@ -605,6 +876,25 @@ def answer_regulatory_question(
         source_document=source_document,
         top_k=top_k,
     )
+
+    # Generic word overlap on "cotton" is not enough for product guidance: the
+    # failing query accepted cotton-seed, cotton-waste and vegetable-ghee
+    # passages. When the question resolved to a product, passages about
+    # agricultural cotton are dropped unless the product itself is agricultural.
+    if decision.product is not None or effective_pct:
+        category = None
+        if effective_pct:
+            from app.services.compliance.pct_catalog import load_pct_catalog
+
+            category = next(
+                (p.textile_category for p in load_pct_catalog() if p.pct_code == effective_pct),
+                None,
+            )
+        filtered = [
+            item for item in evidence if _is_product_relevant(item.chunk.text, category)
+        ]
+        if filtered:
+            evidence = filtered
 
     limitations = [GENERAL_LIMITATION]
     if not supported:
@@ -632,11 +922,27 @@ def answer_regulatory_question(
             citations=[],
             limitations=limitations,
             evidence_scope=NO_EVIDENCE,
+            answer_mode=decision.answer_mode,
         )
 
     snapshot_date = get_corpus_snapshot_date(db)
     citations = [_to_citation(item, snapshot_date) for item in evidence]
-    body, snippets = _compose_grounded_answer(citations, decision.intent)
+
+    # Mode decides presentation. Every informational intent used to share the
+    # document-search rendering, which is why a checklist question came back as
+    # five raw quotations led by "These indexed sources contain passages
+    # matching your search".
+    mode = decision.answer_mode
+    if mode == "evidence_lookup":
+        body = _render_evidence_lookup(citations)
+        snippets = [_first_sentences(c.accepted_passage, 300) for c in citations[:1]]
+        citations = citations[:3]
+    elif mode == "document_search":
+        body, snippets = _compose_grounded_answer(citations, decision.intent)
+    else:
+        citations = citations[:3]
+        body = _render_explanation(citations)
+        snippets = [_first_sentences(c.accepted_passage, 150) for c in citations]
 
     framing = body
     # Wording is driven by what was actually retrieved, not merely by whether
@@ -706,6 +1012,7 @@ def answer_regulatory_question(
             citations=[],
             limitations=limitations,
             evidence_scope=NO_EVIDENCE,
+            answer_mode=decision.answer_mode,
         )
 
     if any(contains_injection(c.accepted_passage) for c in citations):
@@ -723,4 +1030,5 @@ def answer_regulatory_question(
         limitations=limitations,
         informational_only=True,
         evidence_scope=evidence_scope,
+        answer_mode=decision.answer_mode,
     )

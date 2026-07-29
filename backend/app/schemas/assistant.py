@@ -94,6 +94,21 @@ class RegulatoryCitationSchema(BaseModel):
     referenced_official_source: str | None = None
 
 
+class ChecklistDocumentSchema(BaseModel):
+    """One line of an exporter-facing document checklist."""
+
+    display_name: str
+    requirement: str  # "required" | "conditional"
+    condition: str | None = None
+
+
+class ProductCandidateSchema(BaseModel):
+    """A supported product the question could have meant."""
+
+    pct_code: str
+    product_name: str
+
+
 class RegulatoryChatResponse(BaseModel):
     conversation_id: UUID
     message_id: UUID
@@ -105,6 +120,20 @@ class RegulatoryChatResponse(BaseModel):
     #: broader product category: exact_pct | broader_category |
     #: not_pct_specific | none.
     evidence_scope: str = "not_pct_specific"
+    #: How the answer is presented: checklist | clarification | explanation |
+    #: evidence_lookup | document_search | refusal. The console renders on this
+    #: rather than on the intent name, which is internal vocabulary.
+    answer_mode: str = "explanation"
+    #: Populated for checklist and clarification answers so the console can lay
+    #: the documents out instead of printing a paragraph.
+    required_documents: list[ChecklistDocumentSchema] = []
+    conditional_documents: list[ChecklistDocumentSchema] = []
+    product_candidates: list[ProductCandidateSchema] = []
+    #: Spelling the assistant interpreted, shown rather than silently applied.
+    interpreted_as: dict[str, str] = {}
+    resolved_product: str | None = None
+    resolved_pct_code: str | None = None
+    destination: str | None = None
     sources: list[RegulatoryCitationSchema] = []
     limitations: list[str] = []
     supported_compliance_scope: list[str] = []

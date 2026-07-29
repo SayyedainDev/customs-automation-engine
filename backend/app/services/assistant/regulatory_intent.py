@@ -21,7 +21,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.services.assistant.domain_guard import DomainVerdict, check_domain
+from app.services.assistant.destinations import extract_destination
 from app.services.assistant.foundation import normalize_pct_code
+from app.services.assistant.product_resolver import ProductResolution, resolve_product
 from app.services.assistant.scopes import is_deterministic_compliance_scope
 
 RegulatoryIntent = Literal[
@@ -33,7 +35,20 @@ RegulatoryIntent = Literal[
     "shipment_audit_result",
     "combined_shipment_and_regulation",
     "audit_history",
+    "product_clarification_required",
     "out_of_scope",
+]
+
+#: How the answer should be presented. Routing decided *what* to answer but
+#: not *how*, so every informational intent used the same raw-passage dump -
+#: which is why a checklist question came back as five regulatory quotations.
+AnswerMode = Literal[
+    "checklist",
+    "clarification",
+    "explanation",
+    "evidence_lookup",
+    "document_search",
+    "refusal",
 ]
 
 _PCT_IN_TEXT = re.compile(r"\b(\d{4})[.\s-]?(\d{4})\b")
@@ -54,6 +69,36 @@ _COMPLIANCE_DECISION = re.compile(
     r"|\bwill\b[^.?!]*\bclear\b"
     r"|\bdo(es)?\s+(this|my|it)\b[^.?!]*\b(pass|comply|qualify)\b"
     r"|\bcan\s+i\s+(export|ship)\b",
+    re.IGNORECASE,
+)
+
+#: "What documents do I need", "what paperwork should I prepare", "documents
+#: needed for exporting X". Deliberately broader than _GUIDANCE_REQUEST and
+#: checked before document search, because a checklist question is about the
+#: user's own shipment, not about which PDFs mention a word.
+_CHECKLIST_REQUEST = re.compile(
+    r"\b(document|documents|paperwork|papers)\b[^.?!]*"
+    r"\b(need|needed|require|required|prepare|prepared|preparing|submit|arrange|obtain)\b"
+    r"|\b(need|require|prepare|preparing|arrange|obtain)\b[^.?!]*"
+    r"\b(document|documents|paperwork|papers)\b"
+    r"|\b(documents?|paperwork|papers)\s+(for|when|before)\b"    r"|\bwhat\s+(do\s+)?i\s+need\b"
+
+    r"|\bchecklist\b",
+    re.IGNORECASE,
+)
+
+#: "Which source says Form-E is required?" - one fact plus its citation,
+#: as opposed to "find every document mentioning X", which is a search.
+_EVIDENCE_LOOKUP = re.compile(
+    r"\b(which|what|whose)\b[^.?!]*\b(source|sources|document|regulation|sro|page)\b"
+    r"[^.?!]*\b(say|says|state|states|require|requires|mention|mentions|confirm|confirms|support|supports)\b",
+    re.IGNORECASE,
+)
+
+#: Explicit corpus search: the user wants the document list itself.
+_EXPLICIT_SEARCH = re.compile(
+    r"\bfind\b|\bsearch\b|\blist (all|every|the)\b|\bevery indexed\b"
+    r"|\ball (indexed )?(documents|sources)\b|\bwhich (pdf|pdfs|files?)\b",
     re.IGNORECASE,
 )
 
@@ -92,6 +137,12 @@ class IntentDecision:
     #: True when the user asked for a verdict ("is X compliant?") rather than
     #: for information. Outside the five supported codes this must be refused.
     compliance_decision_requested: bool = False
+    #: How the answer should be presented.
+    answer_mode: AnswerMode = "explanation"
+    #: Product wording resolved to the supported catalog, when it was.
+    product: ProductResolution | None = None
+    #: Canonical destination named in the question, if any.
+    destination: str | None = None
 
 
 def extract_pct_code(text: str) -> str | None:
@@ -142,6 +193,29 @@ def classify_regulatory_intent(
             requires_shipment_context=not shipment_selected,
         )
 
+    destination = extract_destination(text)
+    checklist_wanted = bool(_CHECKLIST_REQUEST.search(text) or _GUIDANCE_REQUEST.search(text))
+
+    # A checklist question is answered from the deterministic rules, so the
+    # product has to be resolved to a supported code first. This runs before
+    # document search: previously "what documents to prepare for cotton pants"
+    # matched the document-search pattern and never reached guidance at all,
+    # because a PCT code was only ever taken from digits typed in the question.
+    product = resolve_product(text) if checklist_wanted else None
+    if checklist_wanted and product is not None:
+        if not pct_code and product.is_resolved:
+            pct_code = product.pct_code
+            supported = is_deterministic_compliance_scope(pct_code)
+        elif not pct_code and product.is_ambiguous:
+            return IntentDecision(
+                "product_clarification_required",
+                domain,
+                None,
+                answer_mode="clarification",
+                product=product,
+                destination=destination,
+            )
+
     if pct_code and not supported:
         # Informational either way; the compliance-decision wording differs and
         # is applied by the caller.
@@ -150,21 +224,74 @@ def classify_regulatory_intent(
             domain,
             pct_code,
             compliance_decision_requested=verdict_requested,
+            answer_mode="explanation",
+            product=product,
+            destination=destination,
         )
 
     if pct_code and supported:
-        if _GUIDANCE_REQUEST.search(text) or verdict_requested:
+        if checklist_wanted or verdict_requested:
             return IntentDecision(
                 "supported_pct_guidance",
                 domain,
                 pct_code,
                 compliance_decision_requested=verdict_requested,
+                answer_mode="checklist",
+                product=product,
+                destination=destination,
             )
-        return IntentDecision("general_regulatory_information", domain, pct_code)
+        return IntentDecision(
+            "general_regulatory_information",
+            domain,
+            pct_code,
+            answer_mode="explanation",
+            destination=destination,
+        )
 
-    if _DOCUMENT_SEARCH.search(text) and _SEARCH_VERB.search(text):
-        return IntentDecision("regulatory_document_search", domain, pct_code)
+    # A checklist question whose product could not be resolved is still not a
+    # document search; it needs the product, not a pile of passages.
+    if checklist_wanted and product is not None and not product.is_resolved:
+        return IntentDecision(
+            "product_clarification_required",
+            domain,
+            None,
+            answer_mode="clarification",
+            product=product,
+            destination=destination,
+        )
+
+    # "Which source says Form-E is required?" wants one fact and its citation.
+    if _EVIDENCE_LOOKUP.search(text) and not _EXPLICIT_SEARCH.search(text):
+        return IntentDecision(
+            "regulatory_document_search",
+            domain,
+            pct_code,
+            answer_mode="evidence_lookup",
+            destination=destination,
+        )
+    if _EXPLICIT_SEARCH.search(text) or (
+        _DOCUMENT_SEARCH.search(text) and _SEARCH_VERB.search(text)
+    ):
+        return IntentDecision(
+            "regulatory_document_search",
+            domain,
+            pct_code,
+            answer_mode="document_search",
+            destination=destination,
+        )
     if _DOCUMENT_SEARCH.search(text):
-        return IntentDecision("regulatory_document_search", domain, pct_code)
+        return IntentDecision(
+            "regulatory_document_search",
+            domain,
+            pct_code,
+            answer_mode="document_search",
+            destination=destination,
+        )
 
-    return IntentDecision("general_regulatory_information", domain, pct_code)
+    return IntentDecision(
+        "general_regulatory_information",
+        domain,
+        pct_code,
+        answer_mode="explanation",
+        destination=destination,
+    )
