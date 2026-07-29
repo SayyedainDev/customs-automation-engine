@@ -2752,3 +2752,61 @@ textarea:focus {
   font-weight: 650;
   vertical-align: middle;
 }
+
+/* --- Ask CACE: embedded regulatory conversation ------------------------- */
+
+.chat-message {
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.85rem;
+  background: var(--surface-raised, rgba(255, 255, 255, 0.02));
+}
+
+.chat-message--user {
+  border-style: dashed;
+}
+
+.chat-message__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.chat-message__text {
+  white-space: pre-line;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.chat-composer .text-input {
+  flex: 1;
+  resize: vertical;
+  font: inherit;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

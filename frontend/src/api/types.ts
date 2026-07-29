@@ -300,13 +300,90 @@ export interface GuidanceRequest {
   question?: string;
 }
 
+export type EvidenceClass =
+  | "direct_evidence"
+  | "indirect_support"
+  | "configured_rule_only"
+  | "evidence_unavailable"
+  | "conflicting_evidence";
+
+export interface GuidanceCitation extends ChatSource {
+  source_kind_label?: string;
+  is_official?: boolean;
+  issuing_authority?: string | null;
+  section?: string | null;
+  sro_number?: string | null;
+  source_url?: string | null;
+  referenced_official_source?: string | null;
+}
+
 export interface DocumentGuidanceSchema {
   document_type: string;
   display_name: string;
   requirement: string;
   reason: string;
   evidence_status: string;
-  citations: unknown[];
+  evidence_class: EvidenceClass;
+  summary: string;
+  preparation_status: string;
+  rule_sources: string[];
+  citations: GuidanceCitation[];
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  sources?: unknown[] | null;
+}
+
+export interface ConversationResponse {
+  id: string;
+  shipment_id?: string | null;
+  mode: string;
+  messages: ConversationMessage[];
+}
+
+export interface RegulatoryChatRequest {
+  question: string;
+  conversation_id?: string | null;
+  pct_code?: string | null;
+  destination?: string | null;
+  source_document?: string | null;
+  top_k?: number;
+}
+
+export interface RegulatoryCitation {
+  title: string;
+  source_kind: string;
+  source_kind_label: string;
+  is_official: boolean;
+  issuing_authority?: string | null;
+  page_number?: number | null;
+  section?: string | null;
+  publication_date?: string | null;
+  effective_date?: string | null;
+  corpus_snapshot_date?: string | null;
+  accepted_passage: string;
+  evidence_status: string;
+  source_url?: string | null;
+  sro_number?: string | null;
+  referenced_official_source?: string | null;
+}
+
+export interface RegulatoryChatResponse {
+  conversation_id: string;
+  message_id: string;
+  mode: string;
+  answer: string;
+  intent: string;
+  evidence_status: string;
+  evidence_scope: string;
+  sources: RegulatoryCitation[];
+  limitations: string[];
+  supported_compliance_scope: string[];
+  informational_only: boolean;
+  suggested_questions: string[];
 }
 
 export interface GuidanceResponse {

@@ -6,6 +6,7 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  MessagesSquare,
   Search,
   ShieldCheck,
   X,
@@ -19,6 +20,7 @@ type ConnectionState = "checking" | "online" | "offline";
 const navigation = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/prepare", label: "Prepare an export", icon: FileText },
+  { to: "/ask", label: "Ask CACE", icon: MessagesSquare },
   { to: "/review", label: "New review", icon: FilePlus2 },
   { to: "/search", label: "Evidence search", icon: Search },
 ];
@@ -81,8 +83,11 @@ export function AppShell() {
           <div className="scope-note">
             <BookOpenCheck aria-hidden="true" size={17} />
             <div>
-              <strong>Five-PCT scope</strong>
-              <span>Curated legal snapshot · 22 Jul 2026</span>
+              <strong>Two scopes</strong>
+              <span>
+                Full indexed corpus for questions · five PCT codes for
+                compliance decisions
+              </span>
             </div>
           </div>
           <a href="/docs" target="_blank" rel="noreferrer">

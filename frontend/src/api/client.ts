@@ -13,6 +13,9 @@ import type {
   GuidanceResponse,
   ShipmentChatRequest,
   ChatResponse,
+  RegulatoryChatRequest,
+  RegulatoryChatResponse,
+  ConversationResponse,
 } from "./types";
 
 const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(
@@ -219,6 +222,17 @@ export const api = {
 
   getGuidance: (payload: GuidanceRequest) =>
     request<GuidanceResponse>("/api/v1/assistant/guidance", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getConversation: (conversationId: string) =>
+    request<ConversationResponse>(
+      `/api/v1/assistant/conversations/${conversationId}`,
+    ),
+
+  askRegulatory: (payload: RegulatoryChatRequest) =>
+    request<RegulatoryChatResponse>("/api/v1/assistant/regulatory/chat", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
