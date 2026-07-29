@@ -24,6 +24,7 @@ nothing in this path interprets passage text as a directive.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -42,6 +43,13 @@ from app.services.assistant.domain_guard import (
 )
 from app.services.assistant.destinations import canonical_destination
 from app.services.assistant.foundation import SUPPORTED_PCT_PRODUCTS
+from app.services.assistant.plain_language import (
+    Concept,
+    NO_DESTINATION_RULE_NOTE,
+    detect_concepts,
+    explain_concepts,
+    sanitize_for_display,
+)
 from app.services.assistant.guidance import (
     generate_pre_submission_guidance,
     get_document_explanation,
@@ -621,6 +629,71 @@ def _render_form_e_explanation(
     return f"{explanation}\n\nIndexed source\n{snippet}", snippet
 
 
+
+#: Passages that share a word with a document question but say nothing about it.
+#: A Form-E/COO explanation was pulling in cotton-seed and phytosanitary text
+#: because both mention "certificate" or "export".
+_OFF_TOPIC_FOR_CONCEPTS = re.compile(
+    r"cotton\s+seed|seeds?\s+for\s+sowing|cotton\s+waste|linters"
+    r"|vegetable\s+ghee|cooking\s+oil|edible\s+oil"
+    r"|plant\s+protection|phytosanitar|plant\s+quarantine|nppo"
+    r"|wheat|pulses|tobacco|scrap|ball\s+bearing",
+    re.IGNORECASE,
+)
+
+
+def _concept_relevant_citations(
+    citations: list[RegulatoryCitationSchema], concepts: Sequence[Concept]
+) -> list[RegulatoryCitationSchema]:
+    """Keep only citations that could plausibly support these concepts.
+
+    Word overlap alone put agricultural-cotton passages under a question about
+    Form-E. Anything matching an off-topic subject is dropped unless the reader
+    actually asked about that subject.
+    """
+    asked = " ".join(c.key for c in concepts)
+    if re.search(r"phytosanitary|raw_material", asked):
+        return citations
+    kept = [
+        c for c in citations if not _OFF_TOPIC_FOR_CONCEPTS.search(c.accepted_passage or "")
+    ]
+    return kept or citations
+
+
+def _render_plain_explanation(
+    question: str,
+    citations: list[RegulatoryCitationSchema],
+    *,
+    destination: str | None = None,
+) -> tuple[str, list[str], list[RegulatoryCitationSchema]]:
+    """Answer first, in plain words, with citations kept below as support.
+
+    Returns the answer, the quoted snippets it contains (none - templates quote
+    nothing), and the citations to display. When the question names a concept
+    CACE has a written explanation for, that explanation is the answer. Only
+    when it names none does the composer fall back to summarising passages, and
+    even then every line passes the display sanitizer.
+    """
+    concepts = detect_concepts(question)
+    if concepts:
+        answer = explain_concepts(question, concepts)
+        if destination:
+            answer = f"{answer}\n\n{NO_DESTINATION_RULE_NOTE}"
+        return answer, [], _concept_relevant_citations(citations, concepts)[:3]
+
+    # No known concept: summarise, but never publish an internal token and
+    # never lead with retrieval language.
+    if not citations:
+        return "", [], []
+    lead = sanitize_for_display(_first_sentences(citations[0].accepted_passage, 320))
+    lines = [lead] if lead else []
+    lines.append(
+        "The sources below are the closest material CACE has indexed for this "
+        "question. Expand one to read the passage it came from."
+    )
+    return "\n\n".join(lines), [], citations[:3]
+
+
 def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
     """One short answer with the exact source and page."""
     if not citations:
@@ -750,6 +823,11 @@ def answer_regulatory_question(
         resolved_product: str | None = None,
         resolved_pct_code: str | None = None,
     ) -> RegulatoryChatResponse:
+        # The single display boundary. Every visible string leaves through here,
+        # so a configuration token cannot reach a reader from any branch - this
+        # path, a future one, or a corpus passage that happens to contain one.
+        answer = sanitize_for_display(answer) or answer
+        limitations = [sanitize_for_display(item) or item for item in limitations]
         _persist(
             db,
             conversation_id=conv_id,
@@ -810,9 +888,16 @@ def answer_regulatory_question(
 
     if decision.requires_shipment_context:
         # A regulatory conversation must not quietly become a shipment
-        # conversation; the caller has to select the shipment explicitly.
+        # conversation; the caller has to select the shipment explicitly. But
+        # "why does this shipment need human review?" is two questions, and the
+        # general half can be answered here rather than refused wholesale.
+        general = explain_concepts(question, detect_concepts(question))
         return respond(
-            answer=SHIPMENT_CONTEXT_REQUIRED_MESSAGE,
+            answer=(
+                f"{general}\n\n{SHIPMENT_CONTEXT_REQUIRED_MESSAGE}"
+                if general
+                else SHIPMENT_CONTEXT_REQUIRED_MESSAGE
+            ),
             intent=decision.intent,
             evidence_status="not_applicable",
             citations=[],
@@ -972,6 +1057,27 @@ def answer_regulatory_question(
         limitations.append(UNSUPPORTED_PCT_NOTICE)
 
     # --- Layer 3: evidence gate -------------------------------------------
+    # A question naming a specific code is an unsupported-PCT information
+    # request and keeps its own honest reporting; it must not be answered with
+    # the generic "what is a PCT code" template just because "PCT" appears.
+    if not evidence and decision.answer_mode == "explanation" and not effective_pct:
+        # A concept explanation is written prose, not a summary of passages, so
+        # retrieval finding nothing is no reason to withhold it. "What is a
+        # packing list?" has a real answer whether or not the corpus happens to
+        # contain a matching chunk; sources are supporting material, not the
+        # answer itself.
+        concepts = detect_concepts(question)
+        if concepts:
+            return respond(
+                answer=explain_concepts(question, concepts),
+                intent=decision.intent,
+                evidence_status="not_applicable",
+                citations=[],
+                limitations=limitations,
+                evidence_scope=NO_PCT_SCOPE,
+                answer_mode="explanation",
+            )
+
     if not evidence:
         # The unsupported-PCT notice opens with "I found relevant information",
         # so it is only truthful when something was actually retrieved. With no
@@ -1009,17 +1115,12 @@ def answer_regulatory_question(
     elif mode == "document_search":
         body, snippets = _compose_grounded_answer(citations, decision.intent)
     else:
-        citations = citations[:3]
-        if _FORM_E_DEFINITION_QUESTION.match(question):
-            # One closest source is enough for this short definition. The
-            # frontend keeps it collapsed; repeated chunks from one curated
-            # source add noise rather than provenance.
-            citations = citations[:1]
-            body, snippet = _render_form_e_explanation(citations[0])
-            snippets = [snippet]
-        else:
-            body = _render_explanation(citations)
-            snippets = [_first_sentences(c.accepted_passage, 150) for c in citations]
+        # Plain language first. The answer is written prose from a template when
+        # the question names a concept CACE knows, so an exporter reads an
+        # answer rather than a quotation that happened to rank highly.
+        body, snippets, citations = _render_plain_explanation(
+            question, citations, destination=None
+        )
 
     framing = body
     # Wording is driven by what was actually retrieved, not merely by whether

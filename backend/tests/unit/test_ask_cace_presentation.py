@@ -246,11 +246,17 @@ def test_what_is_form_e_uses_explanation_mode(isolated_database: Engine) -> None
         build_corpus(db)
         response = ask(db, "What is Form-E?")
     assert response.answer_mode == "explanation"
-    assert response.answer.startswith("Form-E / PSW Export Declaration")
-    assert "compares its exporter and invoice reference" in response.answer
+    # Plain language now, not the internal label: the answer opens by
+    # explaining what Form-E is rather than restating its identifier.
+    assert response.answer.startswith("Form-E")
+    assert "Pakistan Single Window" in response.answer
+    # The equivalent statement, in the plain-language wording.
+    assert "match your Commercial Invoice" in response.answer
     assert "does not authenticate" in response.answer.casefold()
     assert "customs clearance" in response.answer.casefold()
-    assert len(response.answer.split()) < 80
+    # The plain-language budget is 60-160 words; the old 80-word cap was
+    # sized for the terser template this replaced.
+    assert 60 <= len(response.answer.split()) <= 160
     assert len(response.sources) == 1
     assert not response.answer.startswith("These indexed sources")
 

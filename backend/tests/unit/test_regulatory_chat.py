@@ -310,8 +310,11 @@ def test_citations_correspond_to_accepted_passages(isolated_database: Engine) ->
         assert source.accepted_passage
         assert source.evidence_status == "accepted"
         # The quoted fragment in the answer really comes from the passage.
+        # An ordinary explanation no longer quotes passages in the answer -
+        # that was the defect. The passage stays on the citation, where the
+        # reader can expand it.
         quoted = " ".join(source.accepted_passage.split())[:60]
-        assert quoted in " ".join(response.answer.split())
+        assert quoted not in " ".join(response.answer.split())
 
 
 # 16. A previous conversation is persisted and continued.

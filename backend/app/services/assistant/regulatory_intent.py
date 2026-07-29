@@ -90,7 +90,7 @@ _CHECKLIST_REQUEST = re.compile(
 #: "Which source says Form-E is required?" - one fact plus its citation,
 #: as opposed to "find every document mentioning X", which is a search.
 _EVIDENCE_LOOKUP = re.compile(
-    r"\b(which|what|whose)\b[^.?!]*\b(source|sources|document|regulation|sro|page)\b"
+    r"\b(which|what|whose)\b[^.?!]*\b(source|sources|document|regulation|rule|rules|sro|page)\b"
     r"[^.?!]*\b(say|says|state|states|require|requires|mention|mentions|confirm|confirms|support|supports)\b",
     re.IGNORECASE,
 )

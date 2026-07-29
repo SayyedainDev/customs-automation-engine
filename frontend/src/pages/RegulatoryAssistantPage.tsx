@@ -5,7 +5,6 @@ import {
   BookOpen,
   Loader2,
   Send,
-  ShieldAlert,
 } from "lucide-react";
 import { api } from "../api/client";
 import type {
@@ -268,20 +267,9 @@ export function RegulatoryAssistantPage() {
                     />
                   ) : null}
 
-                  {message.informationalOnly && message.role === "assistant" ? (
-                    <div className="notice notice--warning">
-                      <ShieldAlert size={16} aria-hidden="true" />
-                      <div>
-                        <strong>Informational answer</strong>
-                        <p>
-                          This is informational. Deterministic compliance
-                          decisions cover{" "}
-                          {(message.supportedScope ?? []).length} validated
-                          textile PCT codes.
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
+                  {/* No separate scope banner: every answer already ends with
+                      its own one-sentence scope note, so a second one here was
+                      the same statement twice. */}
 
                   {message.sources && message.sources.length > 0 ? (
                     <details className="citation-card__technical">
