@@ -136,6 +136,7 @@ class LineItemSpec:
     packing_net_weight: Decimal | None = None  # None => same as invoice net_weight
     packing_gross_weight: Decimal | None = None  # None => same as invoice gross_weight
     omit_invoice_line_weight: bool = False  # True => weight not printed on this line
+    invoice_quantity_display: str | None = None
     line_number: int = 1
 
     def resolved_line_total(self) -> Decimal:
@@ -179,6 +180,11 @@ class ScenarioSpec:
     currency: str = "USD"
     packing_list_number: str | None = None
     omit_invoice_line_weights: bool = False  # applies to every line item
+    exporter_address: str | None = None
+    buyer_address: str | None = None
+    origin_country: str | None = None
+    shipment_reference: str | None = None
+    include_full_shipment_summary: bool = False
 
     def invoice_total(self) -> Decimal:
         return sum((item.resolved_line_total() for item in self.items), Decimal("0.00"))
@@ -922,18 +928,36 @@ def render_commercial_invoice_pdf(path: Path, scenario: ScenarioSpec) -> None:
     page.insert_text((50, y), "COMMERCIAL INVOICE", fontsize=15, fontname="helv")
     y += 30
 
-    y = _draw_kv_block(
-        page,
-        y,
-        [
-            ("Exporter", scenario.exporter_name),
-            ("Buyer / Consignee", scenario.buyer_name),
-            ("Invoice Number", scenario.invoice_number),
-            ("Invoice Date", scenario.invoice_date.isoformat()),
-            ("Destination Country", scenario.destination_country),
-            ("Currency", scenario.currency),
-        ],
-    )
+    identity_rows: list[tuple[str, str]] = [
+        ("Exporter", scenario.exporter_name),
+        (
+            "Consignee" if scenario.include_full_shipment_summary else "Buyer / Consignee",
+            scenario.buyer_name,
+        ),
+        ("Invoice Number", scenario.invoice_number),
+        ("Invoice Date", scenario.invoice_date.isoformat()),
+        ("Destination Country", scenario.destination_country),
+        ("Currency", scenario.currency),
+    ]
+    if scenario.exporter_address:
+        address_label = (
+            "Registered Address"
+            if scenario.include_full_shipment_summary
+            else "Exporter Address"
+        )
+        identity_rows.insert(1, (address_label, scenario.exporter_address))
+    if scenario.buyer_address:
+        address_label = (
+            "Delivery Address"
+            if scenario.include_full_shipment_summary
+            else "Consignee Address"
+        )
+        identity_rows.insert(3, (address_label, scenario.buyer_address))
+    if scenario.origin_country:
+        identity_rows.insert(-1, ("Country of Origin", scenario.origin_country))
+    if scenario.shipment_reference:
+        identity_rows.insert(-1, ("Shipment Reference", scenario.shipment_reference))
+    y = _draw_kv_block(page, y, identity_rows)
     y += 14
 
     if scenario.omit_invoice_line_weights:
@@ -951,7 +975,7 @@ def render_commercial_invoice_pdf(path: Path, scenario: ScenarioSpec) -> None:
                 str(item.line_number),
                 item.product_name,
                 item.pct_code,
-                str(item.quantity),
+                item.invoice_quantity_display or str(item.quantity),
                 item.unit,
                 _money(item.unit_price),
                 _money(item.resolved_line_total()),
@@ -975,7 +999,7 @@ def render_commercial_invoice_pdf(path: Path, scenario: ScenarioSpec) -> None:
                 str(item.line_number),
                 item.product_name,
                 item.pct_code,
-                str(item.quantity),
+                item.invoice_quantity_display or str(item.quantity),
                 item.unit,
                 _money(item.unit_price),
                 _money(item.resolved_line_total()),
@@ -989,6 +1013,10 @@ def render_commercial_invoice_pdf(path: Path, scenario: ScenarioSpec) -> None:
     y += 22
 
     footer_rows = [("Invoice Total", f"{scenario.currency} {_money(scenario.invoice_total())}")]
+    if scenario.include_full_shipment_summary:
+        footer_rows.append(
+            ("Total Packages", f"{sum(item.package_count for item in scenario.items)} CARTONS")
+        )
     if scenario.omit_invoice_line_weights:
         footer_rows.append(("Net Weight", f"{_money(scenario.declared_net_weight_total())} KG"))
         footer_rows.append(
@@ -1026,15 +1054,25 @@ def render_packing_list_pdf(path: Path, scenario: ScenarioSpec) -> None:
     page.insert_text((50, y), "PACKING LIST", fontsize=15, fontname="helv")
     y += 30
 
-    y = _draw_kv_block(
-        page,
-        y,
-        [
-            ("Packing List Number", scenario.packing_list_number or f"{scenario.invoice_number}-PL"),
-            ("Related Invoice Number", scenario.invoice_number),
-            ("Destination Country", scenario.destination_country),
-        ],
-    )
+    identity_rows: list[tuple[str, str]] = [
+        ("Packing List Number", scenario.packing_list_number or f"{scenario.invoice_number}-PL"),
+        ("Related Invoice Number", scenario.invoice_number),
+        ("Invoice Date", scenario.invoice_date.isoformat()),
+        ("Exporter", scenario.exporter_name),
+        ("Consignee", scenario.buyer_name),
+        ("Destination Country", scenario.destination_country),
+    ]
+    if scenario.exporter_address:
+        identity_rows.insert(4, ("Registered Address", scenario.exporter_address))
+    if scenario.buyer_address:
+        identity_rows.insert(6, ("Delivery Address", scenario.buyer_address))
+    if scenario.origin_country:
+        identity_rows.append(("Country of Origin", scenario.origin_country))
+    if scenario.shipment_reference:
+        identity_rows.append(("Shipment Reference", scenario.shipment_reference))
+    if scenario.include_full_shipment_summary:
+        identity_rows.append(("Currency", scenario.currency))
+    y = _draw_kv_block(page, y, identity_rows)
     y += 14
 
     columns = [
@@ -1064,17 +1102,27 @@ def render_packing_list_pdf(path: Path, scenario: ScenarioSpec) -> None:
     y += 22
 
     total_packages = sum(item.package_count for item in scenario.items)
+    summary_rows = [
+        ("Total Packages", f"{total_packages} CARTONS"),
+        ("Declared Net Weight Total", f"{_money(scenario.packing_net_weight_total())} KG"),
+        (
+            "Declared Gross Weight Total",
+            f"{_money(scenario.packing_gross_weight_total())} KG",
+        ),
+    ]
+    if scenario.include_full_shipment_summary:
+        item = scenario.items[0]
+        summary_rows.extend(
+            [
+                ("Unit Price", f"{scenario.currency} {_money(item.unit_price)}"),
+                ("Line Total", f"{scenario.currency} {_money(item.resolved_line_total())}"),
+                ("Invoice Total", f"{scenario.currency} {_money(scenario.invoice_total())}"),
+            ]
+        )
     _draw_kv_block(
         page,
         y,
-        [
-            ("Total Packages", f"{total_packages} CARTONS"),
-            ("Declared Net Weight Total", f"{_money(scenario.packing_net_weight_total())} KG"),
-            (
-                "Declared Gross Weight Total",
-                f"{_money(scenario.packing_gross_weight_total())} KG",
-            ),
-        ],
+        summary_rows,
     )
 
     doc.set_metadata(

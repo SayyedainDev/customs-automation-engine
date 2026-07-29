@@ -20,7 +20,17 @@ def _classify_by_keywords(question: str) -> QuestionRoute | None:
         return "audit_history"
         
     # Audit Results
-    if any(phrase in q for phrase in ["why did it fail", "why is it rejected", "what is wrong", "missing document", "manual review", "why did it pass", "failed"]):
+    if any(phrase in q for phrase in [
+        "why did it fail",
+        "why is it rejected",
+        "what is wrong",
+        "missing document",
+        "manual review",
+        "why did it pass",
+        "did the shipment pass",
+        "which documents were checked",
+        "failed",
+    ]):
         return "audit_result"
         
     # Pre-submission guidance
@@ -28,7 +38,14 @@ def _classify_by_keywords(question: str) -> QuestionRoute | None:
         return "pre_submission_guidance"
         
     # Regulatory
-    if any(phrase in q for phrase in ["sro", "export policy order", "tipp", "trade agreement", "law says"]):
+    if any(phrase in q for phrase in [
+        "sro",
+        "export policy order",
+        "tipp",
+        "trade agreement",
+        "law says",
+        "regulatory evidence",
+    ]):
         return "regulatory_guidance"
         
     # Combined shipment and regulation
@@ -36,11 +53,29 @@ def _classify_by_keywords(question: str) -> QuestionRoute | None:
         return "combined_shipment_and_regulation"
         
     # Out of scope - explicit system-changing requests or non-customs requests
-    if any(phrase in q for phrase in ["change the quantity", "mark this shipment approved", "ignore previous instructions", "write a poem"]):
+    if any(phrase in q for phrase in [
+        "change the quantity",
+        "mark this shipment approved",
+        "ignore previous instructions",
+        "write a poem",
+        "write python",
+        "write javascript",
+        "debug my code",
+        "coding question",
+    ]):
         return "out_of_scope"
         
     # Shipment Document Fact
-    if any(phrase in q for phrase in ["invoice total", "who is the buyer", "quantity", "match", "invoice number", "weight", "party"]):
+    if any(phrase in q for phrase in [
+        "invoice total",
+        "who is the buyer",
+        "quantity",
+        "match",
+        "invoice number",
+        "weight",
+        "pct code",
+        "party",
+    ]):
         return "shipment_document_fact"
         
     return None

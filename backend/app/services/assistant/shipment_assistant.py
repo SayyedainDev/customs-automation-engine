@@ -14,8 +14,62 @@ from app.services.compliance.rule_engine import get_compliance_rule_engine
 from app.schemas.compliance import ShipmentComplianceInput
 
 
-def _get_shipment_structured_data(db: Session, workflow: CustomsAuditWorkflow | None, shipment_id: UUID) -> dict:
-    data = {}
+def _field_value(value):
+    if isinstance(value, dict) and "value" in value:
+        return value.get("value")
+    return value
+
+
+def _first_item(extraction: dict, key: str) -> dict:
+    items = extraction.get(key)
+    if isinstance(items, list) and items and isinstance(items[0], dict):
+        return items[0]
+    return {}
+
+
+def _flatten_extraction_slot(data: dict, slot: str) -> dict:
+    profile = data.get(slot)
+    if not isinstance(profile, dict):
+        return {}
+    extraction = profile.get("extraction")
+    if not isinstance(extraction, dict):
+        return {}
+    flattened = {
+        name: _field_value(value)
+        for name, value in extraction.items()
+        if isinstance(value, dict) and "value" in value
+    }
+    if slot == "phase_2c_commercial_invoice":
+        item = _first_item(extraction, "line_items")
+        flattened.update(
+            {
+                "invoice_total": flattened.get("invoice_total"),
+                "invoice_currency": flattened.get("currency"),
+                "pct_code": _field_value(item.get("pct_code")),
+                "product_name": _field_value(item.get("product_name")),
+                "quantity": _field_value(item.get("quantity")),
+                "quantity_unit": _field_value(item.get("unit")),
+                "unit_price": _field_value(item.get("unit_price")),
+                "invoice_gross_weight": _field_value(item.get("gross_weight")),
+            }
+        )
+    elif slot == "phase_2c_packing_list":
+        item = _first_item(extraction, "items")
+        flattened.update(
+            {
+                "packing_quantity": _field_value(item.get("quantity")),
+                "packing_quantity_unit": _field_value(item.get("unit")),
+                "packing_gross_weight": _field_value(item.get("gross_weight")),
+                "packing_net_weight": _field_value(item.get("net_weight")),
+            }
+        )
+    return flattened
+
+
+def _get_shipment_structured_data(
+    db: Session, workflow: CustomsAuditWorkflow | None, shipment_id: UUID
+) -> dict:
+    data: dict = {}
     doc_ids = []
     if workflow:
         if workflow.invoice_document_id:
@@ -30,7 +84,78 @@ def _get_shipment_structured_data(db: Session, workflow: CustomsAuditWorkflow | 
         doc = db.get(DocumentUploadRecord, doc_id)
         if doc and doc.structured_data:
             data.update(doc.structured_data)
+            data.update(
+                _flatten_extraction_slot(
+                    doc.structured_data, "phase_2c_commercial_invoice"
+                )
+            )
+            data.update(
+                _flatten_extraction_slot(doc.structured_data, "phase_2c_packing_list")
+            )
     return data
+
+
+def _frozen_status(workflow: CustomsAuditWorkflow | None) -> str:
+    if workflow is None:
+        return "unstarted"
+    return workflow.deterministic_status or workflow.status
+
+
+def _audit_revision(workflow: CustomsAuditWorkflow | None) -> int | None:
+    if workflow is None or not isinstance(workflow.final_report, dict):
+        return None
+    history = (
+        (workflow.final_report.get("user_report") or {}).get("audit_revision_history")
+        or []
+    )
+    if not history:
+        return None
+    revision = history[-1].get("revision_number")
+    return int(revision) if revision is not None else None
+
+
+def _frozen_checks(workflow: CustomsAuditWorkflow | None) -> list[dict]:
+    if workflow is None or not isinstance(workflow.final_report, dict):
+        return []
+    checks = (workflow.final_report.get("broker_findings") or {}).get(
+        "deterministic_check_results"
+    )
+    return checks if isinstance(checks, list) else []
+
+
+def _packing_item_value(
+    db: Session, workflow: CustomsAuditWorkflow | None, field_name: str
+):
+    if workflow is None or workflow.packing_list_document_id is None:
+        return None
+    document = db.get(DocumentUploadRecord, workflow.packing_list_document_id)
+    if document is None or not isinstance(document.structured_data, dict):
+        return None
+    profile = document.structured_data.get("phase_2c_packing_list")
+    extraction = profile.get("extraction") if isinstance(profile, dict) else None
+    item = _first_item(extraction, "items") if isinstance(extraction, dict) else {}
+    return _field_value(item.get(field_name))
+
+
+def _frozen_document_evidence_value(
+    workflow: CustomsAuditWorkflow | None,
+    *,
+    check_id: str,
+    document_type: str,
+):
+    if workflow is None or not isinstance(workflow.final_report, dict):
+        return None
+    checks = (
+        (workflow.final_report.get("user_report") or {}).get("document_evidence")
+        or []
+    )
+    for check in checks:
+        if check.get("check_id") != check_id:
+            continue
+        for evidence in check.get("evidence") or []:
+            if str(evidence.get("document_type", "")).casefold() == document_type.casefold():
+                return evidence.get("extracted_value")
+    return None
 
 
 def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conversation_id: UUID | None = None) -> ChatResponse:
@@ -91,13 +216,49 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         if not workflow:
             answer = "The audit workflow has not been started yet. Please start the agent audit first."
         else:
-            # Frozen deterministic result
-            answer = f"The shipment audit status is currently {workflow.status.upper()}."
+            frozen_status = _frozen_status(workflow)
+            q = question.casefold()
+            if "which documents were checked" in q:
+                document_names = ["Commercial Invoice"]
+                if workflow.packing_list_document_id:
+                    document_names.append("Packing List")
+                supporting = (
+                    ((workflow.final_report or {}).get("user_report") or {}).get(
+                        "supporting_documents"
+                    )
+                    or []
+                )
+                document_names.extend(
+                    str(item.get("required_document_type"))
+                    for item in supporting
+                    if item.get("uploaded") == "Yes"
+                )
+                answer = "The frozen audit checked: " + ", ".join(document_names) + "."
+            else:
+                answer = (
+                    f"The shipment audit status is currently "
+                    f"{frozen_status.upper()}. This is the frozen deterministic "
+                    "shipment result."
+                )
+                if "why" in q:
+                    discrepancies = (
+                        ((workflow.final_report or {}).get("broker_findings") or {}).get(
+                            "document_discrepancies"
+                        )
+                        or []
+                    )
+                    if discrepancies:
+                        reasons = "; ".join(
+                            str(item.get("message"))
+                            for item in discrepancies
+                            if item.get("message")
+                        )
+                        answer += f" The recorded reasons are: {reasons}"
             
             # Load the latest checks from the audit report event if available
             events = db.execute(
                 select(CustomsAuditEvent)
-                .where(CustomsAuditEvent.workflow_id == shipment_id)
+                .where(CustomsAuditEvent.workflow_id == workflow.id)
                 .order_by(CustomsAuditEvent.created_at.desc())
             ).scalars().all()
             
@@ -118,8 +279,8 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
                 SourceSchema(
                     source_kind="frozen_audit",
                     display_name=f"Audit Workflow {workflow.id}",
-                    audit_revision_number=None,
-                    status=workflow.status
+                    audit_revision_number=_audit_revision(workflow),
+                    status=frozen_status,
                 )
             )
         
@@ -138,6 +299,62 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             if val:
                 answer = f"The buyer is {val}."
                 sources.append(SourceSchema(source_kind="structured_extraction", display_name="Commercial Invoice Data"))
+        elif "packing list" in q and "gross weight" in q:
+            val = structured_data.get("packing_gross_weight")
+            if val is None:
+                val = _packing_item_value(db, workflow, "gross_weight")
+            if val is None:
+                val = _frozen_document_evidence_value(
+                    workflow,
+                    check_id="item_gross_weight_match",
+                    document_type="Packing list",
+                )
+            if val is not None:
+                answer = f"The packing list states a gross weight of {val} KG."
+                shipment_key = (
+                    workflow.invoice_document_id
+                    if workflow is not None and workflow.invoice_document_id is not None
+                    else shipment_id
+                )
+                from app.services.assistant.shipment_retriever import (
+                    ShipmentDocumentRetriever,
+                )
+
+                chunks = ShipmentDocumentRetriever(db).retrieve(
+                    shipment_key, question, top_k=1
+                )
+                if chunks:
+                    chunk = chunks[0]
+                    sources.append(
+                        SourceSchema(
+                            source_kind="shipment_document",
+                            display_name=(
+                                f"{chunk.document_name} p.{chunk.page_number}"
+                            ),
+                            document_name=chunk.document_name,
+                            page_number=chunk.page_number,
+                            snippet=chunk.text,
+                        )
+                    )
+                else:
+                    sources.append(
+                        SourceSchema(
+                            source_kind="structured_extraction",
+                            display_name="Packing List Data",
+                        )
+                    )
+            else:
+                answer = "The packing-list gross weight was not found in structured data."
+        elif "pct code" in q:
+            val = structured_data.get("pct_code")
+            if val:
+                answer = f"The extracted PCT code is {str(val).replace('.', '')}."
+                sources.append(
+                    SourceSchema(
+                        source_kind="structured_extraction",
+                        display_name="Commercial Invoice Data",
+                    )
+                )
         elif "quantity" in q:
             val = structured_data.get("quantity")
             unit = structured_data.get("quantity_unit", "")
@@ -149,8 +366,41 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             if not workflow:
                 answer = "The audit has not been run yet, so matching cannot be confirmed."
             else:
-                answer = f"The deterministic checks resulted in {workflow.status.upper()}. "
-                sources.append(SourceSchema(source_kind="frozen_audit", display_name="Audit Result"))
+                matching = [
+                    check
+                    for check in _frozen_checks(workflow)
+                    if check.get("check_id")
+                    in {
+                        "item_quantity_match",
+                        "item_net_weight_match",
+                        "item_gross_weight_match",
+                        "item_pct_code_match",
+                    }
+                ]
+                mismatches = [
+                    check for check in matching if check.get("status") != "passed"
+                ]
+                if matching and not mismatches:
+                    answer = (
+                        "Yes. The frozen audit records that the invoice and "
+                        "packing list matched for quantity, net weight, gross "
+                        "weight and PCT code."
+                    )
+                elif mismatches:
+                    names = ", ".join(
+                        str(check.get("check_id")) for check in mismatches
+                    )
+                    answer = f"No. The frozen audit records mismatches in: {names}."
+                else:
+                    answer = "The frozen audit does not contain item-matching checks."
+                sources.append(
+                    SourceSchema(
+                        source_kind="frozen_audit",
+                        display_name="Frozen Audit Matching Checks",
+                        audit_revision_number=_audit_revision(workflow),
+                        status=_frozen_status(workflow),
+                    )
+                )
         else:
             from app.services.assistant.shipment_retriever import ShipmentDocumentRetriever
             retriever = ShipmentDocumentRetriever(db)
@@ -163,11 +413,11 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
                         sources.append(SourceSchema(source_kind="shipment_document", display_name=f"{c.document_name} p.{c.page_number}"))
                 else:
                     answer = "I could not find relevant information in the shipment documents."
-            except Exception as e:
-                answer = f"I could not retrieve documents due to an error: {e}"            
+            except Exception:
+                answer = "I could not retrieve the indexed shipment documents."
     elif route == "regulatory_guidance":
-        pct = structured_data.get("pct_code", "61091000")
-        dest = structured_data.get("destination_country", "China")
+        pct = structured_data.get("pct_code")
+        dest = structured_data.get("destination_country")
         
         req = EvidenceSearchRequest(
             query=search_query,
@@ -199,7 +449,7 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         
         sources.append(SourceSchema(source_kind="uploaded_document", display_name="Uploaded Document Data"))
         
-        status_text = workflow.status.upper() if workflow else "UNSTARTED"
+        status_text = _frozen_status(workflow).upper()
         sources.append(SourceSchema(source_kind="audit_finding", display_name="Audit Result", status=status_text))
         
         req = EvidenceSearchRequest(
@@ -231,7 +481,10 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
     elif route == "audit_history":
         events = db.execute(
             select(CustomsAuditEvent)
-            .where(CustomsAuditEvent.workflow_id == shipment_id)
+            .where(
+                CustomsAuditEvent.workflow_id
+                == (workflow.id if workflow is not None else shipment_id)
+            )
             .order_by(CustomsAuditEvent.created_at.desc())
         ).scalars().all()
         
@@ -276,7 +529,8 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
     db.commit()
 
     suggested_questions = []
-    if not workflow or workflow.status not in ["passed", "failed"]:
+    frozen_status = _frozen_status(workflow)
+    if not workflow or frozen_status not in ["passed", "failed"]:
         suggested_questions = [
             "What is the invoice total?",
             "What is the gross weight?",
@@ -298,8 +552,8 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         mode="shipment_assistant",
         answer_type=route,
         answer=answer,
-        audit_status=workflow.status if workflow else "unstarted",
-        audit_revision_number=None,
+        audit_status=frozen_status,
+        audit_revision_number=_audit_revision(workflow),
         sources=sources,
         limitations=limitations,
         suggested_questions=suggested_questions

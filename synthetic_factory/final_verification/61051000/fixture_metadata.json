@@ -1,0 +1,73 @@
+{
+  "fixture_schema_version": "1.0",
+  "family": "61051000",
+  "category": "knitted_garment",
+  "variant": "clean_pass",
+  "expected_deterministic_status": "manual_review",
+  "injected_defect": null,
+  "shipment": {
+    "exporter": "Synthetic Crescent Textiles (Pvt.) Ltd.",
+    "exporter_address": "Plot SYN-17, Test Industrial Estate, Lahore, Pakistan",
+    "consignee": "Synthetic Dragon Imports Co.",
+    "consignee_address": "88 Demonstration Road, Shanghai, China",
+    "invoice_number": "SYN-CACE-61051000-001",
+    "invoice_date": "2026-07-15",
+    "destination": "China",
+    "currency": "USD",
+    "pct_code": "61051000",
+    "display_pct_code": "6105.1000",
+    "product_description": "Men's knitted cotton shirts",
+    "quantity": "1500",
+    "unit": "PCS",
+    "unit_price": "9.75",
+    "line_total": "14625.00",
+    "invoice_total": "14625.00",
+    "package_count": 50,
+    "net_weight_kg": "600.00",
+    "gross_weight_kg": "660.00",
+    "country_of_origin": "Pakistan",
+    "shipment_reference": "SYN-SHP-61051000-001"
+  },
+  "documents": [
+    {
+      "filename": "commercial_invoice.pdf",
+      "document_type": "commercial_invoice",
+      "sha256": "32cb7e6978b53e118cedaeeb05e53bf6fbff6985863669cb9964bd133383d1d6",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "packing_list.pdf",
+      "document_type": "packing_list",
+      "sha256": "ebea8a62d9bf571f842c0248acde56d541137a6b01dd6cc8085258c3ea01b795",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "form_e_psw_export_declaration.pdf",
+      "document_type": "form_e_or_psw_export_declaration",
+      "sha256": "14b4ff879a1d0d14558cf63e458cff53ac54c6979b67104a86740793e25cebc9",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "certificate_of_origin.pdf",
+      "document_type": "certificate_of_origin",
+      "sha256": "c53ff3c5a98d277ffcd3d5321a5880cacd5c929a73cbf04fc2b68096bf94b351",
+      "embedded_text": true,
+      "synthetic": true
+    }
+  ],
+  "variants": {
+    "clean_pass": "Use all four base PDFs.",
+    "missing_supporting_document": "Omit certificate_of_origin.pdf for China.",
+    "invoice_packing_mismatch": "Regenerate packing gross weight with +25 KG.",
+    "destination_condition": "Regenerate for Germany and omit the conditional COO.",
+    "uncertain_extraction": "Regenerate invoice quantity as 120O/150O/240O (letter O); the extractor must preserve the evidence and require review."
+  },
+  "safety": {
+    "real_personal_information": false,
+    "real_customer_information": false,
+    "valid_for_trade": false
+  }
+}

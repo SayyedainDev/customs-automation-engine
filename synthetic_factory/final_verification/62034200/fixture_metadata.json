@@ -1,0 +1,73 @@
+{
+  "fixture_schema_version": "1.0",
+  "family": "62034200",
+  "category": "woven_garment",
+  "variant": "clean_pass",
+  "expected_deterministic_status": "manual_review",
+  "injected_defect": null,
+  "shipment": {
+    "exporter": "Synthetic Crescent Textiles (Pvt.) Ltd.",
+    "exporter_address": "Plot SYN-17, Test Industrial Estate, Lahore, Pakistan",
+    "consignee": "Synthetic Dragon Imports Co.",
+    "consignee_address": "88 Demonstration Road, Shanghai, China",
+    "invoice_number": "SYN-CACE-62034200-001",
+    "invoice_date": "2026-07-15",
+    "destination": "China",
+    "currency": "USD",
+    "pct_code": "62034200",
+    "display_pct_code": "6203.4200",
+    "product_description": "Men's woven cotton trousers",
+    "quantity": "1200",
+    "unit": "PCS",
+    "unit_price": "14.50",
+    "line_total": "17400.00",
+    "invoice_total": "17400.00",
+    "package_count": 40,
+    "net_weight_kg": "720.00",
+    "gross_weight_kg": "780.00",
+    "country_of_origin": "Pakistan",
+    "shipment_reference": "SYN-SHP-62034200-001"
+  },
+  "documents": [
+    {
+      "filename": "commercial_invoice.pdf",
+      "document_type": "commercial_invoice",
+      "sha256": "12776698165ef20f3770c9b1a5bd3b60b1fc4d0cdc34cd1a3776ed225b7aea77",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "packing_list.pdf",
+      "document_type": "packing_list",
+      "sha256": "dfec359309b65499aed40c66eba3e2508129f0991e27777e8e6fbe5b1b86dd85",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "form_e_psw_export_declaration.pdf",
+      "document_type": "form_e_or_psw_export_declaration",
+      "sha256": "5994228e0198ec6ef0b4e343968c5bef3da55b048836fb21e081fba3facbc48d",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "certificate_of_origin.pdf",
+      "document_type": "certificate_of_origin",
+      "sha256": "858dd1c828689fbdbddbdcd00c62a1274bae3bc89adf4f5b8252d2667300ecdb",
+      "embedded_text": true,
+      "synthetic": true
+    }
+  ],
+  "variants": {
+    "clean_pass": "Use all four base PDFs.",
+    "missing_supporting_document": "Omit certificate_of_origin.pdf for China.",
+    "invoice_packing_mismatch": "Regenerate packing gross weight with +25 KG.",
+    "destination_condition": "Regenerate for Germany and omit the conditional COO.",
+    "uncertain_extraction": "Regenerate invoice quantity as 120O/150O/240O (letter O); the extractor must preserve the evidence and require review."
+  },
+  "safety": {
+    "real_personal_information": false,
+    "real_customer_information": false,
+    "valid_for_trade": false
+  }
+}

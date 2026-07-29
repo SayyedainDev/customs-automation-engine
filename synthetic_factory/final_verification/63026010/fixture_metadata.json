@@ -1,0 +1,73 @@
+{
+  "fixture_schema_version": "1.0",
+  "family": "63026010",
+  "category": "made_up",
+  "variant": "clean_pass",
+  "expected_deterministic_status": "manual_review",
+  "injected_defect": null,
+  "shipment": {
+    "exporter": "Synthetic Crescent Textiles (Pvt.) Ltd.",
+    "exporter_address": "Plot SYN-17, Test Industrial Estate, Lahore, Pakistan",
+    "consignee": "Synthetic Dragon Imports Co.",
+    "consignee_address": "88 Demonstration Road, Shanghai, China",
+    "invoice_number": "SYN-CACE-63026010-001",
+    "invoice_date": "2026-07-15",
+    "destination": "China",
+    "currency": "USD",
+    "pct_code": "63026010",
+    "display_pct_code": "6302.6010",
+    "product_description": "Cotton terry towels, mill-made",
+    "quantity": "2400",
+    "unit": "PCS",
+    "unit_price": "4.25",
+    "line_total": "10200.00",
+    "invoice_total": "10200.00",
+    "package_count": 80,
+    "net_weight_kg": "960.00",
+    "gross_weight_kg": "1040.00",
+    "country_of_origin": "Pakistan",
+    "shipment_reference": "SYN-SHP-63026010-001"
+  },
+  "documents": [
+    {
+      "filename": "commercial_invoice.pdf",
+      "document_type": "commercial_invoice",
+      "sha256": "4c001fc29b4002d06cbb1e31114e8e1f49082b9d36b5c6b979b8f599a456d236",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "packing_list.pdf",
+      "document_type": "packing_list",
+      "sha256": "76ddafe20dd548d90a36f3b93ede59ce7a5cce5974129fb2c964082493ea5e1d",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "form_e_psw_export_declaration.pdf",
+      "document_type": "form_e_or_psw_export_declaration",
+      "sha256": "e8f7c9f2c26100d6d2383ec65139a0ef34ef93e32778d2d98f7ef258d92d2c1c",
+      "embedded_text": true,
+      "synthetic": true
+    },
+    {
+      "filename": "certificate_of_origin.pdf",
+      "document_type": "certificate_of_origin",
+      "sha256": "6a80fccee6a23130ce3234331b47207909c5c131cec9d8057a57869c9a7b182a",
+      "embedded_text": true,
+      "synthetic": true
+    }
+  ],
+  "variants": {
+    "clean_pass": "Use all four base PDFs.",
+    "missing_supporting_document": "Omit certificate_of_origin.pdf for China.",
+    "invoice_packing_mismatch": "Regenerate packing gross weight with +25 KG.",
+    "destination_condition": "Regenerate for Germany and omit the conditional COO.",
+    "uncertain_extraction": "Regenerate invoice quantity as 120O/150O/240O (letter O); the extractor must preserve the evidence and require review."
+  },
+  "safety": {
+    "real_personal_information": false,
+    "real_customer_information": false,
+    "valid_for_trade": false
+  }
+}
