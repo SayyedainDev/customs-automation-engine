@@ -283,6 +283,7 @@ MAX_HUMAN_REVIEW_ROUNDS = 2
 # --------------------------------------------------------------------------- #
 class CustomsAuditState(TypedDict, total=False):
     workflow_id: str
+    review_revision_id: str
     thread_id: str
     workflow_status: str
     created_at: str

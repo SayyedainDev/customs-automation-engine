@@ -83,6 +83,7 @@ class CustomsAuditService:
         created_at = utcnow_iso()
         initial_state: dict[str, Any] = {
             "workflow_id": str(workflow_id),
+            "review_revision_id": str(request.get("review_revision_id") or uuid4()),
             "thread_id": thread_id,
             "workflow_status": WorkflowStatus.CREATED.value,
             "created_at": created_at,
@@ -162,6 +163,7 @@ class CustomsAuditService:
         new_thread = f"{workflow.thread_id}-retry-{uuid4().hex[:6]}"
         initial_state = {
             "workflow_id": str(workflow_id),
+            "review_revision_id": old.get("review_revision_id") or str(uuid4()),
             "thread_id": new_thread,
             "workflow_status": WorkflowStatus.RESUMING.value,
             "created_at": old.get("created_at") or utcnow_iso(),
@@ -287,6 +289,7 @@ class CustomsAuditService:
             workflow.current_node = "interrupt_for_human_review"
             workflow.final_report = {
                 "workflow_id": report_state.get("workflow_id"),
+                "review_revision_id": report_state.get("review_revision_id"),
                 "thread_id": report_state.get("thread_id"),
                 "status": WorkflowStatus.AWAITING_HUMAN_REVIEW.value,
                 "deterministic_compliance_status": deterministic.get(
@@ -311,6 +314,7 @@ class CustomsAuditService:
             workflow.current_node = snapshot.next[0] if snapshot.next else "completed"
             if state.get("final_report") is not None:
                 final_report = dict(state["final_report"])
+                final_report["review_revision_id"] = state.get("review_revision_id")
                 final_report["user_report"] = user_report
                 workflow.final_report = final_report
                 workflow.completed_at = datetime.now(timezone.utc)
@@ -388,6 +392,11 @@ class CustomsAuditService:
             "errors": workflow.errors,
             "created_at": workflow.created_at.isoformat() if workflow.created_at else None,
             "completed_at": workflow.completed_at.isoformat() if workflow.completed_at else None,
+            "review_revision_id": (
+                (workflow.final_report or {}).get("review_revision_id")
+                if workflow.final_report
+                else None
+            ),
         }
 
 

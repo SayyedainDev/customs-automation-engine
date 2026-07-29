@@ -68,6 +68,7 @@ async def start_workflow(
     service: CustomsAuditService = Depends(get_customs_audit_service),
 ) -> WorkflowStatusResponse:
     request = {
+        "review_revision_id": payload.review_revision_id,
         "commercial_invoice_document_id": payload.commercial_invoice_document_id,
         "packing_list_document_id": payload.packing_list_document_id,
         "additional_document_ids": payload.additional_document_ids,

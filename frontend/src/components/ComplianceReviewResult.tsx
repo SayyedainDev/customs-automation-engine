@@ -420,8 +420,8 @@ export function ComplianceReviewResult({
     (item) => item.match_status === "matched",
   ).length;
   const documentStatus = result.document_review_status ?? result.overall_status;
-  const supportingExtractionStatuses = result.supporting_documents
-    .map((document) => {
+  const supportingExtractionStatuses = result.supporting_documents.map(
+    (document) => {
       const documentType = String(
         document.canonical_document_type ??
           document.claimed_document_type ??
@@ -431,39 +431,30 @@ export function ComplianceReviewResult({
         typeof document.extraction_summary === "string"
           ? document.extraction_summary
           : null;
-      return summary
-        ? {
-            documentType,
-            label: documentLabel(normalizedDocumentKey(documentType)),
-            summary,
-          }
-        : null;
-    })
-    .filter(
-      (
-        item,
-      ): item is { documentType: string; label: string; summary: string } =>
-        item !== null,
-    );
+      const presenceStatus = document.presence_status ?? "unresolved";
+      const presenceLabel = {
+        shipment_matched: "Matched to this shipment",
+        shipment_mismatched: "Uploaded but does not match this shipment",
+        unresolved: "Uploaded; matching needs review",
+        invalid: "Uploaded but invalid",
+      }[presenceStatus];
+      return {
+        documentType,
+        label: documentLabel(normalizedDocumentKey(documentType)),
+        summary: summary ?? "Extraction result unavailable",
+        presenceStatus,
+        presenceLabel,
+        requiredAction: document.required_action,
+        failedChecks: document.checks.filter(
+          (check) => check.status === "failed" || check.status === "manual_review",
+        ),
+      };
+    },
+  );
+  const supportingProblems = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus !== "shipment_matched",
+  );
   const decision = decisionCopy(documentStatus);
-  const nextActions = [
-    ...new Set([
-      ...outstanding.map((document) =>
-        document.requirement === "required"
-          ? `Obtain the ${document.display_name.toLowerCase()} from the body that issues it and file it with the shipment documents.`
-          : `Confirm with a compliance reviewer whether the ${document.display_name.toLowerCase()} applies to this shipment.`,
-      ),
-      ...actionableFindings.map((finding) => finding.action),
-      ...(result.fields_requiring_manual_review.length
-        ? [
-            `Confirm the flagged fields (${result.fields_requiring_manual_review
-              .map((field) => labelize(field))
-              .join(", ")}) before submission.`,
-          ]
-        : []),
-    ]),
-  ];
-
   return (
     <div className="review-result">
       <section className="panel" aria-labelledby="result-heading">
@@ -499,7 +490,7 @@ export function ComplianceReviewResult({
           <div className="summary-grid">
             <div className="summary-item">
               <span>Input documents processed</span>
-              <strong>2 of 2</strong>
+              <strong>{2 + result.supporting_documents.length}</strong>
             </div>
             <div className="summary-item">
               <span>Documents still to obtain</span>
@@ -526,6 +517,12 @@ export function ComplianceReviewResult({
                   <code>{result.rule_data_version}</code>
                 </dd>
               </div>
+              <div>
+                <dt>Review revision</dt>
+                <dd>
+                  <code>{result.review_revision_id}</code>
+                </dd>
+              </div>
             </dl>
           </details>
         </div>
@@ -550,8 +547,9 @@ export function ComplianceReviewResult({
                 <li key={document.documentType}>
                   <div className="document-checklist__head">
                     <strong>{document.label}</strong>
-                    <span>{document.summary}</span>
+                    <span>{document.presenceLabel}</span>
                   </div>
+                  <small>{document.summary}</small>
                 </li>
               ))}
             </ul>
@@ -573,61 +571,49 @@ export function ComplianceReviewResult({
         </div>
       ) : null}
 
-      <section className="panel" aria-labelledby="checked-heading">
+      <section className="panel" aria-labelledby="findings-heading">
         <div className="panel__header">
           <div>
-            <h2 id="checked-heading">What was checked</h2>
-            <p>The result combines document matching and configured customs rules.</p>
+            <h2 id="findings-heading">Findings in the uploaded documents</h2>
+            <p>
+              Invoice and packing-list findings are shown once here. Supporting
+              documents are reported separately by matching status.
+            </p>
           </div>
-          <ListChecks aria-hidden="true" size={19} />
+          <ShieldCheck aria-hidden="true" size={19} />
         </div>
         <div className="panel__body">
-          <ul className="decision-checklist">
-            <li>
-              <Files aria-hidden="true" size={18} />
-              <div>
-                <strong>Document intake and extraction</strong>
-                <p>
-                  The commercial invoice and its packing list were read and
-                  converted into structured shipment fields.
-                </p>
-              </div>
-            </li>
-            <li>
-              <CheckCircle2 aria-hidden="true" size={18} />
-              <div>
-                <strong>Cross-document consistency</strong>
-                <p>
-                  Product lines, quantities, packages, values, and weights were
-                  compared where the documents supplied those values.
-                </p>
-              </div>
-            </li>
-            <li>
+          {actionableFindings.length ? (
+            <ul className="finding-list">
+              {actionableFindings.map((finding) => (
+                <Finding key={finding.key} finding={finding} />
+              ))}
+            </ul>
+          ) : (
+            <div className="notice notice--success">
               <ShieldCheck aria-hidden="true" size={18} />
               <div>
-                <strong>Configured regulatory requirements</strong>
+                <strong>Nothing wrong with the invoice or packing list</strong>
                 <p>
-                  PCT classification, destination rules, and required
-                  supporting documents were evaluated for this capstone’s
-                  five-product scope.
+                  They passed extraction, line matching, arithmetic, weight,
+                  and product-classification checks.
                 </p>
               </div>
-            </li>
-          </ul>
+            </div>
+          )}
         </div>
       </section>
 
-      {outstanding.length ? (
+      {outstanding.length || supportingProblems.length ? (
         <section className="panel" aria-labelledby="outstanding-heading">
           <div className="panel__header">
             <div>
-              <h2 id="outstanding-heading">Required before submission</h2>
+              <h2 id="outstanding-heading">
+                Missing or mismatched supporting documents
+              </h2>
               <p>
-                Customs documents the rules require for this shipment. They are
-                issued by outside bodies and cannot be produced from the invoice
-                or the packing list, so their absence is not a defect in the two
-                files you uploaded.
+                Missing paperwork and uploaded documents that do not match this
+                shipment are kept distinct.
               </p>
             </div>
             <FileCheck2 aria-hidden="true" size={19} />
@@ -658,75 +644,79 @@ export function ComplianceReviewResult({
                   ) : null}
                 </li>
               ))}
+              {supportingProblems.map((document) => (
+                <li key={`problem-${document.documentType}`}>
+                  <div className="document-checklist__head">
+                    <strong>{document.label}</strong>
+                    <span className="requirement-tag requirement-tag--required">
+                      {document.presenceLabel}
+                    </span>
+                  </div>
+                  {document.failedChecks.length ? (
+                    <ul className="plain-list">
+                      {document.failedChecks.map((check) => (
+                        <li key={check.check_id}>{check.message}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {document.requiredAction ? (
+                    <small>{document.requiredAction}</small>
+                  ) : null}
+                </li>
+              ))}
             </ul>
           </div>
         </section>
       ) : null}
 
-      <section className="panel" aria-labelledby="findings-heading">
+      <section className="panel" aria-labelledby="checked-heading">
         <div className="panel__header">
           <div>
-            <h2 id="findings-heading">Findings in the uploaded documents</h2>
-            <p>
-              Problems in the invoice or packing list themselves. Missing
-              customs paperwork is listed separately above.
-            </p>
+            <h2 id="checked-heading">What was checked</h2>
+            <p>The result combines document matching and configured customs rules.</p>
           </div>
-          <ShieldCheck aria-hidden="true" size={19} />
+          <ListChecks aria-hidden="true" size={19} />
         </div>
         <div className="panel__body">
-          {actionableFindings.length ? (
-            <ul className="finding-list">
-              {actionableFindings.map((finding) => (
-                <Finding key={finding.key} finding={finding} />
-              ))}
-            </ul>
-          ) : (
-            <div className="notice notice--success">
-              <ShieldCheck aria-hidden="true" size={18} />
+          <ul className="decision-checklist">
+            <li>
+              <Files aria-hidden="true" size={18} />
               <div>
-                <strong>Nothing wrong with the uploaded documents</strong>
+                <strong>Document intake and extraction</strong>
                 <p>
-                  The invoice and packing list passed every check that can be
-                  made on them: extraction, line matching, arithmetic, weights,
-                  and product classification.
+                  The invoice, packing list and attached supporting documents
+                  were read into structured shipment fields.
                 </p>
               </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="panel" aria-labelledby="next-steps-heading">
-        <div className="panel__header">
-          <div>
-            <h2 id="next-steps-heading">What to do next</h2>
-            <p>Complete these steps before treating the shipment as ready.</p>
-          </div>
-        </div>
-        <div className="panel__body">
-          {nextActions.length ? (
-            <ol className="action-list">
-              {nextActions.map((action) => (
-                <li key={action}>{action}</li>
-              ))}
-            </ol>
-          ) : (
-            <div className="notice notice--success">
+            </li>
+            <li>
               <CheckCircle2 aria-hidden="true" size={18} />
               <div>
-                <strong>No corrective action identified</strong>
+                <strong>Cross-document consistency</strong>
                 <p>
-                  Keep the review result with the shipment records and follow
-                  the normal submission process.
+                  Product lines, quantities, packages, values, weights and
+                  supporting-document shipment references were compared.
                 </p>
               </div>
-            </div>
-          )}
+            </li>
+            <li>
+              <ShieldCheck aria-hidden="true" size={18} />
+              <div>
+                <strong>Configured regulatory requirements</strong>
+                <p>
+                  PCT classification, destination rules, and required
+                  supporting documents were evaluated for this capstone’s 17
+                  validated textile PCT codes.
+                </p>
+              </div>
+            </li>
+          </ul>
         </div>
       </section>
 
-      <section className="panel" aria-labelledby="extracted-fields-heading">
+      <details className="panel technical-details">
+        <summary>Technical details: extracted fields and matched lines</summary>
+      <section aria-labelledby="extracted-fields-heading">
         <div className="panel__header">
           <div>
             <h2 id="extracted-fields-heading">Key extracted fields</h2>
@@ -810,6 +800,7 @@ export function ComplianceReviewResult({
           </table>
         </div>
       </section>
+      </details>
     </div>
   );
 }

@@ -10,7 +10,7 @@ additionally carries an item-level provenance roll-up.
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -188,6 +188,9 @@ class ShipmentItemResult(BaseModel):
 # Request / response envelopes.
 # --------------------------------------------------------------------------- #
 class MultiLineShipmentRequest(BaseModel):
+    # Binds one selected-document snapshot to its response. Compliance rules
+    # never read this identifier.
+    review_revision_id: UUID = Field(default_factory=uuid4)
     commercial_invoice_document_id: UUID
     packing_list_document_id: UUID | None
     shipment_date: date | None = None
@@ -219,6 +222,9 @@ class OutstandingDocument(BaseModel):
 
 
 class MultiLineShipmentResponse(BaseModel):
+    # Echoed from the request so the UI cannot combine this result with a newer
+    # supporting-document selection.
+    review_revision_id: UUID = Field(default_factory=uuid4)
     #: The strict customs verdict: a shipment with outstanding paperwork is
     #: still not ready for submission. Unchanged meaning.
     overall_status: ComplianceCheckStatus

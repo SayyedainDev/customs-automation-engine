@@ -44,7 +44,10 @@ function SupportingDocumentsSection({
   const [pendingType, setPendingType] = useState(
     SUPPORTING_DOCUMENT_TYPES[0].value,
   );
-  const locked = review.reviewBusy || Boolean(review.compliance);
+  // Supporting-document changes intentionally remain available after a
+  // result. The hook invalidates that result immediately, then the user reruns
+  // the review with the new document snapshot.
+  const locked = review.reviewBusy;
   const usedTypes = new Set(review.supportingSlots.map((slot) => slot.documentType));
 
   return (
@@ -82,7 +85,7 @@ function SupportingDocumentsSection({
           <button
             className="button button--secondary"
             type="button"
-            disabled={locked}
+            disabled={locked || usedTypes.has(pendingType)}
             onClick={() => review.addSupportingSlot(pendingType)}
           >
             <FilePlus2 aria-hidden="true" size={16} />

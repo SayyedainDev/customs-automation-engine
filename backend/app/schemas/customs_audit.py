@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +8,7 @@ from app.schemas.supporting_documents import SupportingDocumentRef
 
 
 class StartWorkflowRequest(BaseModel):
+    review_revision_id: UUID = Field(default_factory=uuid4)
     commercial_invoice_document_id: UUID
     packing_list_document_id: UUID | None = None
     additional_document_ids: list[UUID] = Field(default_factory=list)
@@ -32,6 +33,7 @@ class WorkflowStatusResponse(BaseModel):
     errors: list[Any] | None = None
     created_at: str | None = None
     completed_at: str | None = None
+    review_revision_id: str | None = None
 
 
 class ReviewTaskResponse(BaseModel):

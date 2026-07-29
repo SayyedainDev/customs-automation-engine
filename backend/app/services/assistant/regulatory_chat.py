@@ -77,6 +77,16 @@ SHIPMENT_CONTEXT_REQUIRED_MESSAGE = (
     "frozen audit result."
 )
 
+VEHICLE_IMPORT_SCOPE_MESSAGE = (
+    "CACE currently focuses on Pakistan textile exports and cannot provide a "
+    "verified vehicle-import procedure."
+)
+_VEHICLE_IMPORT_REQUEST = re.compile(
+    r"\b(import|bring)\b[^.?!]{0,80}\b(car|cars|vehicle|vehicles|automobile|automobiles)\b"
+    r"|\b(car|cars|vehicle|vehicles|automobile|automobiles)\b[^.?!]{0,80}\b(import|bring)\b",
+    re.IGNORECASE,
+)
+
 SUGGESTED_QUESTIONS = [
     "What is Form-E?",
     "What is a Certificate of Origin?",
@@ -742,6 +752,19 @@ def answer_regulatory_question(
             answer_mode="refusal",
         )
 
+    # Import questions are normally within the broader customs domain, but
+    # this prototype has no validated vehicle-import procedure. Refuse before
+    # retrieval so unrelated textile/export passages cannot leak into the UI.
+    if _VEHICLE_IMPORT_REQUEST.search(question):
+        return respond(
+            answer=VEHICLE_IMPORT_SCOPE_MESSAGE,
+            intent="out_of_scope",
+            evidence_status="not_applicable",
+            citations=[],
+            limitations=[GENERAL_LIMITATION],
+            answer_mode="refusal",
+        )
+
     if decision.requires_shipment_context:
         # A regulatory conversation must not quietly become a shipment
         # conversation; the caller has to select the shipment explicitly.
@@ -788,7 +811,10 @@ def answer_regulatory_question(
                 answer_mode="clarification",
                 interpreted_as=corrections,
             )
-        country = destination_used or "China"
+        # With no destination, do not activate China's configured COO rule as
+        # if the user had named China. Use a neutral supported destination to
+        # preserve the COO as conditional until the destination is known.
+        country = destination_used or "USA"
         shared_required: list[str] | None = None
         shared_conditional: list[tuple[str, str | None]] | None = None
         for code, name in candidates:

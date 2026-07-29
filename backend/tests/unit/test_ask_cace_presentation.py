@@ -19,6 +19,7 @@ from app.services.assistant.domain_guard import OFF_TOPIC_MESSAGE
 from app.services.assistant.product_resolver import resolve_product
 from app.services.assistant.regulatory_chat import (
     NO_USA_SPECIFIC_RULE,
+    VEHICLE_IMPORT_SCOPE_MESSAGE,
     answer_regulatory_question,
 )
 from app.services.assistant.regulatory_intent import classify_regulatory_intent
@@ -258,3 +259,47 @@ def test_chat_remains_read_only(isolated_database: Engine) -> None:
         conversation = db.get(AssistantConversation, response.conversation_id)
     assert before == after == 0
     assert conversation is not None and conversation.shipment_id is None
+
+
+def test_vehicle_import_is_refused_before_retrieval(
+    isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def retrieval_must_not_run(*args, **kwargs):
+        raise AssertionError("vehicle-import scope refusal must precede retrieval")
+
+    monkeypatch.setattr(
+        "app.services.assistant.regulatory_chat._staged_retrieve",
+        retrieval_must_not_run,
+    )
+    with Session(isolated_database) as db:
+        response = ask(db, "How to import a car from China")
+    assert response.answer == VEHICLE_IMPORT_SCOPE_MESSAGE
+    assert response.intent == "out_of_scope"
+    assert response.answer_mode == "refusal"
+    assert response.sources == []
+
+
+def test_requested_cotton_paints_wording_has_complete_ambiguous_checklist(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "What things to prepare to start export of cotton paints")
+    required = {document.display_name for document in response.required_documents}
+    assert {
+        "Commercial Invoice",
+        "Packing List",
+        "Form-E / PSW export declaration",
+    } <= required
+    assert {
+        document.display_name for document in response.conditional_documents
+    } == {"Certificate of origin"}
+    assert {candidate.pct_code for candidate in response.product_candidates} == {
+        "62034200",
+        "62046290",
+    }
+    rendered = response.answer.casefold()
+    assert all(
+        noise not in rendered
+        for noise in ("cotton seed", "cotton waste", "vegetable ghee", "phytosanitary")
+    )

@@ -1287,3 +1287,31 @@ def verified_document_types(
                 if alias_type is canonical
             )
     return verified
+
+
+def present_document_types(
+    results: list[SupportingDocumentResult],
+) -> set[str]:
+    """Recognisable uploaded types, independent of matching outcome.
+
+    A Form-E with the wrong invoice reference is present but mismatched. Its
+    mismatch remains a deterministic failure, but it must not also be described
+    as absent. Claims, unreadable files and type mismatches remain absent.
+    """
+    present: set[str] = set()
+    eligible_states = {
+        SupportingDocumentState.TYPE_VERIFIED,
+        SupportingDocumentState.FIELDS_VERIFIED,
+        SupportingDocumentState.SHIPMENT_MATCHED,
+    }
+    for result in results:
+        if not result.uploaded or result.state not in eligible_states:
+            continue
+        canonical = result.canonical_document_type
+        present.add(canonical.value)
+        present.update(
+            alias
+            for alias, alias_type in SUPPORTING_TYPE_ALIASES.items()
+            if alias_type is canonical
+        )
+    return present

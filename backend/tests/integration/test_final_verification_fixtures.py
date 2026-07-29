@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -201,6 +201,116 @@ def _start_fixture(folder: Path) -> dict:
         item["document_id"] for item in supporting_documents
     ]
     return result
+
+
+def _check_fixture_direct(folder: Path, *, include_supporting: bool) -> tuple[dict, dict]:
+    invoice_id = _upload(folder / "commercial_invoice.pdf")
+    packing_id = _upload(folder / "packing_list.pdf")
+    supporting_documents: list[dict[str, str]] = []
+    if include_supporting:
+        supporting_documents = [
+            {
+                "document_type": "form_e_or_psw_export_declaration",
+                "document_id": _upload(folder / "form_e_psw_export_declaration.pdf"),
+            },
+            {
+                "document_type": "certificate_of_origin",
+                "document_id": _upload(folder / "certificate_of_origin.pdf"),
+            },
+        ]
+    revision = str(uuid4())
+    payload = {
+        "review_revision_id": revision,
+        "commercial_invoice_document_id": invoice_id,
+        "packing_list_document_id": packing_id,
+        "supporting_documents": supporting_documents,
+        "shipment_date": "2026-07-20",
+    }
+    response = client.post(
+        "/api/v1/compliance/check-documents/multi-line",
+        json=payload,
+    )
+    assert response.status_code == 200, response.text
+    return payload, response.json()
+
+
+def test_four_document_request_keeps_ids_types_matching_and_revision_together(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_database: Engine,
+) -> None:
+    _configure_real_route_service(
+        monkeypatch,
+        isolated_database,
+        tmp_path / "uploads",
+    )
+    payload, result = _check_fixture_direct(
+        FINAL_FIXTURE_ROOT / "62034200",
+        include_supporting=True,
+    )
+
+    supplied_ids = {
+        payload["commercial_invoice_document_id"],
+        payload["packing_list_document_id"],
+        *(item["document_id"] for item in payload["supporting_documents"]),
+    }
+    returned_supporting_ids = {
+        item["document_id"] for item in result["supporting_documents"]
+    }
+    assert len(supplied_ids) == 4
+    assert returned_supporting_ids == {
+        item["document_id"] for item in payload["supporting_documents"]
+    }
+    assert result["review_revision_id"] == payload["review_revision_id"]
+    assert {
+        item["canonical_document_type"] for item in result["supporting_documents"]
+    } == {
+        "form_e_or_psw_export_declaration",
+        "certificate_of_origin",
+    }
+    assert all(
+        item["extraction_summary"] == "Extracted deterministically"
+        for item in result["supporting_documents"]
+    )
+    assert all(
+        item["presence_status"] == "shipment_matched"
+        for item in result["supporting_documents"]
+    )
+    assert {
+        item["document_type"] for item in result["outstanding_documents"]
+    }.isdisjoint({"form_e", "certificate_of_origin"})
+
+    with Session(isolated_database) as db:
+        assert db.query(DocumentUploadRecord).count() == 4
+        assert {
+            str(row.id) for row in db.query(DocumentUploadRecord).all()
+        } == supplied_ids
+        assert db.query(ShipmentDocumentChunk).count() >= 4
+
+
+def test_genuinely_absent_supporting_documents_still_remain_outstanding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_database: Engine,
+) -> None:
+    _configure_real_route_service(
+        monkeypatch,
+        isolated_database,
+        tmp_path / "uploads",
+    )
+    payload, result = _check_fixture_direct(
+        FINAL_FIXTURE_ROOT / "62034200",
+        include_supporting=False,
+    )
+    assert payload["supporting_documents"] == []
+    outstanding = {
+        item["document_type"] for item in result["outstanding_documents"]
+    }
+    assert "form_e" in outstanding
+    assert "certificate_of_origin" in outstanding
+    assert result["supporting_documents"] == []
+    with Session(isolated_database) as db:
+        assert db.query(DocumentUploadRecord).count() == 2
 
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda family: family.pct_code)

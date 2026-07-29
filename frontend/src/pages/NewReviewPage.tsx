@@ -105,7 +105,6 @@ export function NewReviewPage() {
 
       {review.workflow ? (
         <AgentAuditResult
-          shipmentId={review.compliance?.commercial_invoice_document_id ?? ""}
           workflow={review.workflow}
           reviewTask={review.reviewTask}
           events={review.events}

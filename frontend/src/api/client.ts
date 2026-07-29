@@ -11,8 +11,6 @@ import type {
   WorkflowStatusResponse,
   GuidanceRequest,
   GuidanceResponse,
-  ShipmentChatRequest,
-  ChatResponse,
   RegulatoryChatRequest,
   RegulatoryChatResponse,
   ConversationResponse,
@@ -253,9 +251,4 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  sendChat: (shipmentId: string, payload: ShipmentChatRequest) =>
-    request<ChatResponse>(`/api/v1/assistant/shipments/${shipmentId}/chat`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
 };

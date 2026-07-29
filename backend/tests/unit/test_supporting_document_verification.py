@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 
 from app.schemas.compliance import ComplianceCheckStatus
+from app.schemas.compliance import ShipmentComplianceInput
 from app.schemas.shipment_extraction import ExtractionMethod, FieldValidationStatus
 from app.schemas.supporting_documents import (
     AuthenticityStatus,
@@ -24,9 +25,11 @@ from app.schemas.supporting_documents import (
     canonical_supporting_type,
 )
 from app.services.supporting_document_service import (
+    present_document_types,
     verified_document_types,
     verify_supporting_document,
 )
+from app.services.compliance.rule_engine import DeterministicComplianceRuleEngine
 
 DOC = uuid4()
 
@@ -181,6 +184,8 @@ def test_17_to_21_field_mismatches_fail(
         for check in result.checks
     )
     assert verified_document_types([result]) == set()
+    assert "certificate_of_origin" in present_document_types([result])
+    assert result.presence_status == "shipment_mismatched"
 
 
 def test_19_invoice_reference_mismatch_fails() -> None:
@@ -197,6 +202,75 @@ def test_19_invoice_reference_mismatch_fails() -> None:
         and c.status == ComplianceCheckStatus.FAILED
         for c in result.checks
     )
+    assert "form_e" in present_document_types([result])
+    assert result.presence_status == "shipment_mismatched"
+
+
+def test_mismatched_upload_is_present_but_never_verified() -> None:
+    result = _verify(
+        "form_e",
+        _extraction(
+            detected_document_type="form_e_or_psw_export_declaration",
+            document_number="FE-TEST-002",
+            exporter_or_applicant=SHIPMENT["shipment_exporter"],
+            invoice_reference="WRONG-INVOICE",
+        ),
+    )
+    assert "form_e" in present_document_types([result])
+    assert "form_e" not in verified_document_types([result])
+    assert result.content_status == ComplianceCheckStatus.FAILED.value
+    assert result.presence_status == "shipment_mismatched"
+
+
+def test_wrong_type_and_unreadable_uploads_are_not_present() -> None:
+    wrong = _verify(
+        "certificate_of_origin",
+        _coo_extraction(detected_document_type="Ocean Bill of Lading"),
+    )
+    unreadable = _verify("certificate_of_origin", _extraction(confidence="0"))
+    assert present_document_types([wrong, unreadable]) == set()
+    assert wrong.presence_status == "invalid"
+    assert unreadable.presence_status == "unresolved"
+
+
+def test_mismatched_form_e_and_coo_are_not_also_called_missing() -> None:
+    form_e = _verify(
+        "form_e",
+        _extraction(
+            detected_document_type="form_e_or_psw_export_declaration",
+            document_number="FE-TEST-003",
+            exporter_or_applicant=SHIPMENT["shipment_exporter"],
+            invoice_reference="WRONG-INVOICE",
+        ),
+    )
+    coo = _verify(
+        "certificate_of_origin",
+        _coo_extraction(destination_country="Germany"),
+    )
+    present = sorted(present_document_types([form_e, coo]))
+    response = DeterministicComplianceRuleEngine().check(
+        ShipmentComplianceInput(
+            product_name="Men's woven cotton trousers",
+            pct_code="62034200",
+            quantity=Decimal("100"),
+            unit_price=Decimal("5.50"),
+            invoice_line_total=Decimal("550"),
+            invoice_total=Decimal("550"),
+            net_weight=Decimal("75"),
+            gross_weight=Decimal("80"),
+            destination_country="China",
+            shipment_date=date(2026, 7, 20),
+            uploaded_document_types=present,
+        )
+    )
+    document_checks = [
+        check
+        for check in [*response.checks, *response.executable_rule_checks]
+        if check.required_document in {"form_e", "certificate_of_origin"}
+    ]
+    assert document_checks
+    assert all("missing" not in check.message.casefold() for check in document_checks)
+    assert form_e.content_status == coo.content_status == "failed"
 
 
 def test_22_sbp_deposit_percentage_mismatch_fails() -> None:

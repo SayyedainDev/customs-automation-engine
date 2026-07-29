@@ -107,7 +107,22 @@ export interface OutstandingDocument {
   sources: string[];
 }
 
+export interface SupportingDocumentResult {
+  claimed_document_type: string;
+  canonical_document_type: string;
+  document_id: string | null;
+  uploaded: boolean;
+  state: string;
+  detected_document_type?: string | null;
+  content_status: ComplianceStatus;
+  presence_status?: "shipment_matched" | "shipment_mismatched" | "unresolved" | "invalid";
+  extraction_summary?: string | null;
+  required_action?: string | null;
+  checks: CrossDocumentCheck[];
+}
+
 export interface MultiLineShipmentResponse {
+  review_revision_id: string;
   /** Strict customs verdict: outstanding paperwork still blocks submission. */
   overall_status: ComplianceStatus;
   is_compliant: boolean;
@@ -120,13 +135,14 @@ export interface MultiLineShipmentResponse {
   shipment_level_checks: CrossDocumentCheck[];
   items: ShipmentItemResult[];
   fields_requiring_manual_review: string[];
-  supporting_documents: Array<Record<string, unknown>>;
+  supporting_documents: SupportingDocumentResult[];
   /** Verdict on the two uploaded documents alone. */
   document_review_status: ComplianceStatus;
   outstanding_documents: OutstandingDocument[];
 }
 
 export interface MultiLineShipmentRequest {
+  review_revision_id: string;
   commercial_invoice_document_id: string;
   packing_list_document_id: string;
   shipment_date?: string | null;
@@ -151,6 +167,7 @@ export interface WorkflowStatusResponse {
   errors: unknown[] | null;
   created_at: string | null;
   completed_at: string | null;
+  review_revision_id?: string | null;
 }
 
 export interface DisputedFieldDetail {
@@ -257,12 +274,6 @@ export interface TrackedDocument {
   complianceStatus?: ComplianceStatus;
 }
 
-export interface ShipmentChatRequest {
-  conversation_id?: string | null;
-  question: string;
-  technical_detail?: boolean;
-}
-
 export interface ChatSource {
   source_kind: string;
   display_name?: string;
@@ -276,19 +287,6 @@ export interface ChatSource {
   source_document?: string;
   evidence_status?: string;
   source_type?: string;
-}
-
-export interface ChatResponse {
-  conversation_id: string;
-  message_id: string;
-  mode: string;
-  answer_type?: string;
-  answer: string;
-  audit_status?: string;
-  audit_revision_number?: number;
-  sources: ChatSource[];
-  limitations: string[];
-  suggested_questions: string[];
 }
 
 export interface GuidanceRequest {
@@ -431,5 +429,3 @@ export interface GuidanceResponse {
   limitations: string[];
   answer?: string | null;
 }
-
-

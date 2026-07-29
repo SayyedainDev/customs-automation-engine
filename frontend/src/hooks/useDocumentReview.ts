@@ -160,26 +160,39 @@ export function useDocumentReview() {
     [clearWorkflow],
   );
 
-  const addSupportingSlot = useCallback((documentType: string) => {
-    setSupportingSlots((slots) => [
-      ...slots,
-      {
-        id: nextSlotId(),
-        documentType,
-        file: null,
-        progress: 0,
-        upload: null,
-        error: null,
-      },
-    ]);
-  }, []);
+  const addSupportingSlot = useCallback(
+    (documentType: string) => {
+      clearWorkflow();
+      setSupportingSlots((slots) =>
+        slots.some((slot) => slot.documentType === documentType)
+          ? slots
+          : [
+              ...slots,
+              {
+                id: nextSlotId(),
+                documentType,
+                file: null,
+                progress: 0,
+                upload: null,
+                error: null,
+              },
+            ],
+      );
+    },
+    [clearWorkflow],
+  );
 
-  const removeSupportingSlot = useCallback((id: string) => {
-    setSupportingSlots((slots) => slots.filter((slot) => slot.id !== id));
-  }, []);
+  const removeSupportingSlot = useCallback(
+    (id: string) => {
+      clearWorkflow();
+      setSupportingSlots((slots) => slots.filter((slot) => slot.id !== id));
+    },
+    [clearWorkflow],
+  );
 
   const chooseSupportingFile = useCallback(
     (id: string, file: File | null, validationError?: string) => {
+      clearWorkflow();
       setSupportingSlots((slots) =>
         slots.map((slot) =>
           slot.id === id
@@ -194,7 +207,7 @@ export function useDocumentReview() {
         ),
       );
     },
-    [],
+    [clearWorkflow],
   );
 
   const loadWorkflowAssets = useCallback(
@@ -377,7 +390,9 @@ export function useDocumentReview() {
         })),
       ];
 
+      const reviewRevisionId = crypto.randomUUID();
       const payload: MultiLineShipmentRequest = {
+        review_revision_id: reviewRevisionId,
         commercial_invoice_document_id: uploadedInvoice.document_id,
         packing_list_document_id: uploadedPacking.document_id,
         shipment_date: shipmentDate || null,
@@ -389,9 +404,18 @@ export function useDocumentReview() {
       setRequestPayload(payload);
       setPhase("checking");
       const result = await api.checkMultiLine(payload);
+      if (result.review_revision_id !== reviewRevisionId) {
+        throw new Error(
+          "The compliance response belongs to an older document selection. Run the review again.",
+        );
+      }
       setCompliance(result);
       sessionRef.current.markCompliance(
-        [uploadedInvoice.document_id, uploadedPacking.document_id],
+        [
+          uploadedInvoice.document_id,
+          uploadedPacking.document_id,
+          ...supportingDocuments.map((document) => document.document_id),
+        ],
         result.overall_status,
       );
       setPhase("complete");

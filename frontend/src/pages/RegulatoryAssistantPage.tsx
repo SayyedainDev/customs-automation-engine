@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import {
   AlertTriangle,
@@ -16,8 +16,6 @@ import type {
 } from "../api/types";
 import { PageHeader } from "../components/PageHeader";
 
-const STORAGE_KEY = "cace.regulatory.conversation";
-
 const SUGGESTED_QUESTIONS = [
   "What is Form-E?",
   "What is a Certificate of Origin?",
@@ -28,39 +26,6 @@ const SUGGESTED_QUESTIONS = [
   "Search for references to PCT 52010090.",
   "How does CACE distinguish official sources from curated summaries?",
 ];
-
-const MODE_LABELS: Record<string, string> = {
-  checklist: "Document checklist",
-  clarification: "Needs one detail",
-  explanation: "Explanation",
-  evidence_lookup: "Source lookup",
-  document_search: "Document search",
-  refusal: "Out of scope",
-};
-
-const INTENT_LABELS: Record<string, string> = {
-  general_regulatory_information: "Regulatory information",
-  regulatory_document_search: "Document search",
-  supported_pct_guidance: "Deterministic guidance",
-  unsupported_pct_information: "Informational only",
-  shipment_document_fact: "Needs a shipment",
-  shipment_audit_result: "Needs a shipment",
-  combined_shipment_and_regulation: "Needs a shipment",
-  audit_history: "Needs a shipment",
-  out_of_scope: "Out of scope",
-};
-
-const EVIDENCE_SCOPE_LABELS: Record<string, string> = {
-  exact_pct: "Evidence names this PCT code",
-  broader_category: "Broader product category only",
-  none: "No matching evidence",
-};
-
-const EVIDENCE_LABELS: Record<string, string> = {
-  accepted: "Evidence accepted",
-  evidence_not_found: "No sufficiently relevant evidence",
-  not_applicable: "No retrieval performed",
-};
 
 interface ChatMessage {
   id: string;
@@ -192,53 +157,11 @@ function SourceCard({ citation }: { citation: RegulatoryCitation }) {
 }
 
 export function RegulatoryAssistantPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeQuestion, setActiveQuestion] = useState<ChatMessage | null>(null);
+  const [activeAnswer, setActiveAnswer] = useState<ChatMessage | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : window.localStorage.getItem(STORAGE_KEY),
-  );
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
-
-  // Rehydrate the previous conversation so a reload does not silently start a
-  // new thread while the stored id keeps accumulating turns server-side.
-  useEffect(() => {
-    if (!conversationId || messages.length > 0) return;
-    let active = true;
-    api
-      .getConversation(conversationId)
-      .then((conversation) => {
-        if (!active) return;
-        if (conversation.shipment_id) {
-          // Never continue a shipment thread here.
-          window.localStorage.removeItem(STORAGE_KEY);
-          setConversationId(null);
-          return;
-        }
-        setMessages(
-          conversation.messages.map((message) => ({
-            id: message.id,
-            role: message.role,
-            text: message.text,
-          })),
-        );
-      })
-      .catch(() => {
-        if (!active) return;
-        window.localStorage.removeItem(STORAGE_KEY);
-        setConversationId(null);
-      });
-    return () => {
-      active = false;
-    };
-    // Runs once for the stored id; later turns are appended directly.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
 
   const ask = async (question: string) => {
     const trimmed = question.trim();
@@ -246,39 +169,39 @@ export function RegulatoryAssistantPage() {
 
     setError(null);
     setInput("");
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", text: trimmed },
-    ]);
+    // Replace the previous turn before the network request starts. This
+    // prevents stale answers and source cards from remaining visible while a
+    // new question loads.
+    setActiveQuestion({
+      id: crypto.randomUUID(),
+      role: "user",
+      text: trimmed,
+    });
+    setActiveAnswer(null);
     setBusy(true);
 
     try {
       const response: RegulatoryChatResponse = await api.askRegulatory({
         question: trimmed,
-        conversation_id: conversationId,
+        top_k: 3,
       });
-      setConversationId(response.conversation_id);
-      window.localStorage.setItem(STORAGE_KEY, response.conversation_id);
-      setMessages((current) => [
-        ...current,
-        {
-          id: response.message_id,
-          role: "assistant",
-          text: response.answer,
-          intent: response.intent,
-          evidenceStatus: response.evidence_status,
-          evidenceScope: response.evidence_scope,
-          answerMode: response.answer_mode,
-          requiredDocuments: response.required_documents,
-          conditionalDocuments: response.conditional_documents,
-          productCandidates: response.product_candidates,
-          interpretedAs: response.interpreted_as,
-          informationalOnly: response.informational_only,
-          sources: response.sources,
-          limitations: response.limitations,
-          supportedScope: response.supported_compliance_scope,
-        },
-      ]);
+      setActiveAnswer({
+        id: response.message_id,
+        role: "assistant",
+        text: response.answer,
+        intent: response.intent,
+        evidenceStatus: response.evidence_status,
+        evidenceScope: response.evidence_scope,
+        answerMode: response.answer_mode,
+        requiredDocuments: response.required_documents,
+        conditionalDocuments: response.conditional_documents,
+        productCandidates: response.product_candidates,
+        interpretedAs: response.interpreted_as,
+        informationalOnly: response.informational_only,
+        sources: response.sources.slice(0, 3),
+        limitations: response.limitations,
+        supportedScope: response.supported_compliance_scope,
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "The assistant could not be reached.",
@@ -300,17 +223,17 @@ export function RegulatoryAssistantPage() {
       <PageHeader
         eyebrow="Ask CACE"
         title="Regulatory assistant"
-        description="Ask about customs, export documentation and the regulatory sources indexed by CACE. Answers quote the indexed corpus and cite the exact source. This assistant is informational: deterministic compliance decisions are made only for the five supported textile PCT codes, in Prepare an Export."
+        description="Ask about customs, export documentation and the regulatory sources indexed by CACE. Answers quote the indexed corpus and cite the exact source. This assistant is informational: deterministic compliance decisions are available for 17 validated textile PCT codes in Prepare an Export."
       />
 
       <div className="layout-split">
         <div className="layout-main">
           <section className="panel">
             <div className="panel__header">
-              <h2>Conversation</h2>
+              <h2>Current question</h2>
             </div>
             <div className="panel__body">
-              {messages.length === 0 ? (
+              {!activeQuestion ? (
                 <p className="muted">
                   Ask a question about export documentation, trade regulation or
                   the indexed regulatory sources. Questions outside customs and
@@ -318,44 +241,15 @@ export function RegulatoryAssistantPage() {
                 </p>
               ) : null}
 
-              {messages.map((message) => (
+              {[activeQuestion, activeAnswer].filter(
+                (message): message is ChatMessage => message !== null,
+              ).map((message) => (
                 <article
                   key={message.id}
                   className={`chat-message chat-message--${message.role}`}
                 >
                   <header className="chat-message__head">
                     <strong>{message.role === "user" ? "You" : "CACE"}</strong>
-                    {message.answerMode ? (
-                      <span className="evidence-chip evidence-chip--neutral">
-                        {MODE_LABELS[message.answerMode] ??
-                          INTENT_LABELS[message.intent ?? ""] ??
-                          message.answerMode}
-                      </span>
-                    ) : null}
-                    {message.evidenceScope &&
-                    EVIDENCE_SCOPE_LABELS[message.evidenceScope] ? (
-                      <span
-                        className={`evidence-chip evidence-chip--${
-                          message.evidenceScope === "exact_pct"
-                            ? "success"
-                            : "warning"
-                        }`}
-                      >
-                        {EVIDENCE_SCOPE_LABELS[message.evidenceScope]}
-                      </span>
-                    ) : null}
-                    {message.evidenceStatus ? (
-                      <span
-                        className={`evidence-chip evidence-chip--${
-                          message.evidenceStatus === "accepted"
-                            ? "success"
-                            : "warning"
-                        }`}
-                      >
-                        {EVIDENCE_LABELS[message.evidenceStatus] ??
-                          message.evidenceStatus}
-                      </span>
-                    ) : null}
                   </header>
 
                   <p className="chat-message__text">
@@ -390,14 +284,19 @@ export function RegulatoryAssistantPage() {
                   ) : null}
 
                   {message.sources && message.sources.length > 0 ? (
-                    <ul className="citation-list">
-                      {message.sources.map((citation, index) => (
-                        <SourceCard
-                          key={`${message.id}-${index}`}
-                          citation={citation}
-                        />
-                      ))}
-                    </ul>
+                    <details className="citation-card__technical">
+                      <summary>
+                        Relevant sources ({message.sources.length})
+                      </summary>
+                      <ul className="citation-list">
+                        {message.sources.map((citation, index) => (
+                          <SourceCard
+                            key={`${message.id}-${index}`}
+                            citation={citation}
+                          />
+                        ))}
+                      </ul>
+                    </details>
                   ) : null}
 
                   {message.limitations && message.limitations.length > 0 ? (
@@ -419,7 +318,6 @@ export function RegulatoryAssistantPage() {
                   the regulatory corpus…
                 </p>
               ) : null}
-              <div ref={endRef} />
 
               {error ? (
                 <div className="notice notice--danger">
@@ -499,11 +397,11 @@ export function RegulatoryAssistantPage() {
               <ul className="plain-list">
                 <li>
                   Searches every active regulatory source indexed by CACE, not
-                  only the five supported PCT codes.
+                  only the supported PCT codes.
                 </li>
                 <li>
-                  Deterministic compliance decisions remain limited to the five
-                  supported textile PCT codes.
+                  Deterministic compliance decisions are available for 17
+                  validated textile PCT codes in Prepare an Export.
                 </li>
                 <li>
                   Shipment-specific questions need a shipment to be selected

@@ -82,7 +82,7 @@ _CHECKLIST_REQUEST = re.compile(
     r"|\b(need|require|prepare|preparing|arrange|obtain)\b[^.?!]*"
     r"\b(document|documents|paperwork|papers)\b"
     r"|\b(documents?|paperwork|papers)\s+(for|when|before)\b"    r"|\bwhat\s+(do\s+)?i\s+need\b"
-
+    r"|\bwhat\s+(things|items)\b[^.?!]*\bprepare\b[^.?!]*\bexport\b"
     r"|\bchecklist\b",
     re.IGNORECASE,
 )

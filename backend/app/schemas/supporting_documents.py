@@ -280,25 +280,47 @@ class SupportingDocumentResult(BaseModel):
     notes: list[str] = Field(default_factory=list)
     extraction: SupportingDocumentExtraction | None = None
     extraction_summary: str | None = None
+    # Presence, parsing, shipment matching and acceptance are distinct states.
+    presence_status: str | None = None
 
     @model_validator(mode="after")
     def set_user_facing_extraction_summary(self) -> "SupportingDocumentResult":
-        if self.extraction_summary is not None or self.extraction is None:
-            return self
-        recovered = [
-            getattr(self.extraction, name)
-            for name in SupportingDocumentCandidates.model_fields
-            if getattr(self.extraction, name).value is not None
-        ]
-        methods = {field.extraction_method.value for field in recovered}
-        if "llm_gapfill" in methods:
-            self.extraction_summary = "Extracted with AI assistance"
-        elif methods & {"regex_label", "ocr_regex"}:
-            self.extraction_summary = "Extracted deterministically"
-        elif recovered:
-            self.extraction_summary = "Extracted with AI assistance"
-        else:
-            self.extraction_summary = "Partially extracted — retry available"
-        if self.content_status == "manual_review" and not recovered:
-            self.extraction_summary = "Manual review required"
+        if self.extraction_summary is None and self.extraction is not None:
+            recovered = [
+                getattr(self.extraction, name)
+                for name in SupportingDocumentCandidates.model_fields
+                if getattr(self.extraction, name).value is not None
+            ]
+            methods = {field.extraction_method.value for field in recovered}
+            if "llm_gapfill" in methods:
+                self.extraction_summary = "Extracted with AI assistance"
+            elif methods & {"regex_label", "ocr_regex"}:
+                self.extraction_summary = "Extracted deterministically"
+            elif recovered:
+                self.extraction_summary = "Extracted with AI assistance"
+            else:
+                self.extraction_summary = "Partially extracted — retry available"
+            if self.content_status == "manual_review" and not recovered:
+                self.extraction_summary = "Manual review required"
+
+        if self.presence_status is None:
+            failed_matches = any(
+                check.status.value == "failed" and check.check_id.endswith("_match")
+                for check in self.checks
+            )
+            if not self.uploaded or self.state in {
+                SupportingDocumentState.CLAIMED_ONLY,
+                SupportingDocumentState.UNREADABLE,
+            }:
+                self.presence_status = "unresolved"
+            elif self.state is SupportingDocumentState.TYPE_MISMATCH:
+                self.presence_status = "invalid"
+            elif failed_matches:
+                self.presence_status = "shipment_mismatched"
+            elif self.content_status == "failed":
+                self.presence_status = "invalid"
+            elif self.state is SupportingDocumentState.SHIPMENT_MATCHED:
+                self.presence_status = "shipment_matched"
+            else:
+                self.presence_status = "unresolved"
         return self

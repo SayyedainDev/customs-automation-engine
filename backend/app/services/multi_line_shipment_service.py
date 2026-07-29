@@ -108,7 +108,7 @@ from app.services.structured_extraction_service import (
 )
 from app.schemas.supporting_documents import SupportingDocumentResult, SupportingDocumentState
 from app.services.supporting_document_service import (
-    verified_document_types,
+    present_document_types,
     verify_supporting_documents,
 )
 
@@ -1357,7 +1357,7 @@ def recheck_multi_line_shipment_from_correction(
         SupportingDocumentResult.model_validate(d)
         for d in extraction_result.get("supporting_documents") or []
     ]
-    present_document_types = verified_document_types(supporting_results)
+    documents_present = present_document_types(supporting_results)
 
     engine = DeterministicComplianceRuleEngine()
     items = [
@@ -1366,7 +1366,7 @@ def recheck_multi_line_shipment_from_correction(
             invoice=invoice,
             match=match,
             engine=engine,
-            present_document_types=present_document_types,
+            present_document_types=documents_present,
         )
         for match in matches
     ]
@@ -1382,6 +1382,7 @@ def recheck_multi_line_shipment_from_correction(
     outstanding = collect_outstanding_documents(all_checks)
 
     response = MultiLineShipmentResponse(
+        review_revision_id=request.review_revision_id,
         supporting_documents=supporting_results,
         document_review_status=_uploaded_document_review_status(items, all_checks, manual_fields),
         outstanding_documents=outstanding,
@@ -1454,7 +1455,7 @@ def extract_match_and_check_multi_line_shipment(
         shipment_currency=invoice.currency.value,
         today=request.shipment_date,
     )
-    present_document_types = verified_document_types(supporting_results)
+    documents_present = present_document_types(supporting_results)
 
     engine = DeterministicComplianceRuleEngine()
     items = [
@@ -1463,7 +1464,7 @@ def extract_match_and_check_multi_line_shipment(
             invoice=invoice,
             match=match,
             engine=engine,
-            present_document_types=present_document_types,
+            present_document_types=documents_present,
         )
         for match in matches
     ]
@@ -1508,6 +1509,7 @@ def extract_match_and_check_multi_line_shipment(
     )
 
     return MultiLineShipmentResponse(
+        review_revision_id=request.review_revision_id,
         supporting_documents=supporting_results,
         document_review_status=_uploaded_document_review_status(
             items, all_checks, manual_fields

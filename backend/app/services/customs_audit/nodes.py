@@ -366,6 +366,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
 
     def broker_agent(state: dict[str, Any]) -> dict[str, Any]:
         request = MultiLineShipmentRequest(
+            review_revision_id=state.get("review_revision_id") or uuid4(),
             commercial_invoice_document_id=UUID(state["commercial_invoice_document_id"]),
             packing_list_document_id=(
                 UUID(state["packing_list_document_id"])
@@ -1003,6 +1004,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             )
 
         request = MultiLineShipmentRequest(
+            review_revision_id=state.get("review_revision_id") or uuid4(),
             commercial_invoice_document_id=UUID(state["commercial_invoice_document_id"]),
             packing_list_document_id=(
                 UUID(state["packing_list_document_id"])
