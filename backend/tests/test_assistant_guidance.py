@@ -49,6 +49,13 @@ def test_guidance_successful(isolated_database):
     assert "form_e" in doc_types
     assert "certificate_of_origin" in doc_types
     
-    # Missing evidence honest reporting
+    # Honest reporting when the corpus returns nothing for a requirement: the
+    # requirement is still shown, classified as coming from the configured rule
+    # rather than from retrieved evidence.
     coo = next(d for d in resp.documents if d.document_type == "certificate_of_origin")
-    assert "The indexed regulatory documents did not contain a sufficiently relevant passage" in coo.reason
+    assert coo.evidence_class == "configured_rule_only"
+    assert coo.citations == []
+    assert "did not return a sufficiently relevant passage" in coo.reason
+    # Pre-upload the checklist describes paperwork to obtain, never absence.
+    assert coo.preparation_status == "to_prepare"
+    assert "Missing required document" not in coo.reason
