@@ -1,0 +1,348 @@
+{
+  "schema_version": "1.0",
+  "analysis_date": "2026-07-29",
+  "legal_cutoff_date": "2026-07-22",
+  "scope": "Seven Export Policy Order amendments not present in the accepted regulatory retrieval corpus. SRO 2486(I)/2025 is excluded from this list because its raw-cotton terms were manually validated and are already active.",
+  "legal_use_status": "verification_only_not_executable_not_accepted_rag_evidence",
+  "decision_method": "deterministic_exact_and_normalized_text_search_without_llm",
+  "supported_pct_codes": [
+    "52010090",
+    "52051100",
+    "52052100",
+    "52085200",
+    "52093100",
+    "52094200",
+    "52114200",
+    "61051000",
+    "61061000",
+    "61091000",
+    "61102000",
+    "62034200",
+    "62046290",
+    "62052090",
+    "63013000",
+    "63023110",
+    "63026010"
+  ],
+  "searches_performed": [
+    "all normalized eight-digit supported PCT codes, with and without a dot",
+    "all supported six-digit subheadings and four-digit parent headings",
+    "textile Chapters 50 through 63",
+    "configured product names and material/category terms",
+    "destination, route, licence, permit, prohibition, restriction, duty drawback, Certificate of Origin, Form-E, SBP and effective-date terms",
+    "schedule, appendix and paragraph references against the Export Policy Order predecessor text",
+    "structured amendment affected-code arrays and unresolved-source-conflict records"
+  ],
+  "amendments": [
+    {
+      "identifier": "SRO 561(I)/2023",
+      "title": "Further amendment to the Export Policy Order, 2022 — Angoor Adda export land route",
+      "publication_date": "2023-05-15",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_561_i_2023_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "9901eb7d04a6dd7491caf940f8ac1816f8397d584861ca1154767b3bdda735e1",
+      "page_count": 3,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, paragraph 7(5)",
+      "extraction_method": "Tesseract OCR with searchable-PDF and validated-text derivatives",
+      "ocr_status": "success; no page was flagged for material OCR review",
+      "validation_status": "operative page remains OCR_verified, not manually verified",
+      "blocked_reason": "The amendment is outside the accepted source registry and the amendment dataset remains blocked for legal execution pending legal review; the operative page was not in the manual visual-validation set.",
+      "unclear_pages": [],
+      "likely_textile_relevance": "Conditional operational relevance: paragraph 7 expressly covers exports to Afghanistan and through Afghanistan, while the predecessor paragraph includes textile and textile articles.",
+      "possible_affected_pcts": [
+        "52010090",
+        "52051100",
+        "52052100",
+        "52085200",
+        "52093100",
+        "52094200",
+        "52114200",
+        "61051000",
+        "61061000",
+        "61091000",
+        "61102000",
+        "62034200",
+        "62046290",
+        "62052090",
+        "63013000",
+        "63023110",
+        "63026010"
+      ],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 561(I)/2023",
+          "page": 3,
+          "evidence": "Adds Angoor Adda to paragraph 7(5)'s authorized export land routes."
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 3,
+          "evidence": "Paragraph 7(1) includes textile and textile articles."
+        }
+      ],
+      "impact_confidence": "high for route-only scope; high that no configured CACE rule is changed",
+      "action": "no detected impact",
+      "action_note": "CACE has no route-clearance verdict or route input. The amendment adds an allowed route and does not change a configured document, destination, PCT, licensing or duty-drawback rule. The existing Afghanistan yarn rule is independently manual_review under paragraph 7(3)."
+    },
+    {
+      "identifier": "SRO 1087(I)/2023",
+      "title": "Further amendments to the Export Policy Order, 2022 — paragraph 7 and vegetable-ghee conditions",
+      "publication_date": "2023-08-18",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_1087_i_2023_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "8668a180f284277b7d82f7bb62f3f25a674e7a14a82dcd6f72ebd87a9af3fc50",
+      "page_count": 1,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, paragraph 7(6)-(7) and Schedule II serial 8",
+      "extraction_method": "Tesseract OCR followed by line-by-line manual validation",
+      "ocr_status": "success with a restored phrase that OCR omitted",
+      "validation_status": "manually_verified page; amendment dataset still not approved for legal execution",
+      "blocked_reason": "The amendment is not an accepted indexed source and the consolidated amendment dataset remains blocked pending legal review and unresolved conflicts elsewhere in the chain.",
+      "unclear_pages": [],
+      "likely_textile_relevance": "Paragraph 7(6)-(7) could concern supported textiles only for exports from an Export Processing Zone, manufacturing bond or export-oriented unit, or to the named Afghanistan agencies. The Schedule II change is solely vegetable ghee/cooking oil.",
+      "possible_affected_pcts": [
+        "52010090",
+        "52051100",
+        "52052100",
+        "52085200",
+        "52093100",
+        "52094200",
+        "52114200",
+        "61051000",
+        "61061000",
+        "61091000",
+        "61102000",
+        "62034200",
+        "62046290",
+        "62052090",
+        "63013000",
+        "63023110",
+        "63026010"
+      ],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 1087(I)/2023",
+          "page": 1,
+          "evidence": "Omits paragraph 7(6)-(7); separately amends Schedule II serial 8."
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 4,
+          "evidence": "Paragraph 7(6)-(7) concerns special exporter regimes and Afghanistan agencies."
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 15,
+          "evidence": "Schedule II serial 8 contains PCT 1516.1000, 1516.2010, 1516.2020 and 1518.0000, not supported textile PCTs."
+        }
+      ],
+      "impact_confidence": "high that special-regime benefits may be relevant operationally; high that no configured CACE rule is changed",
+      "action": "no detected impact",
+      "action_note": "CACE does not decide EPZ/manufacturing-bond/EU benefit entitlement. The configured yarn-to-Afghanistan manual-review rule relies on paragraph 7(3) and Schedule III item 3, neither of which is amended."
+    },
+    {
+      "identifier": "SRO 629(I)/2024",
+      "title": "Further amendments to the Export Policy Order, 2022 — PCT transpositions",
+      "publication_date": "2024-04-30",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_629_i_2024_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "96ca627358446c8e7d20c50d4c5315bb99d2dbeec05193405b3e4bca457e51d4",
+      "page_count": 7,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, Schedule I and Appendices A, B, C, G, H and J",
+      "extraction_method": "Tesseract OCR; pages 1, 2 and 6 manually compared with page images",
+      "ocr_status": "success with review; OCR defects were found and preserved separately",
+      "validation_status": "mixed manually_verified/OCR_verified with two unresolved printed-code conflicts",
+      "blocked_reason": "The intended code on page 2 and one code in the page 6 sequence cannot be corrected without an authoritative corrigendum; the dataset explicitly blocks legal execution.",
+      "unclear_pages": [
+        {
+          "page": 2,
+          "printed_value": "2303.4910",
+          "conflicting_proposed_value": "2903.4910"
+        },
+        {
+          "page": 6,
+          "printed_value": "4413.8200 inside a 4418 sequence",
+          "conflicting_proposed_value": "4418.8200"
+        }
+      ],
+      "likely_textile_relevance": "No direct textile Chapter 50-63 code, parent heading or configured product description occurs. The Appendix-J transpositions are food and wood entries.",
+      "possible_affected_pcts": [],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 629(I)/2024",
+          "pages": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "evidence": "All printed old/new codes and descriptions were searched; none falls in Chapters 50-63 or a supported parent heading."
+        }
+      ],
+      "impact_confidence": "high",
+      "action": "unrelated to supported textile scope",
+      "action_note": "The unresolved values are in Chapters 23/29 and 44, outside all supported PCT headings. Neither value was normalized or guessed."
+    },
+    {
+      "identifier": "SRO 1021(I)/2024",
+      "title": "Further amendment to the Export Policy Order, 2022 — Schedule I serial 19",
+      "publication_date": "2024-07-11",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_1021_i_2024_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "481403be4489f2255645ff6ea9bf3aacfb6de79049d5b9ac46adb88e1b7e6d15",
+      "page_count": 1,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 433(I)/2024 amendment text plus SRO 544(I)/2022 Schedule I serial 19",
+      "extraction_method": "Tesseract OCR followed by manual image validation",
+      "ocr_status": "success with review",
+      "validation_status": "operative amendment manually_verified; predecessor wording unresolved",
+      "blocked_reason": "The omitted predecessor text came from SRO 433(I)/2024, whose original notification was not visually validated in this task.",
+      "unclear_pages": [
+        {
+          "page": 1,
+          "field": "old Schedule I serial 19 column (4) text"
+        }
+      ],
+      "likely_textile_relevance": "None; predecessor serial 19 is wheat, wheat flour, fine flour/maida and suji under Chapters 10 and 11.",
+      "possible_affected_pcts": [],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 1021(I)/2024",
+          "page": 1,
+          "evidence": "Omits Schedule I serial 19 column (4)."
+        },
+        {
+          "document": "SRO 544(I)/2022 as amended",
+          "page": 14,
+          "evidence": "Serial 19 resolves to PCT 1001.1900, 1001.9900 and 1101.0010."
+        }
+      ],
+      "impact_confidence": "high",
+      "action": "unrelated to supported textile scope",
+      "action_note": "No Chapter 50-63 code, supported parent heading or matching product class is involved."
+    },
+    {
+      "identifier": "SRO 705(I)/2025",
+      "title": "Further amendment to the Export Policy Order, 2022 — potassium sulphate from Gwadar",
+      "publication_date": "2025-04-18",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_705_i_2025_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "0def212d7caafddc8a85d853c47c457f5bcc6e504303b3f6bce16e63fc99334e",
+      "page_count": 1,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, Schedule I serial 12 column (4)",
+      "extraction_method": "Tesseract OCR with searchable-PDF and validated-text derivatives",
+      "ocr_status": "success; no material OCR defect flagged",
+      "validation_status": "OCR_verified only",
+      "blocked_reason": "The page was not manually legally validated and the amendment is not in the accepted source registry.",
+      "unclear_pages": [],
+      "likely_textile_relevance": "None; the amendment is limited to potassium sulphate PCT 3104.3000.",
+      "possible_affected_pcts": [],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 705(I)/2025",
+          "page": 1,
+          "evidence": "Names HS/PCT 3104.3000 and Gwadar Free Zone manufacturers."
+        }
+      ],
+      "impact_confidence": "high",
+      "action": "unrelated to supported textile scope",
+      "action_note": "Exact, parent-heading, chapter and product-description searches do not intersect the supported textile catalog."
+    },
+    {
+      "identifier": "SRO 1727(I)/2025",
+      "title": "Further amendment to the Export Policy Order, 2022 — Appendix G hides, skins and leather omissions",
+      "publication_date": "2025-09-08",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_1727_i_2025_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "b9d0f90c18f54faf77d3238a62d9c8b92fef5098e60caf1a67b67589ce7bf526",
+      "page_count": 1,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, Appendix G serials 174-175, 181-186 and 189-198",
+      "extraction_method": "Tesseract OCR followed by manual validation of the amendment page; predecessor codes resolved from base-order pages 40-42",
+      "ocr_status": "success with review",
+      "validation_status": "amendment page manually_verified; predecessor code resolution OCR_verified",
+      "blocked_reason": "The amendment is outside the accepted source registry and the consolidated chain remains blocked pending legal review.",
+      "unclear_pages": [],
+      "likely_textile_relevance": "None for CACE's textile catalog; the affected headings are hides, skins, leather and leather waste in Chapter 41.",
+      "possible_affected_pcts": [],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 1727(I)/2025",
+          "page": 1,
+          "evidence": "Omits the specified Appendix G serial ranges."
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "pages": [
+            40,
+            41,
+            42
+          ],
+          "evidence": "The serial ranges resolve to Chapter 41 leather/hide codes."
+        }
+      ],
+      "impact_confidence": "high",
+      "action": "unrelated to supported textile scope",
+      "action_note": "Leather is outside the configured categories and none of the affected headings falls in Chapters 50-63."
+    },
+    {
+      "identifier": "SRO 1902(I)/2025",
+      "title": "Further amendments to the Export Policy Order, 2022 — donkey hides",
+      "publication_date": "2025-10-02",
+      "effective_date": null,
+      "file_path": "regulatory_data/raw/commerce/export_policy/amendments/sro_1902_i_2025_amendment_to_export_policy_order_2022.pdf",
+      "sha256": "d82b03376fce5d44c2b109b3ed5b9869b1eb375abd10b9627fb23ede3dfe96c1",
+      "page_count": 1,
+      "complete_source_pdf_available": true,
+      "source_authority": "Government of Pakistan, Ministry of Commerce",
+      "predecessor": "SRO 544(I)/2022, Schedule I and Appendix G serial 170",
+      "extraction_method": "Tesseract OCR with searchable-PDF and validated-text derivatives",
+      "ocr_status": "success; no material OCR defect flagged",
+      "validation_status": "OCR_verified only; 'respective headings' resolved to predecessor PCT 4101.5090",
+      "blocked_reason": "The page was not manually legally validated, uses the broad phrase 'respective headings', and is not in the accepted source registry.",
+      "unclear_pages": [],
+      "likely_textile_relevance": "None; both the new condition and predecessor entry concern donkey hides in Chapter 41.",
+      "possible_affected_pcts": [],
+      "possible_affected_rules": [],
+      "evidence_pages": [
+        {
+          "document": "SRO 1902(I)/2025",
+          "page": 1,
+          "evidence": "Adds a donkey-hide condition under respective headings and removes the old Appendix G note."
+        },
+        {
+          "document": "SRO 544(I)/2022",
+          "page": 40,
+          "evidence": "Appendix G serial 170 resolves to PCT 4101.5090."
+        }
+      ],
+      "impact_confidence": "high",
+      "action": "unrelated to supported textile scope",
+      "action_note": "The broad heading was resolved through the predecessor rather than treated as no-impact merely because no eight-digit code was printed."
+    }
+  ],
+  "conclusion": {
+    "confirmed_affected_configured_rules": [],
+    "possible_unresolved_affected_configured_rules": [],
+    "new_manual_review_rules_required": false,
+    "reason": "Two amendments have conditional operational relevance to special Afghanistan routes or exporter regimes, but neither changes a field or rule CACE decides. The remaining five are outside the supported textile chapters. Adding a blanket manual-review condition would change unaffected shipment outcomes without a validated rule trigger."
+  }
+}
