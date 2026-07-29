@@ -420,6 +420,31 @@ export function ComplianceReviewResult({
     (item) => item.match_status === "matched",
   ).length;
   const documentStatus = result.document_review_status ?? result.overall_status;
+  const supportingExtractionStatuses = result.supporting_documents
+    .map((document) => {
+      const documentType = String(
+        document.canonical_document_type ??
+          document.claimed_document_type ??
+          "supporting_document",
+      );
+      const summary =
+        typeof document.extraction_summary === "string"
+          ? document.extraction_summary
+          : null;
+      return summary
+        ? {
+            documentType,
+            label: documentLabel(normalizedDocumentKey(documentType)),
+            summary,
+          }
+        : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is { documentType: string; label: string; summary: string } =>
+        item !== null,
+    );
   const decision = decisionCopy(documentStatus);
   const nextActions = [
     ...new Set([
@@ -505,6 +530,34 @@ export function ComplianceReviewResult({
           </details>
         </div>
       </section>
+
+      {supportingExtractionStatuses.length ? (
+        <section className="panel" aria-labelledby="supporting-extraction-heading">
+          <div className="panel__header">
+            <div>
+              <h2 id="supporting-extraction-heading">
+                Supporting-document extraction
+              </h2>
+              <p>
+                AI assistance is reported only for the fields that required it.
+              </p>
+            </div>
+            <FileCheck2 aria-hidden="true" size={19} />
+          </div>
+          <div className="panel__body">
+            <ul className="document-checklist">
+              {supportingExtractionStatuses.map((document) => (
+                <li key={document.documentType}>
+                  <div className="document-checklist__head">
+                    <strong>{document.label}</strong>
+                    <span>{document.summary}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
 
       {result.fields_requiring_manual_review.length ? (
         <div className="notice notice--warning" role="status">
