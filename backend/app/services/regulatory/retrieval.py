@@ -36,7 +36,12 @@ from app.services.regulatory.embeddings import (
     EmbeddingProvider,
     get_embedding_provider,
 )
+from app.services.regulatory.lexical_index import (
+    postgres_fts_available,
+    search_lexical_candidates,
+)
 from app.services.regulatory.reranker import Reranker, get_reranker
+from app.services.regulatory.vector_cache import get_vector_matrix
 from app.services.regulatory.vector_store import (
     VECTOR_INDEX_VERSION,
     get_vectors_for,
@@ -67,6 +72,14 @@ MIN_LEXICAL_RELEVANCE = 0.5
 # metadata tag with this" - it is not tuned to this one document.
 MIN_BASE_LEXICAL_OVERLAP = 0.20
 RETRIEVAL_MODE = "hybrid_dense_bm25_rrf_cross_encoder"
+#: Reported instead when the stored PostgreSQL full-text index serves the
+#: lexical stage, so a response says which path actually ran.
+RETRIEVAL_MODE_PERSISTENT = "hybrid_dense_pgfts_rrf_cross_encoder"
+#: How many candidates each stage contributes before fusion. Large enough
+#: that RRF still has something to fuse, small enough that the per-request
+#: work stops scaling with the corpus.
+LEXICAL_CANDIDATE_LIMIT = 200
+DENSE_CANDIDATE_LIMIT = 200
 
 
 def normalize_pct_token(value: str | None) -> str | None:
@@ -292,6 +305,54 @@ def _dense_scores(
     return scores
 
 
+def _persistent_candidates(
+    db: Session,
+    *,
+    query: str,
+    query_vector: np.ndarray,
+    embedder: EmbeddingProvider,
+    pct_code: str | None,
+    sro_number: str | None,
+    issuing_authority: str | None,
+    validation_status: str | None,
+    document_type: str | None,
+    legal_cutoff_date: date | None,
+    verified_only: bool,
+) -> tuple[list[str], dict[str, float], dict[str, float]]:
+    """Candidate chunk ids from the stored FTS index and the cached matrix.
+
+    Returns the union of both stages plus their raw scores. Neither stage
+    rebuilds anything per request: the lexical side is a GIN index lookup with
+    the metadata filters applied in the same statement, and the dense side is a
+    matrix multiply against a matrix loaded once per index generation.
+    """
+    lexical = search_lexical_candidates(
+        db,
+        query=query,
+        limit=LEXICAL_CANDIDATE_LIMIT,
+        pct_code=pct_code,
+        sro_number=sro_number,
+        issuing_authority=issuing_authority,
+        document_type=document_type,
+        validation_status=validation_status,
+        verified_statuses=tuple(sorted(VERIFIED_STATUSES)) if verified_only else None,
+        legal_cutoff_date=legal_cutoff_date,
+    )
+    lexical_scores = {hit.chunk_id: hit.rank for hit in lexical}
+
+    matrix = get_vector_matrix(
+        db, embedding_model=embedder.model_name, dimension=embedder.dimension
+    )
+    dense_scores: dict[str, float] = {}
+    if matrix.chunk_ids:
+        similarities = matrix.similarities(query_vector)
+        top = np.argsort(similarities)[::-1][:DENSE_CANDIDATE_LIMIT]
+        dense_scores = {matrix.chunk_ids[i]: float(similarities[i]) for i in top}
+
+    ordered = list(lexical_scores) + [c for c in dense_scores if c not in lexical_scores]
+    return ordered, lexical_scores, dense_scores
+
+
 def search_regulatory_evidence(
     db: Session,
     *,
@@ -323,6 +384,7 @@ def search_regulatory_evidence(
         augmented_query += f" {destination_country}"
 
     degraded = bool(embedder.degraded or reranker.degraded)
+    retrieval_mode = RETRIEVAL_MODE
 
     def output(status: str, results: list[ScoredEvidence]) -> RetrievalOutput:
         return RetrievalOutput(
@@ -331,41 +393,97 @@ def search_regulatory_evidence(
             results=results,
             embedding_model=embedder.model_name,
             reranker_model=reranker.model_name,
-            retrieval_mode=RETRIEVAL_MODE,
+            retrieval_mode=retrieval_mode,
             degraded_mode=degraded,
             retrieval_ms=round((time.perf_counter() - started) * 1000, 2),
         )
 
-    parents = {
-        chunk.chunk_id: chunk
-        for chunk in db.execute(
-            select(RegulatoryChunk).where(RegulatoryChunk.is_parent.is_(True))
-        ).scalars()
-    }
-    children = list(
-        db.execute(
-            select(RegulatoryChunk).where(RegulatoryChunk.is_parent.is_(False))
-        ).scalars()
-    )
-    children = _apply_metadata_filters(
-        children,
-        pct_code=normalized_pct,
-        sro_number=sro_number,
-        issuing_authority=issuing_authority,
-        validation_status=validation_status,
-        document_type=document_type,
-        legal_cutoff_date=legal_cutoff_date,
-        verified_only=verified_only,
-    )
-    if not children:
-        return output("evidence_not_found", [])
+    query_vector = embedder.embed_query(augmented_query)
+    persistent = postgres_fts_available(db)
+    if persistent:
+        retrieval_mode = RETRIEVAL_MODE_PERSISTENT
+
+    if persistent:
+        # Candidate generation happens in the database and against a matrix
+        # that was loaded once, so nothing here scales with the corpus except a
+        # single matrix multiply.
+        candidate_ids, lexical_by_id, dense_by_id = _persistent_candidates(
+            db,
+            query=augmented_query,
+            query_vector=query_vector,
+            embedder=embedder,
+            pct_code=normalized_pct,
+            sro_number=sro_number,
+            issuing_authority=issuing_authority,
+            validation_status=validation_status,
+            document_type=document_type,
+            legal_cutoff_date=legal_cutoff_date,
+            verified_only=verified_only,
+        )
+        if not candidate_ids:
+            return output("evidence_not_found", [])
+        by_id = {
+            chunk.chunk_id: chunk
+            for chunk in db.execute(
+                select(RegulatoryChunk).where(
+                    RegulatoryChunk.chunk_id.in_(candidate_ids)
+                )
+            ).scalars()
+        }
+        children = [by_id[cid] for cid in candidate_ids if cid in by_id]
+        # The dense stage does not apply metadata filters in SQL, so anything it
+        # contributed still has to satisfy them.
+        children = _apply_metadata_filters(
+            children,
+            pct_code=normalized_pct,
+            sro_number=sro_number,
+            issuing_authority=issuing_authority,
+            validation_status=validation_status,
+            document_type=document_type,
+            legal_cutoff_date=legal_cutoff_date,
+            verified_only=verified_only,
+        )
+        if not children:
+            return output("evidence_not_found", [])
+        parent_ids = {c.parent_chunk_id for c in children if c.parent_chunk_id}
+        parents = {
+            chunk.chunk_id: chunk
+            for chunk in db.execute(
+                select(RegulatoryChunk).where(RegulatoryChunk.chunk_id.in_(parent_ids))
+            ).scalars()
+        } if parent_ids else {}
+        bm25_scores = [lexical_by_id.get(c.chunk_id, 0.0) for c in children]
+        dense_scores = [dense_by_id.get(c.chunk_id, 0.0) for c in children]
+    else:
+        # In-memory fallback: no stored full-text index on this dialect.
+        parents = {
+            chunk.chunk_id: chunk
+            for chunk in db.execute(
+                select(RegulatoryChunk).where(RegulatoryChunk.is_parent.is_(True))
+            ).scalars()
+        }
+        children = list(
+            db.execute(
+                select(RegulatoryChunk).where(RegulatoryChunk.is_parent.is_(False))
+            ).scalars()
+        )
+        children = _apply_metadata_filters(
+            children,
+            pct_code=normalized_pct,
+            sro_number=sro_number,
+            issuing_authority=issuing_authority,
+            validation_status=validation_status,
+            document_type=document_type,
+            legal_cutoff_date=legal_cutoff_date,
+            verified_only=verified_only,
+        )
+        if not children:
+            return output("evidence_not_found", [])
+        bm25 = BM25([tokenize(c.text) for c in children])
+        bm25_scores = bm25.scores(tokenize(augmented_query))
+        dense_scores = _dense_scores(db, children, query_vector, embedder)
 
     query_tokens = tokenize(augmented_query)
-    bm25 = BM25([tokenize(c.text) for c in children])
-    bm25_scores = bm25.scores(query_tokens)
-    query_vector = embedder.embed_query(augmented_query)
-    dense_scores = _dense_scores(db, children, query_vector, embedder)
-
     bm25_ranks = _rank_map(bm25_scores)
     dense_ranks = _rank_map(dense_scores)
     rrf_values = [
