@@ -215,8 +215,12 @@ def test_what_is_form_e_uses_explanation_mode(isolated_database: Engine) -> None
         build_corpus(db)
         response = ask(db, "What is Form-E?")
     assert response.answer_mode == "explanation"
-    assert response.answer.startswith("Answer")
-    assert len(response.sources) <= 3
+    assert response.answer.startswith("Form-E / PSW Export Declaration")
+    assert "compares its exporter and invoice reference" in response.answer
+    assert "does not authenticate" in response.answer.casefold()
+    assert "customs clearance" in response.answer.casefold()
+    assert len(response.answer.split()) < 80
+    assert len(response.sources) == 1
     assert not response.answer.startswith("These indexed sources")
 
 

@@ -86,6 +86,10 @@ _VEHICLE_IMPORT_REQUEST = re.compile(
     r"|\b(car|cars|vehicle|vehicles|automobile|automobiles)\b[^.?!]{0,80}\b(import|bring)\b",
     re.IGNORECASE,
 )
+_FORM_E_DEFINITION_QUESTION = re.compile(
+    r"^\s*(what\s+is|define|explain)\s+(a\s+)?form[\s-]?e\s*[?.]?\s*$",
+    re.IGNORECASE,
+)
 
 SUGGESTED_QUESTIONS = [
     "What is Form-E?",
@@ -578,6 +582,22 @@ def _render_explanation(citations: list[RegulatoryCitationSchema]) -> str:
     return "\n".join(lines)
 
 
+def _render_form_e_explanation(
+    citation: RegulatoryCitationSchema,
+) -> tuple[str, str]:
+    """Concise product explanation; citations still come from retrieval."""
+    explanation = (
+        "Form-E / PSW Export Declaration is the supporting declaration CACE "
+        "uses for an export shipment. In Prepare an Export, CACE reads it and "
+        "compares its exporter and invoice reference with the commercial "
+        "invoice. A matched Form-E counts as present; an unreadable or "
+        "mismatched one is reported separately. This does not authenticate the "
+        "document or grant customs clearance."
+    )
+    snippet = _first_sentences(citation.accepted_passage, 120)
+    return f"{explanation}\n\nIndexed source\n{snippet}", snippet
+
+
 def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
     """One short answer with the exact source and page."""
     if not citations:
@@ -967,8 +987,16 @@ def answer_regulatory_question(
         body, snippets = _compose_grounded_answer(citations, decision.intent)
     else:
         citations = citations[:3]
-        body = _render_explanation(citations)
-        snippets = [_first_sentences(c.accepted_passage, 150) for c in citations]
+        if _FORM_E_DEFINITION_QUESTION.match(question):
+            # One closest source is enough for this short definition. The
+            # frontend keeps it collapsed; repeated chunks from one curated
+            # source add noise rather than provenance.
+            citations = citations[:1]
+            body, snippet = _render_form_e_explanation(citations[0])
+            snippets = [snippet]
+        else:
+            body = _render_explanation(citations)
+            snippets = [_first_sentences(c.accepted_passage, 150) for c in citations]
 
     framing = body
     # Wording is driven by what was actually retrieved, not merely by whether
