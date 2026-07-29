@@ -13,6 +13,11 @@ from app.services.regulatory.embeddings import (
     reset_embedding_provider,
     set_embedding_provider,
 )
+from app.services.regulatory.reranker import (
+    LexicalReranker,
+    reset_reranker,
+    set_reranker,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +47,21 @@ def default_fake_embedding_provider():
     set_embedding_provider(FakeEmbeddingProvider())
     yield
     reset_embedding_provider()
+
+
+@pytest.fixture(autouse=True)
+def default_offline_reranker():
+    """Pin the reranker the same way the embedder is pinned.
+
+    Without this the suite silently inherits ``REGULATORY_ENABLE_REAL_MODELS``
+    from the developer's ``.env``: with it set, ``get_reranker()`` downloads and
+    loads the real cross-encoder mid-test, so results depended on local
+    environment and model cache rather than on the code under test. Tests that
+    care about a specific reranker still inject their own.
+    """
+    set_reranker(LexicalReranker())
+    yield
+    reset_reranker()
 
 
 @pytest.fixture(autouse=True)
