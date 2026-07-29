@@ -5,10 +5,10 @@ def test_guidance_unsupported_code(isolated_database):
     db = Session(isolated_database)
     
     resp = generate_pre_submission_guidance(
-        db, product="Some Product", pct_code="6203.4200", destination="China"
+        db, product="Some Product", pct_code="6211.3200", destination="China"
     )
     assert resp.supported_scope is False
-    assert "CACE currently supports only five textile PCT codes" in resp.answer
+    assert "validated textile PCT codes" in resp.answer
 
 def test_guidance_conflict(isolated_database):
     from sqlalchemy.orm import Session

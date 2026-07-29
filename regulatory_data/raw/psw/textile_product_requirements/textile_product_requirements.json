@@ -17,7 +17,8 @@
     "TIPP represents many 8-digit PCT codes with a 12-digit commodity key. The raw-cotton selection 5201.0090 maps to TIPP commodity 520100901000 for raw cotton, other; it must not be confused with a ginned-cotton commodity variant.",
     "An allowed product can still require normal customs documents. A destination-based certificate of origin is recorded as conditional and does not make the product prohibited or generally restricted.",
     "The TIPP keyword measure search returned an official portal database error during retrieval. Exact commodity pages, exact measure commodity lists, official procedure pages, and the local official Export Policy Order chain were therefore checked directly.",
-    "Null means the reviewed official sources did not provide or verify the requested value; it does not mean that a requirement can never arise from the destination country, contract, transport mode, province, or a later legal change."
+    "Null means the reviewed official sources did not provide or verify the requested value; it does not mean that a requirement can never arise from the destination country, contract, transport mode, province, or a later legal change.",
+    "Entries for codes beyond the original five are derived from the Export Policy Order, 2022 paragraph 4(1) general permission after verifying absence from its schedules, not retrieved from the TIPP portal. They remain a CACE curated summary and are labelled as such wherever they are cited."
   ],
   "common_export_clearance": {
     "responsible_government_agency": "Federal Board of Revenue — Department of Customs",
@@ -45,9 +46,21 @@
   "conditional_certificate_of_origin": {
     "applies_to_selected_codes": [
       "52051100",
+      "52052100",
+      "52085200",
+      "52093100",
       "52094200",
+      "52114200",
+      "61051000",
+      "61061000",
       "61091000",
-      "63023110"
+      "61102000",
+      "62034200",
+      "62046290",
+      "62052090",
+      "63013000",
+      "63023110",
+      "63026010"
     ],
     "does_not_list_selected_raw_cotton_commodity": "520100901000",
     "responsible_government_agency": "Trade Development Authority of Pakistan",
@@ -102,7 +115,8 @@
     "measure_source_url": "https://tipp.gov.pk/index.php?id=188&r=searchMeasures%2Fview",
     "procedure_index_url": "https://tipp.gov.pk/index.php?id=185&r=searchProcedure%2Fview1",
     "effective_date": "2022-04-22",
-    "validation_status": "partially_verified"
+    "validation_status": "partially_verified",
+    "scope_note": "The requirement is driven by the destination market and preferential scheme, not by the product code, so it covers every supported textile code except raw cotton."
   },
   "products": [
     {
@@ -492,6 +506,571 @@
       "retrieval_date": "2026-07-23",
       "effective_date": "2022-04-22",
       "issuing_authority": "Ministry of Commerce"
+    },
+    {
+      "pct_code": "52052100",
+      "display_pct_code": "5205.2100",
+      "simple_product_name": "Combed cotton yarn (heavy count)",
+      "official_tariff_description": "Cotton yarn (other than sewing thread), containing 85% or more by weight of cotton, not put up for retail sale; single yarn, of combed fibres; measuring 714.29 decitex or more (not exceeding 14 metric number).",
+      "textile_category": "yarn",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme.",
+        "Yarn of all types is on the Export Policy Order Schedule-III negative list for exports to Afghanistan under the duty drawback scheme (page 18, paragraph 7(3)); duty-drawback eligibility for that destination requires manual review."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 134
+      }
+    },
+    {
+      "pct_code": "52085200",
+      "display_pct_code": "5208.5200",
+      "simple_product_name": "Printed cotton fabric (light)",
+      "official_tariff_description": "Woven fabrics of cotton, containing 85% or more by weight of cotton, weighing not more than 200 g/m2; printed; plain weave, weighing more than 100 g/m2.",
+      "textile_category": "woven_fabric",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 137
+      }
+    },
+    {
+      "pct_code": "52093100",
+      "display_pct_code": "5209.3100",
+      "simple_product_name": "Dyed cotton fabric (heavy)",
+      "official_tariff_description": "Woven fabrics of cotton, containing 85% or more by weight of cotton, weighing more than 200 g/m2; dyed; plain weave.",
+      "textile_category": "woven_fabric",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 137
+      }
+    },
+    {
+      "pct_code": "52114200",
+      "display_pct_code": "5211.4200",
+      "simple_product_name": "Blended denim fabric",
+      "official_tariff_description": "Woven fabrics of cotton, containing less than 85% by weight of cotton, mixed mainly or solely with man-made fibres, weighing more than 200 g/m2; of yarns of different colours; denim.",
+      "textile_category": "woven_fabric",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 138
+      }
+    },
+    {
+      "pct_code": "61051000",
+      "display_pct_code": "6105.1000",
+      "simple_product_name": "Men's knitted cotton shirts",
+      "official_tariff_description": "Men's or boys' shirts, knitted or crocheted - of cotton.",
+      "textile_category": "knitted_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 155
+      }
+    },
+    {
+      "pct_code": "61061000",
+      "display_pct_code": "6106.1000",
+      "simple_product_name": "Women's knitted cotton blouses",
+      "official_tariff_description": "Women's or girls' blouses, shirts and shirt-blouses, knitted or crocheted - of cotton.",
+      "textile_category": "knitted_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 155
+      }
+    },
+    {
+      "pct_code": "61102000",
+      "display_pct_code": "6110.2000",
+      "simple_product_name": "Cotton knitted jerseys and pullovers",
+      "official_tariff_description": "Jerseys, pullovers, cardigans, waistcoats and similar articles, knitted or crocheted - of cotton.",
+      "textile_category": "knitted_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 156
+      }
+    },
+    {
+      "pct_code": "62034200",
+      "display_pct_code": "6203.4200",
+      "simple_product_name": "Men's woven cotton trousers",
+      "official_tariff_description": "Men's or boys' trousers, bib and brace overalls, breeches and shorts - of cotton.",
+      "textile_category": "woven_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 158
+      }
+    },
+    {
+      "pct_code": "62046290",
+      "display_pct_code": "6204.6290",
+      "simple_product_name": "Women's woven cotton trousers",
+      "official_tariff_description": "Women's or girls' trousers, bib and brace overalls, breeches and shorts - of cotton - Other.",
+      "textile_category": "woven_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 159
+      }
+    },
+    {
+      "pct_code": "62052090",
+      "display_pct_code": "6205.2090",
+      "simple_product_name": "Men's woven cotton shirts",
+      "official_tariff_description": "Men's or boys' shirts - of cotton - Other.",
+      "textile_category": "woven_garment",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 159
+      }
+    },
+    {
+      "pct_code": "63013000",
+      "display_pct_code": "6301.3000",
+      "simple_product_name": "Cotton blankets and travelling rugs",
+      "official_tariff_description": "Blankets (other than electric blankets) and travelling rugs, of cotton.",
+      "textile_category": "made_up",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 161
+      }
+    },
+    {
+      "pct_code": "63026010",
+      "display_pct_code": "6302.6010",
+      "simple_product_name": "Cotton terry towels (mill-made)",
+      "official_tariff_description": "Toilet linen and kitchen linen, of terry towelling or similar terry fabrics of cotton - Towels, mill-made.",
+      "textile_category": "made_up",
+      "export_status": {
+        "value": "allowed",
+        "note": "No product-specific prohibition or restriction for this code was found in the Export Policy Order, 2022. General customs clearance and destination-based requirements still apply."
+      },
+      "licence_required": {
+        "value": false,
+        "verification_status": "verified_no_licence_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "permit_required": {
+        "value": false,
+        "verification_status": "verified_no_permit_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "certificate_required": {
+        "value": "conditional",
+        "details": "TDAP certificate of origin or REX-related evidence when required by the destination market or preferential scheme.",
+        "verification_status": "verified_conditional_destination_based"
+      },
+      "approval_required": {
+        "value": false,
+        "verification_status": "verified_no_approval_required_under_epo_2022_general_permission",
+        "note": "Export Policy Order 2022 (SRO 544(I)/2022), paragraph 4(1) general permission. Derived, not retrieved from TIPP: full-text search of the local official Export Policy Order PDF finds neither this eight-digit code nor its four-digit heading in Schedule I, Schedule II, Schedule III or Appendices A-J. The same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      },
+      "conditions": [
+        "General export customs clearance applies (commercial invoice, packing list, Form-E).",
+        "Certificate of origin is conditional on the destination market or preferential scheme."
+      ],
+      "legal_basis": [
+        "Export Policy Order, 2022 - general permission rule in paragraph 4(1)",
+        "Trade Development Authority of Pakistan Act, 2013 and Pakistan Trade Facilitation Agreements for conditional certificates of origin"
+      ],
+      "source_urls": [
+        "https://www.commerce.gov.pk/wp-content/uploads/2022/04/EPO-2022-SRO-544-2022-dt.22.4.22.pdf",
+        "https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1"
+      ],
+      "tariff_source": {
+        "document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+        "page": 162
+      }
     }
   ]
 }

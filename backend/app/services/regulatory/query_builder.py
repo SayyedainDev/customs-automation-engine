@@ -15,13 +15,10 @@ from dataclasses import dataclass
 _PCT = re.compile(r"\b(\d{4})\.?(\d{4})\b")
 _SRO = re.compile(r"\b\d{2,4}\s*\(\s*[IiVvXx]+\s*\)\s*/\s*\d{4}\b")
 
-_PRODUCT_HINTS = {
-    "52010090": "raw cotton",
-    "52051100": "cotton yarn",
-    "52094200": "denim fabric",
-    "61091000": "cotton knitted t-shirts",
-    "63023110": "cotton bed sheets",
-}
+# Product names for query enrichment, derived from the supported-PCT catalog
+# rather than duplicated here.
+from app.services.compliance.pct_catalog import product_search_hints
+
 
 
 @dataclass
@@ -52,7 +49,7 @@ def build_compliance_query(inputs: ComplianceQueryInputs) -> str:
         digits = re.sub(r"\D", "", inputs.pct_code)
         if len(digits) == 8:
             parts.append(f"PCT {digits}")
-        hint = _PRODUCT_HINTS.get(digits)
+        hint = product_search_hints().get(digits)
         if hint:
             parts.append(hint)
 

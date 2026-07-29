@@ -198,9 +198,31 @@ def _evaluate_shipment_deadline(
 
 def _evaluate_requirement_status(
     rule: ExecutableRule,
+    shipment: ShipmentComplianceInput,
     pct_code: str | None,
     rule_data_version: str,
 ) -> ComplianceCheckResult:
+    # A requirement that declares a destination applies only to that destination.
+    # Every rule of this type used to leave destination_country null, meaning
+    # "applies always", and that stayed the behaviour for all of them. The field
+    # is honoured now because the Export Policy Order Schedule-III negative list
+    # is scoped to exports to Afghanistan under the duty drawback scheme, and
+    # reporting it against a shipment to China would be simply wrong.
+    if rule.destination_country:
+        declared = rule.destination_country.casefold().strip()
+        actual = (shipment.destination_country or "").casefold().strip()
+        if declared != actual:
+            return _result(
+                rule,
+                pct_code=pct_code,
+                status=ComplianceCheckStatus.NOT_APPLICABLE,
+                message=(
+                    f"{rule.rule_name}: applies only to exports to "
+                    f"{rule.destination_country}; this shipment is destined for "
+                    f"{shipment.destination_country or 'an unspecified country'}."
+                ),
+                rule_data_version=rule_data_version,
+            )
     value = (rule.numeric_value or "").casefold().strip()
     if value in _ABSENT_VALUES:
         return _result(
@@ -278,7 +300,7 @@ def evaluate_rule(
     if rule.check_type is ExecutableCheckType.SHIPMENT_DEADLINE:
         return _evaluate_shipment_deadline(rule, shipment, pct_code, rule_data_version)
     if rule.check_type is ExecutableCheckType.REQUIREMENT_STATUS:
-        return _evaluate_requirement_status(rule, pct_code, rule_data_version)
+        return _evaluate_requirement_status(rule, shipment, pct_code, rule_data_version)
     return _evaluate_export_status(rule, pct_code, rule_data_version)
 
 

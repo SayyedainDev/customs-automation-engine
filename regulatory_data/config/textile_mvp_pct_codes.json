@@ -2,9 +2,21 @@
   "pct_codes": [
     "52010090",
     "52051100",
+    "52052100",
+    "52085200",
+    "52093100",
     "52094200",
+    "52114200",
+    "61051000",
+    "61061000",
     "61091000",
-    "63023110"
+    "61102000",
+    "62034200",
+    "62046290",
+    "62052090",
+    "63013000",
+    "63023110",
+    "63026010"
   ],
   "products": [
     {
@@ -17,7 +29,8 @@
       "validation_status": "verified_from_local_official_tariff_pdf",
       "effective_date": "2022-04-22",
       "issuing_authority": "Federal Board of Revenue",
-      "source_url": "https://www.fbr.gov.pk/"
+      "source_url": "https://www.fbr.gov.pk/",
+      "textile_category": "raw_material"
     },
     {
       "pct_code": "52051100",
@@ -29,7 +42,8 @@
       "validation_status": "verified_from_local_official_tariff_pdf",
       "effective_date": "2022-04-22",
       "issuing_authority": "Federal Board of Revenue",
-      "source_url": "https://www.fbr.gov.pk/"
+      "source_url": "https://www.fbr.gov.pk/",
+      "textile_category": "yarn"
     },
     {
       "pct_code": "52094200",
@@ -41,7 +55,8 @@
       "validation_status": "verified_from_local_official_tariff_pdf",
       "effective_date": "2022-04-22",
       "issuing_authority": "Federal Board of Revenue",
-      "source_url": "https://www.fbr.gov.pk/"
+      "source_url": "https://www.fbr.gov.pk/",
+      "textile_category": "woven_fabric"
     },
     {
       "pct_code": "61091000",
@@ -53,7 +68,8 @@
       "validation_status": "verified_from_local_official_tariff_pdf",
       "effective_date": "2022-04-22",
       "issuing_authority": "Federal Board of Revenue",
-      "source_url": "https://www.fbr.gov.pk/"
+      "source_url": "https://www.fbr.gov.pk/",
+      "textile_category": "knitted_garment"
     },
     {
       "pct_code": "63023110",
@@ -65,7 +81,232 @@
       "validation_status": "verified_from_local_official_tariff_pdf",
       "effective_date": "2022-04-22",
       "issuing_authority": "Federal Board of Revenue",
-      "source_url": "https://www.fbr.gov.pk/"
+      "source_url": "https://www.fbr.gov.pk/",
+      "textile_category": "made_up"
+    },
+    {
+      "pct_code": "52052100",
+      "display_pct_code": "5205.2100",
+      "simple_product_name": "Combed cotton yarn (heavy count)",
+      "official_tariff_description": "Cotton yarn (other than sewing thread), containing 85% or more by weight of cotton, not put up for retail sale; single yarn, of combed fibres; measuring 714.29 decitex or more (not exceeding 14 metric number).",
+      "tariff_source_page": 134,
+      "textile_category": "yarn",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "52085200",
+      "display_pct_code": "5208.5200",
+      "simple_product_name": "Printed cotton fabric (light)",
+      "official_tariff_description": "Woven fabrics of cotton, containing 85% or more by weight of cotton, weighing not more than 200 g/m2; printed; plain weave, weighing more than 100 g/m2.",
+      "tariff_source_page": 137,
+      "textile_category": "woven_fabric",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "52093100",
+      "display_pct_code": "5209.3100",
+      "simple_product_name": "Dyed cotton fabric (heavy)",
+      "official_tariff_description": "Woven fabrics of cotton, containing 85% or more by weight of cotton, weighing more than 200 g/m2; dyed; plain weave.",
+      "tariff_source_page": 137,
+      "textile_category": "woven_fabric",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "52114200",
+      "display_pct_code": "5211.4200",
+      "simple_product_name": "Blended denim fabric",
+      "official_tariff_description": "Woven fabrics of cotton, containing less than 85% by weight of cotton, mixed mainly or solely with man-made fibres, weighing more than 200 g/m2; of yarns of different colours; denim.",
+      "tariff_source_page": 138,
+      "textile_category": "woven_fabric",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "61051000",
+      "display_pct_code": "6105.1000",
+      "simple_product_name": "Men's knitted cotton shirts",
+      "official_tariff_description": "Men's or boys' shirts, knitted or crocheted - of cotton.",
+      "tariff_source_page": 155,
+      "textile_category": "knitted_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "61061000",
+      "display_pct_code": "6106.1000",
+      "simple_product_name": "Women's knitted cotton blouses",
+      "official_tariff_description": "Women's or girls' blouses, shirts and shirt-blouses, knitted or crocheted - of cotton.",
+      "tariff_source_page": 155,
+      "textile_category": "knitted_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "61102000",
+      "display_pct_code": "6110.2000",
+      "simple_product_name": "Cotton knitted jerseys and pullovers",
+      "official_tariff_description": "Jerseys, pullovers, cardigans, waistcoats and similar articles, knitted or crocheted - of cotton.",
+      "tariff_source_page": 156,
+      "textile_category": "knitted_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "62034200",
+      "display_pct_code": "6203.4200",
+      "simple_product_name": "Men's woven cotton trousers",
+      "official_tariff_description": "Men's or boys' trousers, bib and brace overalls, breeches and shorts - of cotton.",
+      "tariff_source_page": 158,
+      "textile_category": "woven_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "62046290",
+      "display_pct_code": "6204.6290",
+      "simple_product_name": "Women's woven cotton trousers",
+      "official_tariff_description": "Women's or girls' trousers, bib and brace overalls, breeches and shorts - of cotton - Other.",
+      "tariff_source_page": 159,
+      "textile_category": "woven_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "62052090",
+      "display_pct_code": "6205.2090",
+      "simple_product_name": "Men's woven cotton shirts",
+      "official_tariff_description": "Men's or boys' shirts - of cotton - Other.",
+      "tariff_source_page": 159,
+      "textile_category": "woven_garment",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "63026010",
+      "display_pct_code": "6302.6010",
+      "simple_product_name": "Cotton terry towels (mill-made)",
+      "official_tariff_description": "Toilet linen and kitchen linen, of terry towelling or similar terry fabrics of cotton - Towels, mill-made.",
+      "tariff_source_page": 162,
+      "textile_category": "made_up",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
+    },
+    {
+      "pct_code": "63013000",
+      "display_pct_code": "6301.3000",
+      "simple_product_name": "Cotton blankets and travelling rugs",
+      "official_tariff_description": "Blankets (other than electric blankets) and travelling rugs, of cotton.",
+      "tariff_source_page": 161,
+      "textile_category": "made_up",
+      "source_document": "regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+      "validation_status": "verified_from_local_official_tariff_pdf",
+      "effective_date": "2022-04-22",
+      "issuing_authority": "Federal Board of Revenue",
+      "source_url": "https://www.fbr.gov.pk/",
+      "export_policy_schedule_status": {
+        "value": "absent_from_epo_2022_schedules",
+        "verified_against": "regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf",
+        "note": "Neither the eight-digit code nor its four-digit heading appears in Schedule I, Schedule II, Schedule III or Appendices A-J of the Export Policy Order, 2022, so paragraph 4(1) general permission applies and no separate licence, permit or approval is required. Verified by full-text search of the local official PDF; the same search finds 5201.0090 on page 92 (Appendix-J), which is why raw cotton alone carries import-permit and phytosanitary conditions."
+      }
     }
+  ],
+  "categories": [
+    "knitted_garment",
+    "made_up",
+    "raw_material",
+    "woven_fabric",
+    "woven_garment",
+    "yarn"
   ]
 }

@@ -12,9 +12,9 @@ def test_validate_pct_scope_supported():
     assert prod == "Cotton knitted T-shirts"
 
 def test_validate_pct_scope_unsupported():
-    is_valid, msg, code, prod = validate_pct_scope("6203.4200", "Some product")
+    is_valid, msg, code, prod = validate_pct_scope("6211.3200", "Some product")
     assert is_valid is False
-    assert "CACE currently supports only five textile PCT codes" in msg
+    assert "validated textile PCT codes" in msg
 
 def test_validate_pct_scope_conflict():
     is_valid, msg, code, prod = validate_pct_scope("6109.1000", "Cotton yarn")

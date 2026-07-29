@@ -63,12 +63,12 @@ def test_api_endpoints(isolated_database):
     # Test Guidance - Unsupported PCT
     resp_unsupported = client.post("/api/v1/assistant/guidance", json={
         "product": "Some Product",
-        "pct_code": "62034200",
+        "pct_code": "62113200",
         "destination": "China"
     })
     assert resp_unsupported.status_code == 200
     assert resp_unsupported.json()["supported_scope"] is False
-    assert "CACE currently supports only five textile PCT codes" in resp_unsupported.json()["answer"]
+    assert "validated textile PCT codes" in resp_unsupported.json()["answer"]
     
     # Test Guidance - Product/PCT conflict
     resp_conflict = client.post("/api/v1/assistant/guidance", json={
