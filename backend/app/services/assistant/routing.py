@@ -45,6 +45,7 @@ def _classify_by_keywords(question: str) -> QuestionRoute | None:
         "trade agreement",
         "law says",
         "regulatory evidence",
+        "regulatory sources",
     ]):
         return "regulatory_guidance"
         
@@ -57,9 +58,14 @@ def _classify_by_keywords(question: str) -> QuestionRoute | None:
         "change the quantity",
         "mark this shipment approved",
         "ignore previous instructions",
+        "ignore cace rules",
+        "hide citations",
+        "customs approved",
         "write a poem",
         "write python",
+        "write a python",
         "write javascript",
+        "write a javascript",
         "debug my code",
         "coding question",
     ]):
