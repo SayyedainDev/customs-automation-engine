@@ -156,6 +156,37 @@ def test_checklist_is_deterministic_concise_and_focused(isolated_database: Engin
     assert not response.answer.startswith("These indexed sources")
 
 
+def test_checklist_explains_document_purpose_in_plain_language(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "What documents do I need for men's cotton trousers to USA?")
+
+    answer = response.answer.casefold()
+    assert "what is being sold" in answer
+    assert "packages, quantities, and weights" in answer
+    assert "export declaration submitted through psw" in answer
+    assert "shows where the goods were made" in answer
+    assert "configured rules expect" not in answer
+    assert "customs clearance or legal advice" in answer
+
+
+def test_ambiguous_checklist_explains_shared_documents_without_raw_passages(
+    isolated_database: Engine,
+) -> None:
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "What things to prepare to start export of cotton paints")
+
+    answer = response.answer.casefold()
+    assert "common documents" in answer
+    assert "what is being sold" in answer
+    assert "export declaration submitted through psw" in answer
+    assert "cotton seed" not in answer
+    assert "vegetable ghee" not in answer
+
+
 # 10/11/12. Irrelevant cotton passages are rejected for product guidance.
 @pytest.mark.parametrize(
     "text",

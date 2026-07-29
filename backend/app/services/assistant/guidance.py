@@ -160,13 +160,47 @@ def _to_source_schema(item: ScoredEvidence) -> SourceSchema:
 
 
 def get_document_explanation(doc_type: str) -> str:
+    """Return a short, exporter-friendly reason for the checklist document.
+
+    These are explanations of why CACE asks for a document, not new legal
+    requirements.  The configured rule and its accepted source remain the
+    authority; this text only translates the purpose into everyday language.
+    """
+    key = doc_type.casefold().replace("-", "_").replace(" ", "_")
     explanations = {
-        "commercial_invoice": "The Commercial Invoice is the primary document used for customs declaration. It details the price, value, and quantity of the goods being sold.",
-        "packing_list": "The Packing List details the exact contents of each package, box, or container in the shipment, including weights and dimensions.",
-        "form_e": "Form-E is the PSW Export Declaration required for electronic customs clearance. It replaces the manual Goods Declaration.",
-        "certificate_of_origin": "The Certificate of Origin is required to prove where the goods were manufactured, often necessary for preferential tariff rates under trade agreements.",
+        "commercial_invoice": (
+            "It shows what is being sold, who is buying it, the price, and the "
+            "total value."
+        ),
+        "packing_list": (
+            "It shows how the goods are packed, including the packages, "
+            "quantities, and weights."
+        ),
+        "form_e": (
+            "It records the export declaration submitted through PSW for the "
+            "customs process."
+        ),
+        "form_e_psw": (
+            "It records the export declaration submitted through PSW for the "
+            "customs process."
+        ),
+        "psw_export_declaration": (
+            "It records the export declaration submitted through PSW for the "
+            "customs process."
+        ),
+        "certificate_of_origin": (
+            "It shows where the goods were made. The destination or a trade "
+            "scheme may require it."
+        ),
+        "coo": (
+            "It shows where the goods were made. The destination or a trade "
+            "scheme may require it."
+        ),
     }
-    return explanations.get(doc_type.lower(), f"This document ({doc_type}) is required for compliance with export or destination policies.")
+    return explanations.get(
+        key,
+        f"It provides information needed for this export and destination.",
+    )
 
 
 def generate_pre_submission_guidance(

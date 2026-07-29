@@ -42,7 +42,10 @@ from app.services.assistant.domain_guard import (
 )
 from app.services.assistant.destinations import canonical_destination
 from app.services.assistant.foundation import SUPPORTED_PCT_PRODUCTS
-from app.services.assistant.guidance import generate_pre_submission_guidance
+from app.services.assistant.guidance import (
+    generate_pre_submission_guidance,
+    get_document_explanation,
+)
 from app.services.assistant.regulatory_intent import (
     IntentDecision,
     classify_regulatory_intent,
@@ -506,25 +509,42 @@ def _render_checklist(
         lines.append(f"Interpreting {readable}.")
     where = f" to {destination}" if destination else ""
     lines.append(
-        f"For {guidance.product} (PCT {guidance.pct_code}){where}, CACE's configured "
-        "rules expect the following documents."
+        f"For {guidance.product} (PCT {guidance.pct_code}){where}, prepare these "
+        "documents:"
     )
     if required:
         lines += ["", "Required documents"]
-        lines += [f"- {d.display_name}" for d in required]
+        lines += [
+            f"- {d.display_name}: {get_document_explanation(_document_type_for_name(d.display_name))}"
+            for d in required
+        ]
     if conditional:
-        lines += ["", "Conditional documents"]
+        lines += ["", "May be needed"]
         for d in conditional:
             note = f" - {_first_sentences(d.condition, 160)}" if d.condition else ""
-            lines.append(f"- {d.display_name}{note}")
-    lines += ["", "Scope"]
+            reason = get_document_explanation(_document_type_for_name(d.display_name))
+            lines.append(f"- {d.display_name}: {reason}{note}")
+    lines += ["", "In simple terms"]
     if destination == "USA":
         lines.append(f"- {NO_USA_SPECIFIC_RULE}")
     lines.append(
-        "- This is pre-submission guidance from CACE's configured rules, not "
-        "customs clearance."
+        "- This is a preparation checklist, not customs clearance or legal advice."
     )
     return "\n".join(lines)
+
+
+def _document_type_for_name(display_name: str) -> str:
+    """Map the stable display labels used by the checklist to their purpose."""
+    normalized = " ".join((display_name or "").casefold().replace("/", " ").split())
+    if "commercial invoice" in normalized:
+        return "commercial_invoice"
+    if "packing list" in normalized:
+        return "packing_list"
+    if "form e" in normalized or "export declaration" in normalized:
+        return "form_e"
+    if "certificate of origin" in normalized or normalized == "coo":
+        return "certificate_of_origin"
+    return normalized.replace(" ", "_")
 
 
 def _render_clarification(
@@ -546,21 +566,25 @@ def _render_clarification(
 
     shared_required, shared_conditional = guidance_pairs
     if shared_required:
-        lines += ["", "Documents commonly required for either option:", "", "Required"]
-        lines += [f"- {name}" for name in shared_required]
+        lines += ["", "Common documents", "", "Required documents"]
+        lines += [
+            f"- {name}: {get_document_explanation(_document_type_for_name(name))}"
+            for name in shared_required
+        ]
     if shared_conditional:
-        lines += ["", "Conditional"]
+        lines += ["", "May be needed"]
         for name, condition in shared_conditional:
             note = f" - {_first_sentences(condition, 160)}" if condition else ""
-            lines.append(f"- {name}{note}")
+            reason = get_document_explanation(_document_type_for_name(name))
+            lines.append(f"- {name}: {reason}{note}")
     lines += ["", "Please choose:"]
     lines += [f"- {name} - PCT {code}" for code, name in candidates]
-    lines += ["", "Scope"]
+    lines += ["", "In simple terms"]
     if destination == "USA":
         lines.append(f"- {NO_USA_SPECIFIC_RULE}")
     lines.append(
-        "- No compliance decision is issued until the product is resolved. This "
-        "is pre-submission guidance, not customs clearance."
+        "- Choose the product first; CACE cannot give a pass/fail result yet. "
+        "This is a preparation checklist, not customs clearance or legal advice."
     )
     return "\n".join(lines)
 
@@ -587,12 +611,11 @@ def _render_form_e_explanation(
 ) -> tuple[str, str]:
     """Concise product explanation; citations still come from retrieval."""
     explanation = (
-        "Form-E / PSW Export Declaration is the supporting declaration CACE "
-        "uses for an export shipment. In Prepare an Export, CACE reads it and "
-        "compares its exporter and invoice reference with the commercial "
-        "invoice. A matched Form-E counts as present; an unreadable or "
-        "mismatched one is reported separately. This does not authenticate the "
-        "document or grant customs clearance."
+        "Form-E / PSW Export Declaration is the export form used to record a "
+        "shipment with PSW and customs. CACE compares its exporter and invoice "
+        "reference with the Commercial Invoice. A match lets CACE count the form "
+        "as present; an unreadable or mismatched form is reported separately. "
+        "This does not authenticate the document or grant customs clearance."
     )
     snippet = _first_sentences(citation.accepted_passage, 120)
     return f"{explanation}\n\nIndexed source\n{snippet}", snippet
