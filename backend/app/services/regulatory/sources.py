@@ -1,6 +1,6 @@
 """Curated, filtered discovery of official documents relevant to the 5 products.
 
-Only documents relevant to the five textile MVP PCT codes are ingested. The
+Only documents relevant to the supported textile PCT codes are ingested. The
 large 93-page Export Policy Order is filtered page-by-page to textile-relevant
 pages, so the complete regulatory archive is never ingested wholesale.
 """
@@ -14,11 +14,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from app.services.compliance.pct_catalog import (
+    non_raw_material_codes,
+    supported_pct_codes,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 REG = PROJECT_ROOT / "regulatory_data"
 
-ALL_CODES = ["52010090", "52051100", "52094200", "61091000", "63023110"]
-NON_RAW_COTTON = ["52051100", "52094200", "61091000", "63023110"]
+# Derived from the supported-PCT catalog so ingestion tags every supported
+# code, not a stale copy of the original five.
+ALL_CODES = list(supported_pct_codes())
+NON_RAW_COTTON = list(non_raw_material_codes())
 
 # A base-order page is kept only if it mentions cotton/textiles or a covered code.
 _TEXTILE_RELEVANCE = re.compile(
@@ -50,6 +57,9 @@ class RegulatorySource:
     #: wholly on-topic (a PSW export-declaration manual) must not be filtered
     #: by it, or nearly every page is discarded for not saying "cotton".
     restrict_to_textile_pages: bool = True
+    #: Inclusive 1-based page window. Used for the tariff, where only the
+    #: textile chapters are indexed rather than all 327 pages.
+    page_range: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +202,65 @@ def discover_sources() -> list[RegulatorySource]:
             currency_status="historical_reference",
             restrict_to_textile_pages=False,
         ),
+        # --- Legal and procedural foundation --------------------------------
+        #
+        # The Customs Act and the current Customs Rules are what export
+        # procedure questions actually rest on, and neither was indexed. They
+        # are large, which is why they arrive together with the persistent
+        # PostgreSQL lexical index (migration 013): candidate generation now
+        # happens in the database, so corpus size no longer sets query latency.
+        RegulatorySource(
+            key="customs_act_1969",
+            kind="pdf_pages",
+            path=REG / "raw/fbr/customs_act/customs_act_1969_updated_2025.pdf",
+            source_document="Customs Act, 1969 (updated 2025)",
+            issuing_authority="Government of Pakistan, Federal Board of Revenue",
+            document_type="customs_act",
+            validation_status="partially_verified",
+            source_url="https://www.fbr.gov.pk/",
+            default_pct_codes=[],
+            source_kind="official_regulation",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+        ),
+        RegulatorySource(
+            key="customs_rules_2001",
+            kind="pdf_pages",
+            path=REG
+            / "raw/fbr/customs_rules/"
+            "customs_rules_2001_sro_450_i_2001_updated_2025_08_31.pdf",
+            source_document="Customs Rules, 2001 - SRO 450(I)/2001 (updated 31 August 2025)",
+            issuing_authority="Government of Pakistan, Federal Board of Revenue",
+            document_type="customs_rules",
+            validation_status="partially_verified",
+            source_url="https://www.fbr.gov.pk/",
+            sro_number="450(I)/2001",
+            default_pct_codes=[],
+            source_kind="official_procedure",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+        ),
+        # The tariff is 327 pages of mostly non-textile schedules. Only the
+        # contiguous chapter 50-63 window is indexed: it is the part that
+        # describes the goods CACE supports, and it is where every supported
+        # code's description and page number was verified from.
+        RegulatorySource(
+            key="pakistan_customs_tariff_textile_chapters",
+            kind="pdf_pages",
+            path=REG / "raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf",
+            source_document=(
+                "Pakistan Customs Tariff FY 2025-26 - textile chapters 50-63"
+            ),
+            issuing_authority="Government of Pakistan, Federal Board of Revenue",
+            document_type="tariff_schedule",
+            validation_status="partially_verified",
+            source_url="https://www.fbr.gov.pk/",
+            default_pct_codes=list(ALL_CODES),
+            source_kind="official_tariff",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+            page_range=(131, 164),
+        ),
     ]
 
 
@@ -210,7 +279,10 @@ def _iter_pdf_pages(source: RegulatorySource) -> Iterator[SourceUnit]:
 
     document = fitz.open(source.path)
     try:
+        first, last = source.page_range or (1, document.page_count)
         for index in range(document.page_count):
+            if not (first <= index + 1 <= last):
+                continue
             page = document[index]
             page_text = page.get_text()
             if not page_text or not page_text.strip():
