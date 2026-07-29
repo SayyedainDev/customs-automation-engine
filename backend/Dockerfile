@@ -40,6 +40,7 @@ RUN pip install -r requirements.txt
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/scripts/__init__.py ./scripts/__init__.py
+COPY backend/scripts/apply_migrations.py ./scripts/apply_migrations.py
 COPY backend/scripts/ingest_regulatory_documents.py \
     ./scripts/ingest_regulatory_documents.py
 COPY backend/scripts/build_regulatory_vector_index.py \
@@ -70,4 +71,4 @@ USER customs
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m app.core.init_db && exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m app.core.init_db && python -m scripts.apply_migrations && exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

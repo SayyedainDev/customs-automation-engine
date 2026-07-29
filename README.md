@@ -345,8 +345,9 @@ Auto deploys: enabled
 ```
 
 With those settings, pushing a commit to `main` rebuilds the same Railway
-service automatically. The public domain redirects to the console, while
-Swagger remains available at `/docs`.
+service automatically. Container startup runs `init_db` and then the numbered
+migration runner before accepting requests. The public domain redirects to the
+console, while Swagger remains available at `/docs`.
 
 ## Known limitations
 
