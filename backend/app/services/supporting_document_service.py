@@ -23,10 +23,12 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.exceptions import (
     DocumentNotFoundError,
     PdfExtractionError,
     StoredDocumentNotFoundError,
+    StructuredExtractionProviderError,
     StructuredExtractionProviderUnavailableError,
 )
 from app.models.documents import DocumentUploadRecord
@@ -53,6 +55,10 @@ from app.services.extraction.document_bundle import (
     materialize_field,
     normalized_product,
     page_marked_text,
+)
+from app.services.extraction import supporting_document_hybrid
+from app.services.extraction.supporting_document_hybrid import (
+    SupportingDeterministicExtraction,
 )
 from app.services.extraction.cache_fingerprint import (
     StructuredExtractionFingerprint,
@@ -152,9 +158,27 @@ _AMOUNT_MUST_EQUAL_INVOICE = frozenset(
 # --------------------------------------------------------------------------- #
 def _current_extraction_fingerprint(
     marked_text: str,
+    document_type: SupportingDocumentType | None = None,
 ) -> StructuredExtractionFingerprint:
+    mode_marker = (
+        "supporting_mode:legacy"
+        if document_type is None
+        else (
+            f"supporting_mode:{supporting_document_hybrid.PARSER_VERSION}:"
+            f"{supporting_document_hybrid.GAPFILL_VERSION}:{document_type.value}:"
+            f"max_completion_tokens="
+            f"{get_settings().groq_supporting_gapfill_max_completion_tokens}:"
+            f"max_context="
+            f"{get_settings().supporting_gapfill_max_context_characters}"
+        )
+    )
     return StructuredExtractionFingerprint.current(
-        prompts=(SUPPORTING_SYSTEM_PROMPT, SUPPORTING_USER_PROMPT_TEMPLATE),
+        prompts=(
+            SUPPORTING_SYSTEM_PROMPT,
+            SUPPORTING_USER_PROMPT_TEMPLATE,
+            supporting_document_hybrid.GAPFILL_SYSTEM_PROMPT,
+            mode_marker,
+        ),
         response_models=(SupportingDocumentCandidates,),
         schema_names=(SUPPORTING_SCHEMA_NAME,),
         document_text=marked_text,
@@ -197,10 +221,12 @@ def _persist_supporting_extraction(
     extraction: SupportingDocumentExtraction,
     bundle: DocumentTextBundle,
     fingerprint: StructuredExtractionFingerprint,
+    telemetry: dict[str, object] | None = None,
+    profile_status_override: str | None = None,
 ) -> None:
     document = get_uploaded_document_by_id(db=db, document_id=document_id)
     existing_data = dict(document.structured_data or {})
-    profile_status = (
+    profile_status = profile_status_override or (
         "manual_review"
         if extraction.document_validation_status is FieldValidationStatus.MANUAL_REVIEW
         else "extracted"
@@ -214,10 +240,45 @@ def _persist_supporting_extraction(
         "candidates": candidates.model_dump(mode="json"),
         "extraction": extraction.model_dump(mode="json"),
         "page_reviews": [review.model_dump(mode="json") for review in bundle.reviews],
+        "telemetry": telemetry,
     }
     document.structured_data = existing_data
     document.structured_extraction_status = profile_status
     document.structured_extraction_error = None
+    document.structured_extraction_model = fingerprint.extraction_model
+    document.structured_extracted_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+def _persist_supporting_partial_failure(
+    db: Session,
+    document_id: UUID,
+    *,
+    candidates: SupportingDocumentCandidates,
+    extraction: SupportingDocumentExtraction,
+    bundle: DocumentTextBundle,
+    fingerprint: StructuredExtractionFingerprint,
+    telemetry: dict[str, object],
+    exc: Exception,
+) -> None:
+    """Keep deterministic work retryable without caching a failed LLM result."""
+    db.rollback()
+    document = get_uploaded_document_by_id(db=db, document_id=document_id)
+    existing_data = dict(document.structured_data or {})
+    existing_data[_SUPPORTING_CACHE_SLOT] = {
+        "document_type": "supporting_document",
+        "status": "partial",
+        "fingerprint": fingerprint.to_json(),
+        "candidates": candidates.model_dump(mode="json"),
+        "extraction": extraction.model_dump(mode="json"),
+        "page_reviews": [review.model_dump(mode="json") for review in bundle.reviews],
+        "telemetry": telemetry,
+    }
+    document.structured_data = existing_data
+    document.structured_extraction_status = "partial"
+    document.structured_extraction_error = (
+        f"{type(exc).__name__}: {str(exc)}"[:2_000]
+    )
     document.structured_extraction_model = fingerprint.extraction_model
     document.structured_extracted_at = datetime.now(timezone.utc)
     db.commit()
@@ -318,11 +379,19 @@ def _materialize(
 
 
 def extract_supporting_document(
-    db: Session, document_id: UUID
+    db: Session,
+    document_id: UUID,
+    document_type: SupportingDocumentType | None = None,
+    *,
+    prepared_hybrid: SupportingDeterministicExtraction | None = None,
 ) -> tuple[SupportingDocumentExtraction, DocumentTextBundle | None]:
     """Reuse the existing text/OCR pipeline, then structure the document."""
     with structured_extraction_document_lock(document_id):
-        bundle = ensure_pdf_text(db, document_id, "supporting_document")
+        bundle = (
+            prepared_hybrid.bundle
+            if prepared_hybrid is not None
+            else ensure_pdf_text(db, document_id, "supporting_document")
+        )
         if not bundle.useful_pages:
             return (
                 _empty_extraction(
@@ -333,7 +402,13 @@ def extract_supporting_document(
                 bundle,
             )
         marked_text = page_marked_text(bundle)
-        fingerprint = _current_extraction_fingerprint(marked_text)
+        hybrid_type = (
+            document_type
+            if document_type is not None
+            and supporting_document_hybrid.supports_hybrid(document_type)
+            else None
+        )
+        fingerprint = _current_extraction_fingerprint(marked_text, hybrid_type)
         document = get_uploaded_document_by_id(db=db, document_id=document_id)
         cached = _cached_supporting_candidates(document, fingerprint)
         if cached is not None:
@@ -343,6 +418,72 @@ def extract_supporting_document(
         cached = _cached_supporting_candidates(document, fingerprint)
         if cached is not None:
             return _materialize(cached, bundle), bundle
+
+        if hybrid_type is not None:
+            deterministic = prepared_hybrid or (
+                supporting_document_hybrid.extract_deterministically(
+                    bundle, hybrid_type
+                )
+            )
+            unresolved_before = deterministic.unresolved_important_fields()
+            telemetry: dict[str, object] = {
+                "extractor": supporting_document_hybrid.PARSER_VERSION,
+                "deterministic_fields_resolved": sum(
+                    field.resolved for field in deterministic.fields.values()
+                ),
+                "unresolved_important_fields": list(unresolved_before),
+                "optional_fields_missing": deterministic.optional_fields_missing(),
+                "groq_required": bool(unresolved_before),
+                "groq_reason": (
+                    "Important fields remain unresolved after deterministic parsing."
+                    if unresolved_before
+                    else "All important fields resolved deterministically."
+                ),
+                "groq_calls": 0,
+            }
+            try:
+                updates, gapfill_telemetry = supporting_document_hybrid.gapfill(
+                    deterministic, unresolved_before
+                )
+                conflicts = supporting_document_hybrid.merge_gapfill(
+                    deterministic, updates
+                )
+                telemetry.update(gapfill_telemetry)
+                telemetry["conflicts"] = conflicts
+                unresolved_after = deterministic.unresolved_important_fields()
+                telemetry["unresolved_important_fields_after_gapfill"] = (
+                    unresolved_after
+                )
+                candidates = supporting_document_hybrid.to_candidates(deterministic)
+                extraction = _materialize(candidates, bundle)
+                _persist_supporting_extraction(
+                    db,
+                    document_id,
+                    candidates=candidates,
+                    extraction=extraction,
+                    bundle=bundle,
+                    fingerprint=fingerprint,
+                    telemetry=telemetry,
+                    profile_status_override=(
+                        "manual_review" if unresolved_after or conflicts else "extracted"
+                    ),
+                )
+                return extraction, bundle
+            except StructuredExtractionProviderError as exc:
+                candidates = supporting_document_hybrid.to_candidates(deterministic)
+                extraction = _materialize(candidates, bundle)
+                telemetry["provider_failure"] = getattr(exc, "code", type(exc).__name__)
+                _persist_supporting_partial_failure(
+                    db,
+                    document_id,
+                    candidates=candidates,
+                    extraction=extraction,
+                    bundle=bundle,
+                    fingerprint=fingerprint,
+                    telemetry=telemetry,
+                    exc=exc,
+                )
+                raise
 
         try:
             candidates = extract_structured_model_from_text(
@@ -979,16 +1120,58 @@ def verify_supporting_documents(
     ] = []
     uploaded_types: set[SupportingDocumentType] = set()
 
+    prepared_hybrid: dict[UUID, SupportingDeterministicExtraction] = {}
+    # Parse every Form-E/COO deterministically before the first possible Groq
+    # request. If both have gaps, subsequent provider calls remain sequential.
+    if db is not None:
+        for reference in supporting_documents:
+            if not supporting_document_hybrid.supports_hybrid(
+                reference.canonical_type
+            ):
+                continue
+            try:
+                bundle = ensure_pdf_text(
+                    db, reference.document_id, "supporting_document"
+                )
+                if bundle.useful_pages:
+                    prepared_hybrid[reference.document_id] = (
+                        supporting_document_hybrid.extract_deterministically(
+                            bundle, reference.canonical_type
+                        )
+                    )
+            except (
+                DocumentNotFoundError,
+                StoredDocumentNotFoundError,
+                PdfExtractionError,
+            ):
+                # The normal extraction loop records the same document-level
+                # processing failure in the existing result semantics.
+                continue
+
     for reference in supporting_documents:
         uploaded_types.add(reference.canonical_type)
         extraction: SupportingDocumentExtraction | None = None
         ocr_confidence: Decimal | None = None
         try:
-            extraction, bundle = extract_supporting_document(db, reference.document_id)
-            if bundle is not None:
+            prepared = prepared_hybrid.get(reference.document_id)
+            if prepared is None:
+                # Keeps the legacy error-boundary test seam and other document
+                # types unchanged. A readable Form-E/COO always has a prepared
+                # deterministic pass in the executable route.
+                extraction, output_bundle = extract_supporting_document(
+                    db, reference.document_id
+                )
+            else:
+                extraction, output_bundle = extract_supporting_document(
+                    db,
+                    reference.document_id,
+                    reference.canonical_type,
+                    prepared_hybrid=prepared,
+                )
+            if output_bundle is not None:
                 confidences = [
                     review.ocr_confidence
-                    for review in bundle.reviews
+                    for review in output_bundle.reviews
                     if review.ocr_confidence is not None
                 ]
                 ocr_confidence = min(confidences) if confidences else None

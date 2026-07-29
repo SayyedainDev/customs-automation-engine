@@ -30,6 +30,41 @@ class Settings(BaseSettings):
         le=8192,
         validation_alias="GROQ_STRUCTURED_MAX_COMPLETION_TOKENS",
     )
+    # Supporting-document gap fill returns a flat object containing at most the
+    # unresolved important fields, rather than the complete 20-field document
+    # schema. 512 tokens is ample for the largest current Form-E/COO gap-fill
+    # response while preventing two small documents from reserving the global
+    # 2,000-token structured-extraction budget each.
+    groq_supporting_gapfill_max_completion_tokens: int = Field(
+        default=512,
+        ge=128,
+        le=1024,
+        validation_alias="GROQ_SUPPORTING_GAPFILL_MAX_COMPLETION_TOKENS",
+    )
+    supporting_gapfill_snippets_per_field: int = Field(
+        default=2,
+        ge=1,
+        le=4,
+        validation_alias="SUPPORTING_GAPFILL_SNIPPETS_PER_FIELD",
+    )
+    supporting_gapfill_snippet_characters: int = Field(
+        default=500,
+        ge=128,
+        le=1000,
+        validation_alias="SUPPORTING_GAPFILL_SNIPPET_CHARACTERS",
+    )
+    supporting_gapfill_max_context_characters: int = Field(
+        default=2500,
+        ge=500,
+        le=5000,
+        validation_alias="SUPPORTING_GAPFILL_MAX_CONTEXT_CHARACTERS",
+    )
+    supporting_gapfill_max_pages: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        validation_alias="SUPPORTING_GAPFILL_MAX_PAGES",
+    )
     # "hybrid": regex/table extraction first, one combined Groq gap-fill call
     # per document at most, staged per-line ladder unreachable.
     # "legacy": full-document single-shot Groq call, staged ladder fallback on

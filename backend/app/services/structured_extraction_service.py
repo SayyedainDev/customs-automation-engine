@@ -322,6 +322,7 @@ def _groq_request(
     user_prompt: str,
     response_format: dict[str, Any],
     schema_name: str,
+    max_completion_tokens: int | None = None,
 ) -> str:
     try:
         create_completion: Any = client.chat.completions.create
@@ -329,7 +330,9 @@ def _groq_request(
             model=model,
             temperature=STRUCTURED_EXTRACTION_TEMPERATURE,
             max_completion_tokens=(
-                get_settings().groq_structured_max_completion_tokens
+                max_completion_tokens
+                if max_completion_tokens is not None
+                else get_settings().groq_structured_max_completion_tokens
             ),
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -439,6 +442,7 @@ def extract_structured_model_from_text(
     system_prompt: str,
     user_prompt: str,
     client: Groq | None = None,
+    max_completion_tokens: int | None = None,
 ) -> _StructuredModelT:
     """Strict structured extraction with a safe two-step fallback.
 
@@ -469,6 +473,7 @@ def extract_structured_model_from_text(
                 },
             },
             schema_name=schema_name,
+            max_completion_tokens=max_completion_tokens,
         )
         return _validate(response_model, content)
     except _GroqSchemaRejectedError as exc:
@@ -494,6 +499,7 @@ def extract_structured_model_from_text(
         user_prompt=fallback_prompt,
         response_format={"type": JSON_OBJECT_RESPONSE_FORMAT_TYPE},
         schema_name=f"{schema_name}{JSON_OBJECT_FALLBACK_SCHEMA_SUFFIX}",
+        max_completion_tokens=max_completion_tokens,
     )
     return _validate(response_model, content)
 

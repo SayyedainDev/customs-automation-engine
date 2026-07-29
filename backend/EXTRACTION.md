@@ -169,6 +169,29 @@ Known limitation: documents ingested before word-coordinate capture shipped
 have no word coordinates and will always take the full-document fallback
 branch in hybrid mode until re-uploaded; there is no backfill script.
 
+## Form-E and certificate-of-origin hybrid extraction
+
+The executable supporting-document path now applies the same deterministic-first
+principle to Form-E/PSW export declarations and certificates of origin:
+
+1. shared embedded-text/Tesseract recovery runs;
+2. document-specific label parsers validate and normalize controlled variants;
+3. the service identifies only unresolved fields used by deterministic
+   verification;
+4. optional or display-only gaps do not trigger Groq;
+5. one flat, dynamically allow-listed request receives bounded label-adjacent
+   snippets only when an important field remains unresolved;
+6. local validation and evidence support checks run before merge;
+7. a gap-fill value cannot replace a reliable deterministic value.
+
+The standard synthetic Form-E and COO fixtures resolve with zero Groq calls.
+`GROQ_SUPPORTING_GAPFILL_MAX_COMPLETION_TOKENS` defaults to 512, and the snippet
+count, characters, total context and represented pages are independently
+bounded by the `SUPPORTING_GAPFILL_*` settings. Failed provider output is not
+persisted; deterministic fields and the unresolved list remain stored in a
+retryable partial profile. Other supporting-document types retain the existing
+validated extractor.
+
 ## Status
 
 The regex layer, gap-fill assembly/validation/network call, telemetry,

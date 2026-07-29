@@ -219,6 +219,7 @@ Copy [backend/.env.example](backend/.env.example) and adjust these main values:
 | `CUSTOMS_DATABASE_URL` | Required PostgreSQL connection |
 | `GROQ_API_KEY` | Optional gap-fill and explanation provider |
 | `EXTRACTION_MODE=hybrid` | Free local extraction first; at most one Groq extraction call per document |
+| `GROQ_SUPPORTING_GAPFILL_MAX_COMPLETION_TOKENS=512` | Bounded Form-E/COO unresolved-field response |
 | `REGULATORY_ENABLE_REAL_MODELS` | Use Sentence Transformer models when available; set `false` for a fast offline demo |
 | `LANGGRAPH_CHECKPOINT_BACKEND` | `sqlite` for a local demo or `postgres` for a deployed instance |
 | `LANGGRAPH_ENABLE_LIVE_AGENTS=false` | Keep Broker/Auditor reasoning deterministic and avoid two optional narration calls |

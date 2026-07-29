@@ -303,6 +303,14 @@ def materialize_field(
     validation_status = candidate.validation_status
     note = candidate.validation_note
     method = ExtractionMethod.PDF_TEXT_LLM_STRUCTURED_OUTPUT
+    if candidate.validation_note.startswith("supporting_hybrid:llm_gapfill"):
+        method = ExtractionMethod.LLM_GAPFILL
+    elif candidate.validation_note.startswith("supporting_hybrid:regex_label"):
+        method = ExtractionMethod.REGEX_LABEL
+    elif candidate.validation_note.startswith("supporting_hybrid:ocr_regex"):
+        method = ExtractionMethod.OCR_REGEX
+    elif candidate.validation_note.startswith("supporting_hybrid:unresolved"):
+        method = ExtractionMethod.UNRESOLVED
     ocr_confidence: Decimal | None = None
     source_page = next(
         (
@@ -331,7 +339,15 @@ def materialize_field(
             f"threshold {MIN_VERIFIED_CONFIDENCE}."
         )
     if source_page and source_page.extraction_method == "tesseract_ocr":
-        method = ExtractionMethod.TESSERACT_OCR_LLM_STRUCTURED_OUTPUT
+        method = (
+            ExtractionMethod.OCR_REGEX
+            if method is ExtractionMethod.REGEX_LABEL
+            else (
+                ExtractionMethod.LLM_GAPFILL
+                if method is ExtractionMethod.LLM_GAPFILL
+                else ExtractionMethod.TESSERACT_OCR_LLM_STRUCTURED_OUTPUT
+            )
+        )
         ocr_confidence = source_page.ocr_confidence
         if (
             source_page.ocr_validation_status
@@ -364,4 +380,9 @@ def materialize_field(
         ocr_confidence=ocr_confidence,
         validation_status=validation_status,
         validation_note=note,
+        original_field_location=(
+            note.split("span=", 1)[1].split(";", 1)[0]
+            if "span=" in note
+            else None
+        ),
     )

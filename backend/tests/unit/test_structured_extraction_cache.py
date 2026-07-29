@@ -540,6 +540,8 @@ def test_same_supporting_document_id_reuses_stored_model_extraction(
         )
 
     assert second == first
+    # Direct calls without a claimed document type retain the legacy profile;
+    # the validated result is still cached after its single provider call.
     assert calls == 1
 
 
@@ -836,8 +838,11 @@ def test_cached_supporting_extraction_is_rechecked_against_each_shipment(
         isolated_database,
         original_filename="certificate_of_origin.pdf",
         text=(
-            "Certificate of Origin COO-1001 issued by Lahore Chamber of "
-            "Commerce and Industry for Demo Textile Exporter to China."
+            "CERTIFICATE OF ORIGIN\n"
+            "Certificate Number: COO-1001\n"
+            "Exporter: Demo Textile Exporter\n"
+            "Destination Country: China\n"
+            "Issuing Authority: Lahore Chamber of Commerce and Industry\n"
         ),
     )
     calls = 0
@@ -883,4 +888,4 @@ def test_cached_supporting_extraction_is_rechecked_against_each_shipment(
 
     assert matching[0].content_status == "passed"
     assert conflicting[0].content_status == "failed"
-    assert calls == 1
+    assert calls == 0

@@ -20,6 +20,10 @@ class FieldValidationStatus(str, Enum):
 
 
 class ExtractionMethod(str, Enum):
+    REGEX_LABEL = "regex_label"
+    OCR_REGEX = "ocr_regex"
+    LLM_GAPFILL = "llm_gapfill"
+    UNRESOLVED = "unresolved"
     PDF_TEXT_LLM_STRUCTURED_OUTPUT = "pdf_text_llm_structured_output"
     TESSERACT_OCR_LLM_STRUCTURED_OUTPUT = (
         "tesseract_ocr_llm_structured_output"
