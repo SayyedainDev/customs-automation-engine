@@ -52,5 +52,46 @@ class StructuredExtractionProviderUnavailableError(StructuredExtractionProviderE
     code: str = "provider_unavailable"
 
 
+class StructuredExtractionRateLimitedError(
+    StructuredExtractionProviderUnavailableError
+):
+    """Raised when the provider rate-limited the request (HTTP 429).
+
+    Separated from a general outage because the two need opposite advice. A
+    token-per-minute limit clears in seconds and the caller should be told
+    roughly when to retry; an outage has no known recovery time. Reporting both
+    as "temporarily unavailable or free-tier limit" told users their daily quota
+    was gone when in fact waiting about half a minute would have worked.
+
+    ``retry_after_seconds`` is whatever the provider stated, or None when it
+    said nothing. It is never inferred from a guess.
+    """
+
+    code: str = "provider_rate_limited"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after_seconds: float | None = None,
+        limit_kind: str | None = None,
+        code: str | None = None,
+    ) -> None:
+        super().__init__(message, code=code)
+        self.retry_after_seconds = retry_after_seconds
+        #: e.g. "tokens per minute" - as reported by the provider, for logs only.
+        self.limit_kind = limit_kind
+
+
+class StructuredExtractionAuthError(StructuredExtractionProviderUnavailableError):
+    """Raised when the provider rejected our credentials (HTTP 401/403).
+
+    This is a deployment misconfiguration, not a capacity problem, and retrying
+    cannot fix it - so it must not be presented to the user as "try again".
+    """
+
+    code: str = "provider_auth_failed"
+
+
 class ShipmentExtractionInputError(Exception):
     """Raised when Phase 2A document IDs or document roles are incomplete."""

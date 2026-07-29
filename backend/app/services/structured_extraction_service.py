@@ -15,7 +15,9 @@ from app.core.config import get_settings
 from app.core.exceptions import (
     StructuredExtractionConfigurationError,
     StructuredExtractionProviderError,
+    StructuredExtractionAuthError,
     StructuredExtractionProviderUnavailableError,
+    StructuredExtractionRateLimitedError,
     StructuredExtractionUnavailableError,
 )
 from app.models.documents import DocumentUploadRecord
@@ -172,6 +174,66 @@ def _safe_groq_error_detail(
     }
 
 
+
+#: Groq states the wait inside the message ("Please try again in 26.67s.") and
+#: usually also as a `retry-after` header. Both are read: the header is
+#: authoritative when present, the message is the fallback.
+_RETRY_AFTER_IN_MESSAGE = re.compile(
+    r"try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)?\b", re.IGNORECASE
+)
+#: Which budget was exhausted, for logs and for choosing honest wording.
+_LIMIT_KIND = re.compile(
+    r"on\s+(tokens per minute \(TPM\)|tokens per day \(TPD\)|"
+    r"requests per minute \(RPM\)|requests per day \(RPD\))",
+    re.IGNORECASE,
+)
+#: Never wait on a number the provider did not really give us, and never
+#: promise a wait so long the advice is useless.
+_MAX_SANE_RETRY_AFTER_SECONDS = 300.0
+
+
+def _retry_after_seconds(exc: Exception, message: str) -> float | None:
+    """Seconds the provider asked us to wait, or None if it did not say."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        for name in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+            try:
+                raw = headers.get(name)
+            except Exception:  # pragma: no cover - exotic header container
+                raw = None
+            if not raw:
+                continue
+            match = _RETRY_AFTER_IN_MESSAGE.fullmatch(f"try again in {raw}") or None
+            try:
+                value = float(str(raw).rstrip("smh"))
+            except (TypeError, ValueError):
+                continue
+            if str(raw).endswith("ms"):
+                value = value / 1000.0
+            elif str(raw).endswith("m"):
+                value = value * 60.0
+            if 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
+                return round(value, 2)
+    match = _RETRY_AFTER_IN_MESSAGE.search(message or "")
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = (match.group(2) or "s").lower()
+    if unit == "ms":
+        value = value / 1000.0
+    elif unit == "m":
+        value = value * 60.0
+    if 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
+        return round(value, 2)
+    return None
+
+
+def _limit_kind(message: str) -> str | None:
+    match = _LIMIT_KIND.search(message or "")
+    return match.group(1) if match else None
+
+
 def _is_schema_rejection(detail: dict[str, Any]) -> bool:
     if detail.get("http_status") != 400:
         return False
@@ -298,9 +360,34 @@ def _groq_request(
         # named, and reported a request that timed out days into a
         # token-scarce day as "the language model returned malformed
         # structured data" - blaming content that was never received.
+        if isinstance(status_code, int) and status_code in (401, 403):
+            # Credentials, not capacity. Retrying cannot fix it.
+            raise StructuredExtractionAuthError(
+                "The extraction model provider rejected our credentials: "
+                f"http_status={status_code} "
+                f"error_code={detail['error_code']} "
+                f"model={detail['model']}"[:MAX_STORED_ERROR_LENGTH]
+            ) from exc
+
+        if isinstance(status_code, int) and status_code == 429:
+            # A rate limit is recoverable and usually within seconds; the
+            # caller needs the wait time, not a generic outage message.
+            retry_after = _retry_after_seconds(exc, detail["message"])
+            limit_kind = _limit_kind(detail["message"])
+            raise StructuredExtractionRateLimitedError(
+                "The extraction model provider rate limited the request: "
+                f"http_status=429 "
+                f"error_code={detail['error_code']} "
+                f"limit={limit_kind or 'unspecified'} "
+                f"retry_after_seconds={retry_after} "
+                f"model={detail['model']}"[:MAX_STORED_ERROR_LENGTH],
+                retry_after_seconds=retry_after,
+                limit_kind=limit_kind,
+            ) from exc
+
         no_response_was_ever_received = status_code is None
         if no_response_was_ever_received or (
-            isinstance(status_code, int) and (status_code == 429 or status_code >= 500)
+            isinstance(status_code, int) and status_code >= 500
         ):
             # The provider refused to serve us, or was never reached at all
             # (quota, outage, transport). This is an operational condition,

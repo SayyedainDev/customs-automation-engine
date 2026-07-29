@@ -1,3 +1,5 @@
+import math
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -10,7 +12,9 @@ from app.core.exceptions import (
     StoredDocumentNotFoundError,
     StructuredExtractionConfigurationError,
     StructuredExtractionProviderError,
+    StructuredExtractionAuthError,
     StructuredExtractionProviderUnavailableError,
+    StructuredExtractionRateLimitedError,
     UnsupportedDocumentTypeError,
 )
 from app.schemas.multi_line_extraction import (
@@ -69,6 +73,35 @@ async def check_multi_line_shipment_documents(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Structured extraction is not configured.",
+        ) from exc
+    except StructuredExtractionAuthError as exc:
+        # Misconfiguration, not capacity: 502 rather than 503, because
+        # "try again later" is wrong advice for a bad credential.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The extraction model provider rejected this deployment's "
+                "credentials; no extraction was performed."
+            ),
+        ) from exc
+    except StructuredExtractionRateLimitedError as exc:
+        # 429, not 503: the provider served us fine and simply asked us to
+        # slow down. The wait it stated is passed through so the console can
+        # say when to retry instead of implying the daily quota is gone.
+        # Nothing from the provider body reaches the browser.
+        headers = {}
+        if exc.retry_after_seconds is not None:
+            # Retry-After is defined in whole seconds; round up so we never
+            # advise retrying fractionally early.
+            headers["Retry-After"] = str(int(math.ceil(exc.retry_after_seconds)))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "The extraction model provider is rate limited; no extraction "
+                "was performed. The uploaded documents were saved and can be "
+                "retried."
+            ),
+            headers=headers or None,
         ) from exc
     except StructuredExtractionProviderUnavailableError as exc:
         # Quota exhaustion / upstream outage is an operational condition. It

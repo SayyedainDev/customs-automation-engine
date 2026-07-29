@@ -49,6 +49,8 @@ export class ApiError extends Error {
     message: string,
     public readonly status?: number,
     public readonly detail?: unknown,
+    /** Seconds the server asked us to wait, from the Retry-After header. */
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -86,7 +88,17 @@ async function request<T>(
         payload && typeof payload === "object" && "detail" in payload
           ? (payload as { detail: unknown }).detail
           : payload;
-      throw new ApiError(detailMessage(detail), response.status, detail);
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfterSeconds =
+        retryAfterHeader && Number.isFinite(Number(retryAfterHeader))
+          ? Number(retryAfterHeader)
+          : undefined;
+      throw new ApiError(
+        detailMessage(detail),
+        response.status,
+        detail,
+        retryAfterSeconds,
+      );
     }
 
     return payload as T;

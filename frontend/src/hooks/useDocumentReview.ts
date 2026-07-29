@@ -38,12 +38,45 @@ function nextSlotId(): string {
 
 const pollingStatuses = new Set(["created", "running", "resuming"]);
 
+/** Round a retry wait up to something a human can act on. */
+function humanRetryDelay(seconds: number): string {
+  if (seconds <= 60) return `${Math.max(1, Math.ceil(seconds))} seconds`;
+  return `${Math.ceil(seconds / 60)} minutes`;
+}
+
+/**
+ * Map a failure to advice that is actually true for that failure.
+ *
+ * This used to answer every 429 and 503 with "temporarily unavailable or has
+ * reached its free-tier limit ... try again later". Those are different
+ * problems with opposite advice: a per-minute token limit clears in about half
+ * a minute, while a bad credential never clears on its own. Telling a
+ * rate-limited user their free tier was gone made them stop when waiting
+ * briefly would have worked.
+ *
+ * No provider text, limit figure or account identifier is shown - only the
+ * retry timing the server chose to pass through.
+ */
 function readableError(error: unknown): string {
-  if (error instanceof ApiError && [429, 503].includes(error.status ?? 0)) {
-    return (
-      "The AI provider is temporarily unavailable or has reached its " +
-      "free-tier limit. Try again later; uploaded documents remain available."
-    );
+  if (error instanceof ApiError) {
+    const status = error.status ?? 0;
+    const saved = "Your uploaded documents were saved.";
+
+    if (status === 429) {
+      const wait = error.retryAfterSeconds;
+      return wait !== undefined
+        ? `AI extraction is temporarily rate-limited. ${saved} Try again in about ${humanRetryDelay(wait)}.`
+        : `AI extraction is temporarily rate-limited. ${saved} Try again shortly.`;
+    }
+    if (status === 502) {
+      return `AI extraction returned an unusable result or is not configured correctly. ${saved} No values were guessed. If this repeats, contact the administrator.`;
+    }
+    if (status === 503) {
+      return `The AI provider is temporarily unavailable. ${saved} Try again shortly.`;
+    }
+    if (status === 408 || status === 504) {
+      return `AI extraction timed out. ${saved} You can retry the review.`;
+    }
   }
   return error instanceof Error
     ? error.message
