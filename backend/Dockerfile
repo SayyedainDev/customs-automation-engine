@@ -54,6 +54,13 @@ COPY regulatory_data/raw/commerce/export_policy/base_order \
     /app/regulatory_data/raw/commerce/export_policy/base_order
 COPY regulatory_data/raw/psw/textile_product_requirements \
     /app/regulatory_data/raw/psw/textile_product_requirements
+# Informational sources for the regulatory assistant (see sources.py).
+COPY regulatory_data/raw/psw/single_declaration_export \
+    /app/regulatory_data/raw/psw/single_declaration_export
+COPY regulatory_data/raw/psw/user_manuals/tdap \
+    /app/regulatory_data/raw/psw/user_manuals/tdap
+COPY regulatory_data/raw/tdap/export_document_guides \
+    /app/regulatory_data/raw/tdap/export_document_guides
 
 RUN mkdir -p uploads/documents \
     && useradd --create-home --shell /usr/sbin/nologin customs \

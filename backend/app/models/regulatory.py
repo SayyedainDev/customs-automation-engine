@@ -51,6 +51,12 @@ class RegulatoryChunk(Base):
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     section: Mapped[str | None] = mapped_column(String(512), nullable=True)
     pct_codes: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
+    # Recorded at ingestion from the source registry so a curated summary can
+    # never be displayed as an official regulation. NULL on rows ingested
+    # before migration 012; those fall back to deterministic classification.
+    source_kind: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # "current" | "superseded" | "historical_reference"
+    currency_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Legal dates and validation.
     issue_date: Mapped[date | None] = mapped_column(Date, nullable=True)

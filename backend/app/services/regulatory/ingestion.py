@@ -206,6 +206,8 @@ def _build_chunk(
         page_number=page_number,
         section=section,
         pct_codes=pct_codes,
+        source_kind=source.source_kind,
+        currency_status=source.currency_status,
         issue_date=source.issue_date,
         effective_date=source.effective_date,
         legal_cutoff_date=LEGAL_CUTOFF_DATE,

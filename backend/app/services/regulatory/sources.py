@@ -41,6 +41,15 @@ class RegulatorySource:
     default_pct_codes: list[str] = field(default_factory=list)
     issue_date: date | None = None
     effective_date: date | None = None
+    #: Provenance kind, recorded rather than guessed at display time.
+    source_kind: str = "unclassified_source"
+    #: "current" | "superseded" | "historical_reference"
+    currency_status: str = "current"
+    #: The textile page filter exists for the 93-page Export Policy Order, of
+    #: which only a minority of pages concern textiles. A document that is
+    #: wholly on-topic (a PSW export-declaration manual) must not be filtered
+    #: by it, or nearly every page is discarded for not saying "cotton".
+    restrict_to_textile_pages: bool = True
 
 
 @dataclass(frozen=True)
@@ -68,6 +77,8 @@ def discover_sources() -> list[RegulatorySource]:
             sro_number="2486(I)/2025",
             default_pct_codes=["52010090"],
             issue_date=date(2025, 12, 23),
+            source_kind="official_regulation",
+            currency_status="current",
         ),
         RegulatorySource(
             key="epo_2022_base_order",
@@ -86,6 +97,8 @@ def discover_sources() -> list[RegulatorySource]:
             sro_number="544(I)/2022",
             default_pct_codes=ALL_CODES,
             issue_date=date(2022, 4, 22),
+            source_kind="official_policy",
+            currency_status="current",
         ),
         RegulatorySource(
             key="tipp_textile_product_requirements",
@@ -98,6 +111,86 @@ def discover_sources() -> list[RegulatorySource]:
             validation_status="partially_verified",
             source_url="https://tipp.gov.pk/index.php?id=173&r=searchProcedure%2Fview1",
             default_pct_codes=ALL_CODES,
+            source_kind="curated_rule_summary",
+            currency_status="current",
+        ),
+        # --- Informational sources for the regulatory assistant --------------
+        #
+        # These three carry no PCT tags and are never a compliance basis: the
+        # deterministic engine reads its rules from the compliance rule files,
+        # not from the retrieval corpus. They are here because the assistant is
+        # asked about PSW export declarations, electronic certificates of
+        # origin and export procedures, and until now the corpus held nothing
+        # on any of them - every such question returned "no relevant evidence"
+        # while the PDF that answers it sat unindexed on disk.
+        #
+        # All three are digital PDFs with directly extractable text (no OCR
+        # stage, so none of the unresolved OCR defects that block the other
+        # Export Policy Order amendments), are marked "included" in
+        # document_manifest.json, and are wholly on-topic - so the textile page
+        # filter, which exists for the mostly-non-textile base order, is off.
+        RegulatorySource(
+            key="psw_single_declaration_exports_manual",
+            kind="pdf_pages",
+            path=REG
+            / "raw/psw/single_declaration_export/"
+            "psw_user_manual_single_declaration_exports.pdf",
+            source_document="PSW User Manual - Single Declaration (Exports)",
+            issuing_authority="Pakistan Single Window",
+            document_type="psw_user_manual",
+            validation_status="partially_verified",
+            source_url="https://psw.gov.pk/media/Manuals/PSW-User-Manual-SD-Exports.pdf",
+            default_pct_codes=[],
+            source_kind="official_manual",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+        ),
+        RegulatorySource(
+            key="psw_tdap_electronic_certificate_of_origin_manual",
+            kind="pdf_pages",
+            path=REG
+            / "raw/psw/user_manuals/tdap/"
+            "psw_tdap_electronic_certificate_of_origin_form_issuance_traders_process"
+            "_user_manual.pdf",
+            source_document=(
+                "PSW User Manual - TDAP Electronic Certificate of Origin / Form "
+                "Issuance (Traders Process)"
+            ),
+            issuing_authority="Pakistan Single Window",
+            document_type="psw_user_manual",
+            validation_status="partially_verified",
+            # No official URL is recorded for this file in the acquisition
+            # manifest. Left unset rather than guessed at.
+            source_url=None,
+            default_pct_codes=[],
+            source_kind="official_manual",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+        ),
+        RegulatorySource(
+            key="tdap_new_exporters_guide_part_a",
+            kind="pdf_pages",
+            path=REG
+            / "raw/tdap/export_document_guides/"
+            "tdap_new_exporters_guide_part_a_export_procedures_2020.pdf",
+            source_document=(
+                "TDAP Step-by-Step Guide for New Exporters - Part A: Export "
+                "Procedures (2020)"
+            ),
+            issuing_authority=(
+                "Trade Development Authority of Pakistan, Ministry of Commerce"
+            ),
+            document_type="tdap_exporter_guide",
+            validation_status="partially_verified",
+            source_url=None,
+            default_pct_codes=[],
+            issue_date=date(2020, 11, 1),
+            source_kind="official_manual",
+            # document_manifest.json records this as dated and non-authoritative
+            # for current product-specific compliance. Kept as clearly labelled
+            # historical guidance rather than passed off as current procedure.
+            currency_status="historical_reference",
+            restrict_to_textile_pages=False,
         ),
     ]
 
@@ -120,7 +213,11 @@ def _iter_pdf_pages(source: RegulatorySource) -> Iterator[SourceUnit]:
         for index in range(document.page_count):
             page = document[index]
             page_text = page.get_text()
-            if not page_text or not _TEXTILE_RELEVANCE.search(page_text):
+            if not page_text or not page_text.strip():
+                continue  # no extractable text on this page
+            if source.restrict_to_textile_pages and not _TEXTILE_RELEVANCE.search(
+                page_text
+            ):
                 continue  # relevance filter: skip non-textile pages
             yield SourceUnit(
                 text=page_text,

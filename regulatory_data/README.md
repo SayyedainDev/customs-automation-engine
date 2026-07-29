@@ -13,6 +13,13 @@ The application directly uses:
 - `processed/commerce/export_policy/validated_text/`
 - `raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf`
 - `raw/psw/textile_product_requirements/textile_product_requirements.json`
+- `raw/psw/single_declaration_export/psw_user_manual_single_declaration_exports.pdf`
+- `raw/psw/user_manuals/tdap/psw_tdap_electronic_certificate_of_origin_form_issuance_traders_process_user_manual.pdf`
+- `raw/tdap/export_document_guides/tdap_new_exporters_guide_part_a_export_procedures_2020.pdf`
+
+The last three are indexed for the **informational** regulatory assistant
+only. They carry no PCT tags and are never a compliance basis: deterministic
+decisions come from the executable rule files, not from the retrieval corpus.
 
 ## Organization
 
