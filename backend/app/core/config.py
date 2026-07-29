@@ -21,6 +21,15 @@ class Settings(BaseSettings):
         validation_alias="GROQ_API_KEY",
     )
     groq_model: str = "openai/gpt-oss-20b"
+    # The largest current structured-extraction fixture (a five-line invoice)
+    # serializes to about 7.5k characters. A 2k completion-token budget leaves
+    # headroom for that strict JSON while bounding every extraction request.
+    groq_structured_max_completion_tokens: int = Field(
+        default=2000,
+        ge=256,
+        le=8192,
+        validation_alias="GROQ_STRUCTURED_MAX_COMPLETION_TOKENS",
+    )
     # "hybrid": regex/table extraction first, one combined Groq gap-fill call
     # per document at most, staged per-line ladder unreachable.
     # "legacy": full-document single-shot Groq call, staged ladder fallback on

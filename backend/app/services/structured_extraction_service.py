@@ -266,6 +266,9 @@ def _groq_request(
         response = create_completion(
             model=model,
             temperature=STRUCTURED_EXTRACTION_TEMPERATURE,
+            max_completion_tokens=(
+                get_settings().groq_structured_max_completion_tokens
+            ),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

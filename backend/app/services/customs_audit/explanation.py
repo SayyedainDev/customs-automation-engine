@@ -304,6 +304,47 @@ _PROBLEM_LABELS = {
     "evidence_limitations": "Regulatory evidence limitation",
 }
 
+# These are workflow/configuration values, not shipment evidence. The
+# deterministic template still receives the original values; only the copy
+# sent to the narrator is translated. Exact-value mapping deliberately avoids
+# broad character stripping, so legitimate PCT codes, invoice numbers and
+# shipment references remain intact.
+_NARRATOR_VALUE_LABELS = {
+    "manual_review": "manual review",
+    "required_and_resolved": "required and resolved",
+    "not_required": "not required",
+    "evidence_verified": "evidence verified",
+    "evidence_partial": "evidence partial",
+    "evidence_conflicting": "evidence conflicting",
+    "evidence_unavailable": "evidence unavailable",
+    "human_correction": "human correction",
+}
+_REVISION_TRIGGER_LABELS = {
+    "initial": "Initial audit",
+    "human_correction": "Human correction",
+}
+
+
+def narrator_safe_findings(value: Any) -> Any:
+    """Return the user-facing copy of bounded findings supplied to Groq.
+
+    JSON field names are presentation labels rather than implementation keys,
+    and known internal enum values are translated explicitly. No arbitrary
+    alphanumeric content is removed, which preserves evidence such as
+    ``62034200`` and ``SYN-INV-001``. Database/workflow identifiers are already
+    absent because :func:`build_explanation_findings` is allow-list based.
+    """
+    if isinstance(value, dict):
+        return {
+            str(key).replace("_", " "): narrator_safe_findings(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [narrator_safe_findings(item) for item in value]
+    if isinstance(value, str):
+        return _NARRATOR_VALUE_LABELS.get(value, value)
+    return value
+
 
 def explanation_fingerprint(findings: dict[str, Any], *, model: str) -> str:
     """Stable identity for a (findings, model, prompt version) triple.
@@ -404,7 +445,10 @@ def _bounded_revision_history(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             {
                 "revision_number": row.get("revision_number"),
                 "status_label": _bounded_text(row.get("status_label")),
-                "triggered_by": row.get("triggered_by"),
+                "reason": _REVISION_TRIGGER_LABELS.get(
+                    str(row.get("triggered_by") or ""),
+                    "Audit update",
+                ),
             }
         )
     return bounded
@@ -891,8 +935,20 @@ def generate_explanation_entry(
 
     rejection_reason: str | None = None
     try:
+        effective_narrator: NarratorFn | None = None
+        if narrator is not None:
+            safe_findings = narrator_safe_findings(findings)
+
+            def display_narrator(role: str, _findings: dict[str, Any]) -> str:
+                return narrator(role, safe_findings)
+
+            effective_narrator = display_narrator
+
         text, source = narrate_with_source(
-            narrator, "Explanation", findings, default=_default_explanation
+            effective_narrator,
+            "Explanation",
+            findings,
+            default=_default_explanation,
         )
     except StructuredExtractionProviderUnavailableError:
         # Unlike Broker/Auditor narration, this call happens after the

@@ -141,7 +141,17 @@ def test_missing_fields_remain_null():
 
 # 7. The exact provider error is surfaced (not hidden) and the API key never logged.
 def test_provider_error_surfaced_and_key_never_logged(monkeypatch, caplog):
-    monkeypatch.setattr(svc, "get_settings", lambda: SimpleNamespace(groq_model="test-model", groq_api_key=SimpleNamespace(get_secret_value=lambda: "sk-TESTSECRET-DO-NOT-LOG")))
+    monkeypatch.setattr(
+        svc,
+        "get_settings",
+        lambda: SimpleNamespace(
+            groq_model="test-model",
+            groq_api_key=SimpleNamespace(
+                get_secret_value=lambda: "sk-TESTSECRET-DO-NOT-LOG"
+            ),
+            groq_structured_max_completion_tokens=2000,
+        ),
+    )
     client, _ = fake_client([SERVER_ERROR])
     with caplog.at_level(logging.WARNING, logger="app.services.structured_extraction_service"):
         with pytest.raises(StructuredExtractionProviderError) as info:

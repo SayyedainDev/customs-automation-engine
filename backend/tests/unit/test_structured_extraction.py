@@ -12,6 +12,7 @@ from app.core.exceptions import (
     StructuredExtractionProviderError,
     StructuredExtractionUnavailableError,
 )
+from app.core.config import Settings
 from app.models.documents import DocumentUploadRecord
 from app.schemas.extraction import ExtractedLineItem, ExtractedShipment
 from app.schemas.multi_line_extraction import MultiLineInvoiceCandidates
@@ -150,10 +151,29 @@ def test_groq_request_uses_strict_schema_and_validates_response() -> None:
     response_format = captured["response_format"]
     schema = response_format["json_schema"]["schema"]
     assert response_format["json_schema"]["strict"] is True
+    assert captured["max_completion_tokens"] == 2000
     assert set(schema["required"]) == set(schema["properties"])
     assert schema["additionalProperties"] is False
     assert shipment.invoice_number == "INV-1001"
     assert shipment.declared_total == 250
+
+
+def test_structured_completion_ceiling_allows_environment_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GROQ_STRUCTURED_MAX_COMPLETION_TOKENS", "1500")
+    settings = Settings()
+    assert settings.groq_structured_max_completion_tokens == 1500
+
+
+@pytest.mark.parametrize("configured", ["0", "255", "8193", "not-a-number"])
+def test_invalid_structured_completion_ceiling_fails_configuration_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: str,
+) -> None:
+    monkeypatch.setenv("GROQ_STRUCTURED_MAX_COMPLETION_TOKENS", configured)
+    with pytest.raises(ValidationError):
+        Settings()
 
 
 def test_multiline_strict_structured_output_success() -> None:

@@ -32,8 +32,6 @@ MAX_CONTEXT_CHARACTERS = 2000
 #: Used when no label for a missing field was found anywhere in the document.
 HEAD_FALLBACK_CHARACTERS = 1500
 
-MAX_COMPLETION_TOKENS = 400
-
 # Byte-identical across every call so Groq's automatic prefix caching applies.
 # Nothing dynamic may enter this string - no field list, no document name, no
 # timestamp - or the cached prefix is invalidated on every request.

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import Engine
 
@@ -28,6 +28,7 @@ from app.services.customs_audit.explanation import (
     explanation_missing_limitation,
     explanation_validation_failure,
     generate_explanation_entry,
+    narrator_safe_findings,
 )
 from app.services.customs_audit.report import EVIDENCE_SEARCH_EXPLANATION
 
@@ -196,6 +197,70 @@ def test_raw_check_ids_are_not_exposed_in_any_template_output() -> None:
         findings = _findings_for(extraction, status=status)
         text = _default_explanation("Explanation", findings)
         assert explanation_exposes_raw_identifiers(text) is None, text
+
+
+def test_narrator_context_uses_display_labels_without_losing_real_identifiers() -> None:
+    workflow_id = str(uuid4())
+    findings = _findings_for(_manual_review_pct_extraction(), status="manual_review")
+    findings["shipment_context"]["invoice_number"] = "SYN-INV-62034200"
+    findings["workflow_id"] = workflow_id
+
+    # The workflow id above demonstrates that this transformation does not
+    # pretend to be an allow list. The production builder is the allow list and
+    # excludes database ids before this final presentation transformation.
+    production_state = _state(_manual_review_pct_extraction(), status="manual_review")
+    production_state["workflow_id"] = workflow_id
+    production_state["document_id"] = str(uuid4())
+    production_findings = build_explanation_findings(
+        production_state,
+        {"deterministic_compliance_status": "manual_review"},
+    )
+    safe = narrator_safe_findings(production_findings)
+    serialized = str(safe)
+
+    assert "manual_review" not in serialized
+    assert "human_review_status" not in serialized
+    assert workflow_id not in serialized
+    assert "61091000" in serialized
+
+    safe_with_invoice = narrator_safe_findings(findings)
+    assert safe_with_invoice["shipment context"]["invoice number"] == "SYN-INV-62034200"
+
+
+def test_explanation_generation_sends_only_display_labels_and_preserves_state() -> None:
+    state = _state(_manual_review_pct_extraction(), status="manual_review")
+    state["audit_revisions"] = [
+        {
+            "revision_number": 1,
+            "status": "manual_review",
+            "triggered_by": "human_correction",
+            "frozen": True,
+        }
+    ]
+    status_before = state["deterministic_compliance_result"]["overall_status"]
+    revisions_before = list(state["audit_revisions"])
+    captured: dict[str, Any] = {}
+    template_findings = _findings_for(
+        _manual_review_pct_extraction(), status="manual_review"
+    )
+
+    def narrator(_role: str, safe_findings: dict[str, Any]) -> str:
+        captured.update(safe_findings)
+        return _default_explanation("Explanation", template_findings)
+
+    entry = generate_explanation_entry(
+        state=state,
+        final_report={"deterministic_compliance_status": "manual_review"},
+        narrator=narrator,
+        model_label="test-model",
+    )
+
+    assert "human review status" in captured
+    assert "human_review_status" not in str(captured)
+    assert "manual_review" not in str(captured)
+    assert entry["explanation_source"] == "llm"
+    assert state["deterministic_compliance_result"]["overall_status"] == status_before
+    assert state["audit_revisions"] == revisions_before
 
 
 # 6. Necessary technical terms are explained when used.
