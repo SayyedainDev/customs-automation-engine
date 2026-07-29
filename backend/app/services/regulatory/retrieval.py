@@ -41,6 +41,15 @@ from app.services.regulatory.lexical_index import (
     search_lexical_candidates,
 )
 from app.services.regulatory.reranker import Reranker, get_reranker
+from app.services.regulatory.source_kinds import (
+    CURATED_RULE_SUMMARY,
+    OFFICIAL_MANUAL,
+    OFFICIAL_POLICY,
+    OFFICIAL_PROCEDURE,
+    OFFICIAL_REGULATION,
+    OFFICIAL_TARIFF,
+    resolve_source_kind,
+)
 from app.services.regulatory.vector_cache import get_vector_matrix
 from app.services.regulatory.vector_store import (
     VECTOR_INDEX_VERSION,
@@ -52,6 +61,20 @@ logger = logging.getLogger(__name__)
 _WORD = re.compile(r"[a-z0-9]+")
 _PCT = re.compile(r"\b(\d{4})\.?(\d{4})\b")
 _SRO = re.compile(r"(\d{2,4})\s*\(?\s*i\s*\)?\s*[/\-]?\s*(\d{4})", re.IGNORECASE)
+
+_LEGAL_TOKEN_CANONICAL = {
+    "officers": "officer",
+    "powers": "power",
+    "seizure": "seize",
+    "seized": "seize",
+    "seizing": "seize",
+    "confiscation": "confiscate",
+    "confiscated": "confiscate",
+    "declarations": "declaration",
+    "submitted": "submit",
+    "submission": "submit",
+    "submitting": "submit",
+}
 
 VERIFIED_STATUSES = {"verified", "partially_verified"}
 RRF_K = 60
@@ -80,6 +103,110 @@ RETRIEVAL_MODE_PERSISTENT = "hybrid_dense_pgfts_rrf_cross_encoder"
 #: work stops scaling with the corpus.
 LEXICAL_CANDIDATE_LIMIT = 200
 DENSE_CANDIDATE_LIMIT = 200
+# Source provenance is allowed to reorder only candidates whose reranker scores
+# are reasonably close to the best candidate. This keeps provenance as a
+# query-aware preference after relevance, rather than a blanket "official wins"
+# rule that could promote an unrelated passage.
+SOURCE_PRIORITY_RELEVANCE_WINDOW = 1.00
+
+_HISTORICAL_QUERY = re.compile(
+    r"\b(historical|history|previous|earlier|old|former|superseded|past)\b",
+    re.IGNORECASE,
+)
+
+
+def _query_source_intent(query: str) -> str | None:
+    """Identify the official source family named or implied by the question."""
+    lowered = query.casefold()
+    has_pct = bool(_PCT.search(query))
+    if has_pct and re.search(
+        r"\b(tariff|classification|classify|description|entry|chapter|heading)\b",
+        lowered,
+    ):
+        return "tariff"
+    if "customs act" in lowered or (
+        "customs" in lowered
+        and re.search(r"\b(seizure|seize|confiscation|confiscate|powers?)\b", lowered)
+    ):
+        return "customs_act"
+    if (
+        "customs rules" in lowered
+        or "export facilitation scheme" in lowered
+        or re.search(r"\bgoods declarations?\b", lowered)
+    ):
+        return "customs_rules"
+    if (
+        "export policy order" in lowered
+        or re.search(r"\bappendix[- ]?[a-j]\b", lowered)
+        or re.search(r"\b(raw cotton|cotton).{0,50}\b(schedule|restriction)\b", lowered)
+    ):
+        return "export_policy"
+    if re.search(r"\bsingle declarations?\b", lowered):
+        return "psw_single_declaration"
+    if (
+        re.search(r"\belectronic.{0,30}\bcertificate of origin\b", lowered)
+        or re.search(r"\bcertificate of origin.{0,30}\b(electronic|processed?)\b", lowered)
+    ):
+        return "psw_ecoo"
+    if (
+        "configured requirement" in lowered
+        or "configured checklist" in lowered
+        or re.search(r"\bdocuments? should i prepare\b", lowered)
+    ):
+        return "configured_guidance"
+    return None
+
+
+def _source_compatibility(intent: str | None, chunk: RegulatoryChunk) -> int:
+    """Compatibility score for an already-relevant passage."""
+    if intent is None:
+        return 0
+    kind = resolve_source_kind(chunk)
+    document_type = (chunk.document_type or "").casefold()
+    title = (chunk.source_document or "").casefold()
+
+    if intent == "tariff":
+        return 4 if kind == OFFICIAL_TARIFF else (1 if kind == CURATED_RULE_SUMMARY else 0)
+    if intent == "customs_act":
+        if document_type == "customs_act" or "customs act" in title:
+            return 4
+        return 1 if kind == OFFICIAL_REGULATION else 0
+    if intent == "customs_rules":
+        if document_type == "customs_rules" or "customs rules" in title:
+            return 4
+        return 2 if kind == OFFICIAL_PROCEDURE else 0
+    if intent == "export_policy":
+        if kind == OFFICIAL_POLICY:
+            return 4
+        if kind == OFFICIAL_REGULATION and "export policy order" in title:
+            return 3
+        return 1 if kind == CURATED_RULE_SUMMARY else 0
+    if intent == "psw_single_declaration":
+        if kind == OFFICIAL_MANUAL and "single declaration" in title:
+            return 4
+        return 2 if kind == OFFICIAL_MANUAL else (1 if kind == CURATED_RULE_SUMMARY else 0)
+    if intent == "psw_ecoo":
+        if kind == OFFICIAL_MANUAL and "electronic certificate of origin" in title:
+            return 4
+        return 2 if kind == OFFICIAL_MANUAL else (1 if kind == CURATED_RULE_SUMMARY else 0)
+    if intent == "configured_guidance":
+        return 4 if kind == CURATED_RULE_SUMMARY else 1
+    return 0
+
+
+def _currency_priority(query: str, chunk: RegulatoryChunk) -> int:
+    status = (chunk.currency_status or "current").casefold()
+    if _HISTORICAL_QUERY.search(query):
+        return {
+            "historical_reference": 3,
+            "superseded": 2,
+            "current": 1,
+        }.get(status, 0)
+    return {
+        "current": 3,
+        "historical_reference": 1,
+        "superseded": 0,
+    }.get(status, 0)
 
 
 def normalize_pct_token(value: str | None) -> str | None:
@@ -103,7 +230,11 @@ def _special_tokens(text: str) -> list[str]:
 
 def tokenize(text: str) -> list[str]:
     lowered = text.lower()
-    return _WORD.findall(lowered) + _special_tokens(lowered)
+    words = [
+        _LEGAL_TOKEN_CANONICAL.get(token, token)
+        for token in _WORD.findall(lowered)
+    ]
+    return words + _special_tokens(lowered)
 
 
 class BM25:
@@ -184,6 +315,7 @@ def _lexical_relevance(
     chunk: RegulatoryChunk,
     pct_code: str | None,
     destination_country: str | None,
+    source_intent: str | None = None,
 ) -> float:
     """Deterministic relevance floor, independent of the active reranker.
 
@@ -194,14 +326,42 @@ def _lexical_relevance(
     too coarse (a whole source document tagged with every PCT code it covers
     anywhere, not the specific code each page is actually about).
     """
-    doc_tokens = set(tokenize(chunk.text))
+    # Source title/type are legitimate relevance metadata. They let a question
+    # that explicitly names "Customs Rules" select a passage inside that
+    # compilation without requiring every page to repeat the document title.
+    searchable = " ".join(
+        part
+        for part in (
+            chunk.text,
+            chunk.source_document,
+            chunk.document_type,
+            chunk.section,
+        )
+        if part
+    )
+    doc_tokens = set(tokenize(searchable))
     if not query_tokens:
         return 0.0
     overlap = len(query_tokens & doc_tokens) / len(query_tokens)
+    exact_pct_in_text = False
+    if pct_code:
+        exact_pct_in_text = pct_code in re.sub(r"\D", "", chunk.text or "")
+        if exact_pct_in_text:
+            # Exact text evidence for the requested code is relevance, not a
+            # coarse document-level PCT tag. This is essential for tariff rows
+            # printed as "6203.4200" when the question says "62034200".
+            overlap = max(overlap, MIN_BASE_LEXICAL_OVERLAP)
     if overlap < MIN_BASE_LEXICAL_OVERLAP:
         return overlap
     score = overlap
-    if pct_code and chunk.pct_codes and pct_code in chunk.pct_codes:
+    if _source_compatibility(source_intent, chunk) >= 4:
+        # Naming the exact source family is itself relevant metadata once the
+        # passage has real lexical overlap. It cannot rescue a passage below
+        # MIN_BASE_LEXICAL_OVERLAP.
+        score += 0.25
+    if exact_pct_in_text:
+        score += 0.5
+    elif pct_code and chunk.pct_codes and pct_code in chunk.pct_codes:
         score += 0.5
     if chunk.sro_number and any(
         token.startswith("sro") and token in doc_tokens for token in query_tokens
@@ -377,7 +537,14 @@ def search_regulatory_evidence(
 
     augmented_query = query
     if normalized_pct:
-        augmented_query += f" {normalized_pct}"
+        # PostgreSQL's generated tsvector tokenizes the printed tariff form
+        # ``6203.4200`` as ``6203`` and ``4200``. Include that exact official
+        # display form as well as the normalized eight digits so persistent
+        # lexical retrieval can find the row before dense/RRF candidate limits
+        # are applied.
+        augmented_query += (
+            f" {normalized_pct} {normalized_pct[:4]}.{normalized_pct[4:]}"
+        )
     if sro_number:
         augmented_query += f" {sro_number}"
     if destination_country:
@@ -509,21 +676,26 @@ def search_regulatory_evidence(
     }
 
     query_token_set = set(query_tokens)
-    results: list[ScoredEvidence] = []
+    source_intent = _query_source_intent(augmented_query)
+    accepted: list[ScoredEvidence] = []
     seen_parents: set[str] = set()
     for pos in order:
         index = candidate_indexes[pos]
         child = children[index]
         # Deterministic relevance gate (independent of reranker model).
         if _lexical_relevance(
-            query_token_set, child, normalized_pct, destination_country
+            query_token_set,
+            child,
+            normalized_pct,
+            destination_country,
+            source_intent,
         ) < MIN_LEXICAL_RELEVANCE:
             continue
         parent = parents.get(child.parent_chunk_id or "", child)
         if parent.chunk_id in seen_parents:
             continue
         seen_parents.add(parent.chunk_id)
-        results.append(
+        accepted.append(
             ScoredEvidence(
                 chunk=child,
                 parent=parent,
@@ -537,9 +709,28 @@ def search_regulatory_evidence(
                 cross_encoder_rank=cross_rank_by_index[index],
             )
         )
-        if len(results) >= top_k:
-            break
-
-    if not results:
+    if not accepted:
         return output("evidence_not_found", [])
-    return output("ok", results)
+
+    # Query-aware provenance/currentness preference is deliberately applied
+    # after hybrid relevance, RRF, reranking and the evidence gate. Candidates
+    # outside the comparable-relevance window keep pure reranker order.
+    best_reranker = max(item.cross_encoder_score for item in accepted)
+
+    def final_key(item: ScoredEvidence) -> tuple[float | int, ...]:
+        comparable = (
+            item.cross_encoder_score
+            >= best_reranker - SOURCE_PRIORITY_RELEVANCE_WINDOW
+        )
+        if comparable:
+            return (
+                1,
+                _source_compatibility(source_intent, item.chunk),
+                _currency_priority(augmented_query, item.chunk),
+                item.cross_encoder_score,
+                item.rrf_score,
+            )
+        return (0, 0, 0, item.cross_encoder_score, item.rrf_score)
+
+    accepted.sort(key=final_key, reverse=True)
+    return output("ok", accepted[:top_k])

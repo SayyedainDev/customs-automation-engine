@@ -66,10 +66,9 @@ def postgres_fts_available(db: Session) -> bool:
 def _to_tsquery_input(query: str) -> str:
     """Reduce a normalized query to whitespace-separated words.
 
-    ``websearch_to_tsquery`` is used downstream, which treats the input as a
-    web search box: bare words are OR-ed and quotes make phrases. Punctuation is
-    stripped so a PCT code written as ``5205.2100`` does not become a phrase
-    operator by accident.
+    ``websearch_to_tsquery`` is used downstream. Punctuation is stripped so a
+    PCT code written as ``5205.2100`` becomes the searchable tariff lexemes
+    ``5205`` and ``2100`` rather than an accidental phrase/operator.
     """
     cleaned = _TSQUERY_STRIP.sub(" ", query or "")
     return " ".join(cleaned.split())
@@ -90,11 +89,21 @@ def search_lexical_candidates(
     exclude_superseded: bool = True,
 ) -> list[LexicalHit]:
     """Top-ranked child chunks for a query, filtered and ranked in PostgreSQL."""
-    terms = _to_tsquery_input(query)
-    if not terms:
+    cleaned_terms = _to_tsquery_input(query)
+    if not cleaned_terms:
         return []
 
     where = ["c.is_parent = false", "c.search_vector @@ q.query"]
+    # websearch_to_tsquery combines bare words with AND. That made one absent
+    # question word (or the normalized 62034200 beside the printed
+    # 6203.4200) eliminate the exact tariff row before RRF could see it. OR
+    # candidate generation keeps recall broad; the existing reranker and
+    # deterministic evidence gate still decide acceptance.
+    # Keep the original dotted tariff token too. PostgreSQL indexes
+    # ``6203.4200`` as one numeric lexeme, while punctuation-stripping alone
+    # yields two non-matching lexemes.
+    dotted_pct_terms = re.findall(r"\b\d{4}\.\d{4}\b", query or "")
+    terms = " OR ".join([*cleaned_terms.split(), *dotted_pct_terms])
     params: dict[str, object] = {"terms": terms, "limit": limit}
 
     if validation_status:

@@ -232,8 +232,13 @@ def generate_pre_submission_guidance(
     for doc in outstanding:
         query = (
             f"{doc.display_name} {doc.document_type.replace('_', ' ')} "
-            f"{expected_product} {code} {destination}"
         )
+        # Product, PCT and destination are already enforced by the structured
+        # retrieval arguments below. Repeating them in the free-text query can
+        # swamp the document name and select a sibling passage about the same
+        # product (for example the SBP-deposit sentence instead of the
+        # immediately following letter-of-credit sentence). Keep the text
+        # focused on the document whose direct evidence is being requested.
         output = search_regulatory_evidence(
             db,
             query=query,

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "id": "tariff_62034200",
+      "intent": "exact_tariff_description",
+      "query": "What is the tariff description for PCT 62034200?",
+      "pct_code": "62034200",
+      "expected_primary_contains": "Pakistan Customs Tariff"
+    },
+    {
+      "id": "tariff_61051000",
+      "intent": "exact_tariff_entry",
+      "query": "Which tariff entry covers PCT 61051000?",
+      "pct_code": "61051000",
+      "expected_primary_contains": "Pakistan Customs Tariff"
+    },
+    {
+      "id": "tariff_63026010",
+      "intent": "tariff_chapter",
+      "query": "In which textile tariff chapter is 63026010?",
+      "pct_code": "63026010",
+      "expected_primary_contains": "Pakistan Customs Tariff"
+    },
+    {
+      "id": "act_seizure",
+      "intent": "customs_act_legal_power",
+      "query": "What powers do customs officers have regarding seizure?",
+      "expected_primary_contains": "Customs Act"
+    },
+    {
+      "id": "act_confiscation",
+      "intent": "customs_act_confiscation",
+      "query": "What does the Customs Act say about confiscation?",
+      "expected_primary_contains": "Customs Act"
+    },
+    {
+      "id": "rules_goods_declaration",
+      "intent": "customs_rules_procedure",
+      "query": "What do the Customs Rules say about goods declarations?",
+      "expected_primary_contains": "Customs Rules"
+    },
+    {
+      "id": "rules_efs",
+      "intent": "customs_rules_efs",
+      "query": "Explain the Export Facilitation Scheme procedure.",
+      "expected_primary_contains": "Customs Rules"
+    },
+    {
+      "id": "epo_raw_cotton",
+      "intent": "export_policy_schedule",
+      "query": "Which Export Policy Order schedule covers raw cotton?",
+      "pct_code": "52010090",
+      "expected_primary_contains": "Export Policy Order"
+    },
+    {
+      "id": "epo_appendix_j",
+      "intent": "export_policy_appendix",
+      "query": "What does Appendix-J say about raw cotton?",
+      "pct_code": "52010090",
+      "expected_primary_contains": "Export Policy Order"
+    },
+    {
+      "id": "psw_single_declaration",
+      "intent": "psw_operation",
+      "query": "How is a Single Declaration submitted for export?",
+      "expected_primary_contains": "Single Declaration"
+    },
+    {
+      "id": "psw_ecoo",
+      "intent": "psw_ecoo_operation",
+      "query": "How is an electronic Certificate of Origin processed?",
+      "expected_primary_contains": "Electronic Certificate of Origin"
+    },
+    {
+      "id": "guidance_trousers_china",
+      "intent": "configured_cace_checklist",
+      "query": "What documents should I prepare for cotton trousers to China?",
+      "pct_code": "62034200",
+      "destination_country": "China",
+      "expected_primary_contains": "textile product export requirements"
+    },
+    {
+      "id": "guidance_62034200",
+      "intent": "configured_cace_requirements",
+      "query": "Explain the configured requirements for PCT 62034200.",
+      "pct_code": "62034200",
+      "expected_primary_contains": "textile product export requirements"
+    },
+    {
+      "id": "historical_ecoo",
+      "intent": "explicit_historical_reference",
+      "query": "What did the historical TDAP Step-by-Step Guide for New Exporters (2020) say about Certificate of Origin?",
+      "expected_primary_contains": "Step-by-Step Guide"
+    }
+  ]
+}
