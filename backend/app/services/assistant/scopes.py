@@ -9,7 +9,7 @@ A. Knowledge corpus scope - every active regulatory source that has been
    indexed. Controls what the assistant may *search and summarise*. Read from
    the database, because it grows whenever a document is ingested.
 
-B. Deterministic compliance scope - the five textile PCT codes. Controls what
+B. Deterministic compliance scope - the validated textile PCT codes. Controls what
    the engine may *decide*: document requirements, pass/fail/manual-review,
    shipment readiness. Fixed, and intentionally not widened here.
 
@@ -32,10 +32,13 @@ from app.services.assistant.foundation import SUPPORTED_PCT_PRODUCTS
 #: statement about compliance decisions, not about knowledge.
 DETERMINISTIC_COMPLIANCE_PCT_CODES = tuple(sorted(SUPPORTED_PCT_PRODUCTS))
 
+#: Derived from the catalog rather than written out, so the sentence cannot
+#: keep claiming "five" after codes are added.
 UNSUPPORTED_PCT_NOTICE = (
     "I found relevant information in the indexed regulatory corpus, but CACE’s "
-    "deterministic compliance engine currently validates only five textile PCT "
-    "codes. This answer is informational and is not a compliance decision."
+    "deterministic compliance engine currently validates only "
+    f"{len(DETERMINISTIC_COMPLIANCE_PCT_CODES)} validated textile PCT codes. This "
+    "answer is informational and is not a compliance decision."
 )
 
 NO_EVIDENCE_MESSAGE = (
@@ -70,7 +73,7 @@ class KnowledgeCorpusScope:
 
 
 def get_knowledge_corpus_scope(db: Session) -> KnowledgeCorpusScope:
-    """Every active indexed source - not filtered by the five PCT codes."""
+    """Every active indexed source - not filtered by the supported PCT codes."""
     documents = [
         value
         for value in db.execute(

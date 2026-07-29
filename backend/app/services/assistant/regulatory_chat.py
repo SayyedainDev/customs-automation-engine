@@ -1,6 +1,6 @@
 """The global regulatory knowledge assistant.
 
-This is the conversational half of CACE that the five-PCT "Prepare an Export"
+This is the conversational half of CACE that the supported-PCT "Prepare an Export"
 form is not. It answers questions about the indexed regulatory corpus without
 requiring a shipment, an upload, an audit workflow or one of the five supported
 PCT codes, and it never issues a compliance verdict outside those five codes.
@@ -254,7 +254,7 @@ def _render_guidance_answer(guidance) -> str:  # type: ignore[no-untyped-def]
         )
     lines.append("")
     lines.append(
-        "This is the deterministic five-PCT checklist. Open Prepare an Export "
+        "This is the deterministic supported-PCT checklist. Open Prepare an Export "
         "for the per-document reasons, cited passages and evidence classification."
     )
     return "\n".join(lines)

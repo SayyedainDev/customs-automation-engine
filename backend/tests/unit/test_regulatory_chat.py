@@ -160,7 +160,7 @@ def test_unsupported_pct_gets_information_and_limitation(
 ) -> None:
     with Session(isolated_database) as db:
         build_corpus(db)
-        response = ask(db, "What do the indexed sources say about cotton under PCT 62034200?")
+        response = ask(db, "What do the indexed sources say about cotton under PCT 62113200?")
     assert response.intent == "unsupported_pct_information"
     assert response.evidence_status == "accepted"
     assert response.sources
@@ -172,13 +172,13 @@ def test_unsupported_pct_gets_information_and_limitation(
 def test_unsupported_pct_never_gets_a_verdict(isolated_database: Engine) -> None:
     with Session(isolated_database) as db:
         build_corpus(db)
-        response = ask(db, "Is PCT 62034200 compliant and will it clear customs?")
+        response = ask(db, "Is PCT 62113200 compliant and will it clear customs?")
     assert response.intent == "unsupported_pct_information"
     assert response.informational_only is True
     lowered = response.answer.casefold()
     assert "is compliant" not in lowered
     assert "will clear customs" not in lowered
-    assert "62034200" not in " ".join(response.supported_compliance_scope)
+    assert "62113200" not in " ".join(response.supported_compliance_scope)
 
 
 # 10. A supported-PCT checklist question uses the deterministic guidance path.
@@ -191,7 +191,7 @@ def test_supported_pct_question_uses_deterministic_guidance(
     assert response.intent == "supported_pct_guidance"
     assert response.informational_only is False
     assert "Commercial Invoice" in response.answer
-    assert "deterministic five-PCT checklist" in response.answer
+    assert "deterministic supported-PCT checklist" in response.answer
 
 
 # 11. The full corpus is searchable for general questions, not just five codes.
@@ -471,10 +471,10 @@ def _corpus_with_exact_code(db: Session) -> None:
     build_corpus(db)
     add_evidence(
         db,
-        key="exact_62034200",
+        key="exact_62113200",
         source_document="Export Policy Order, 2022 - SRO 544(I)/2022",
         parent_text=(
-            "Men's trousers of cotton under PCT 6203.4200 may be exported "
+            "Men's trousers of cotton under PCT 6211.3200 may be exported "
             "subject to the general conditions of this Order."
         ),
         pct_codes=[],
@@ -485,11 +485,11 @@ def _corpus_with_exact_code(db: Session) -> None:
 def test_exact_pct_evidence_is_reported_as_exact(isolated_database: Engine) -> None:
     with Session(isolated_database) as db:
         _corpus_with_exact_code(db)
-        response = ask(db, "What do sources specifically say about PCT 62034200?")
+        response = ask(db, "What do sources specifically say about PCT 62113200?")
     assert response.evidence_scope == "exact_pct"
     assert response.sources
     # A passage naming the code is not a broader-category disclaimer case.
-    assert broader_category_notice("62034200") not in response.answer
+    assert broader_category_notice("62113200") not in response.answer
     # It is still outside deterministic compliance scope.
     assert UNSUPPORTED_PCT_NOTICE in response.answer
 
@@ -504,16 +504,16 @@ def test_supported_pct_exact_evidence(isolated_database: Engine) -> None:
 
 def test_broader_category_evidence_is_labelled(isolated_database: Engine) -> None:
     with Session(isolated_database) as db:
-        build_corpus(db)  # nothing in this corpus names 62034200
-        response = ask(db, "What broader product evidence exists for cotton PCT 62034200?")
+        build_corpus(db)  # nothing in this corpus names 62113200
+        response = ask(db, "What broader product evidence exists for cotton PCT 62113200?")
     assert response.evidence_scope == "broader_category"
     assert response.sources
-    assert broader_category_notice("62034200") in response.answer
+    assert broader_category_notice("62113200") in response.answer
     assert UNSUPPORTED_PCT_NOTICE in response.answer
     assert response.informational_only is True
     # No passage is allowed to be presented as being about that code.
     for source in response.sources:
-        assert "62034200" not in source.accepted_passage.replace(".", "")
+        assert "62113200" not in source.accepted_passage.replace(".", "")
 
 
 def test_no_evidence_scope_when_nothing_matches(isolated_database: Engine) -> None:
@@ -530,7 +530,7 @@ def test_unsupported_pct_verdict_still_refused_with_exact_evidence(
 ) -> None:
     with Session(isolated_database) as db:
         _corpus_with_exact_code(db)
-        response = ask(db, "Is PCT 62034200 compliant?")
+        response = ask(db, "Is PCT 62113200 compliant?")
     assert response.informational_only is True
     assert UNSUPPORTED_PCT_NOTICE in response.answer
     assert "is compliant" not in response.answer.casefold()
@@ -567,14 +567,14 @@ def test_recorded_source_kind_wins_over_classification(
 @pytest.mark.parametrize(
     "question,expected",
     [
-        ("Is 62034200 compliant?", True),
-        ("Is 6203.4200 allowed for export?", True),
+        ("Is 62113200 compliant?", True),
+        ("Is 6211.3200 allowed for export?", True),
         ("What is 12345678?", False),
         ("My number is 03001234567, write me a poem", False),
     ],
 )
 def test_bare_tariff_code_is_a_domain_signal(question: str, expected: bool) -> None:
-    """A user writing "is 62034200 compliant?" is plainly asking about customs.
+    """A user writing "is 62113200 compliant?" is plainly asking about customs.
 
     The code alone is not enough - it still has to pair with a document or
     regulatory concept - so a stray eight-digit number does not open the door.
@@ -585,7 +585,7 @@ def test_bare_tariff_code_is_a_domain_signal(question: str, expected: bool) -> N
 def test_bare_tariff_code_verdict_is_refused(isolated_database: Engine) -> None:
     with Session(isolated_database) as db:
         build_corpus(db)
-        response = ask(db, "Is 62034200 compliant?")
+        response = ask(db, "Is 62113200 compliant?")
     assert response.intent == "unsupported_pct_information"
     assert response.informational_only is True
     assert "is compliant" not in response.answer.casefold()

@@ -23,6 +23,7 @@ from app.services.assistant.scopes import (
     get_knowledge_corpus_scope,
     supported_compliance_scope_labels,
 )
+from app.services.compliance.pct_catalog import load_pct_catalog
 from app.services.assistant.shipment_assistant import answer_shipment_question
 
 
@@ -54,7 +55,7 @@ def post_regulatory_chat(
 
     Needs no shipment, upload, audit workflow or supported PCT code. Answers are
     informational: the deterministic compliance engine still decides only the
-    five supported textile PCT codes, and this endpoint never issues a verdict.
+    validated textile PCT catalog, and this endpoint never issues a verdict.
     """
     if payload.conversation_id:
         conv = db.get(AssistantConversation, payload.conversation_id)
@@ -75,6 +76,28 @@ def post_regulatory_chat(
         source_document=payload.source_document,
         top_k=payload.top_k,
     )
+
+
+@router.get("/supported-products")
+def get_supported_products():
+    """The deterministic PCT catalog, for the Prepare an Export form.
+
+    The console used to hard-code the product list, which silently drifted
+    from the codes the engine actually supports.
+    """
+    return {
+        "products": [
+            {
+                "pct_code": p.pct_code,
+                "display_pct_code": p.display_pct_code,
+                "product_name": p.simple_product_name,
+                "tariff_description": p.official_tariff_description,
+                "textile_category": p.textile_category,
+                "tariff_source_page": p.tariff_source_page,
+            }
+            for p in load_pct_catalog()
+        ]
+    }
 
 
 @router.get("/regulatory/scope")

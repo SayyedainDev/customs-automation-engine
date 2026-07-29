@@ -339,9 +339,9 @@ def generate_pre_submission_guidance(
         product=expected_product,
         destination=destination,
         documents=basic_docs + docs,
-        answer=f"For {expected_product} under PCT {code} being exported to {destination}, CACE currently expects the following documents. The document list comes from the configured CACE rules. Regulatory evidence is displayed only when a sufficiently relevant source was found.\n\nThis guidance covers only the five PCT codes supported by this prototype. It is not official customs or legal advice.",
+        answer=f"For {expected_product} under PCT {code} being exported to {destination}, CACE currently expects the following documents. The document list comes from the configured CACE rules. Regulatory evidence is displayed only when a sufficiently relevant source was found.\n\nThis guidance covers only the textile PCT codes configured in this prototype. It is not official customs or legal advice.",
         limitations=[
             "This assistant is running in single-user prototype mode. Account-based authorization and multi-user document isolation are not implemented.",
-            "This guidance covers only the five PCT codes supported by this prototype. It is not official customs or legal advice."
+            "This guidance covers only the textile PCT codes configured in this prototype. It is not official customs or legal advice."
         ]
     )

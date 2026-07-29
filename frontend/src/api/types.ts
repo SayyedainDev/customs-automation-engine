@@ -344,6 +344,19 @@ export interface ConversationResponse {
   messages: ConversationMessage[];
 }
 
+export interface SupportedProduct {
+  pct_code: string;
+  display_pct_code: string;
+  product_name: string;
+  tariff_description: string;
+  textile_category: string;
+  tariff_source_page: number | null;
+}
+
+export interface SupportedProductsResponse {
+  products: SupportedProduct[];
+}
+
 export interface RegulatoryChatRequest {
   question: string;
   conversation_id?: string | null;

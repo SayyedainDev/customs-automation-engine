@@ -16,6 +16,7 @@ import type {
   RegulatoryChatRequest,
   RegulatoryChatResponse,
   ConversationResponse,
+  SupportedProductsResponse,
 } from "./types";
 
 const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(
@@ -225,6 +226,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  getSupportedProducts: () =>
+    request<SupportedProductsResponse>("/api/v1/assistant/supported-products"),
 
   getConversation: (conversationId: string) =>
     request<ConversationResponse>(

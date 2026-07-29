@@ -85,7 +85,7 @@ export function AppShell() {
             <div>
               <strong>Two scopes</strong>
               <span>
-                Full indexed corpus for questions · five PCT codes for
+                Full indexed corpus for questions · validated PCT catalog for
                 compliance decisions
               </span>
             </div>

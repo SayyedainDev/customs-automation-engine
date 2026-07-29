@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type {
+  SupportedProduct,
   DocumentGuidanceSchema,
   EvidenceClass,
   GuidanceCitation,
@@ -17,13 +18,17 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-const PRODUCTS = [
-  { name: "Raw cotton", pct: "52010090" },
-  { name: "Cotton yarn", pct: "52051100" },
-  { name: "Denim fabric", pct: "52094200" },
-  { name: "Cotton knitted T-shirts", pct: "61091000" },
-  { name: "Cotton bed sheets", pct: "63023110" }
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  raw_material: "Raw material",
+  yarn: "Yarn",
+  woven_fabric: "Woven fabric",
+  knitted_garment: "Knitted garments",
+  woven_garment: "Woven garments",
+  made_up: "Made-up textiles",
+};
+
+// The product list used to be a literal five-entry array here, which drifted
+// from the codes the engine actually supports. It now comes from the catalog.
 
 interface FormInputs {
   product: string;
@@ -143,9 +148,35 @@ function DocumentCard({ doc }: { doc: DocumentGuidanceSchema }) {
 }
 
 export function PrepareExportPage() {
-  const [product, setProduct] = useState(PRODUCTS[0].name);
-  const [pctCode, setPctCode] = useState(PRODUCTS[0].pct);
+  const [products, setProducts] = useState<SupportedProduct[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [product, setProduct] = useState("");
+  const [pctCode, setPctCode] = useState("");
   const [destination, setDestination] = useState("China");
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getSupportedProducts()
+      .then((response) => {
+        if (!active) return;
+        setProducts(response.products);
+        const first = response.products[0];
+        if (first) {
+          setProduct(first.product_name);
+          setPctCode(first.pct_code);
+        }
+      })
+      .catch((err) => {
+        if (!active) return;
+        setCatalogError(
+          err instanceof Error ? err.message : "Could not load supported products.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,9 +190,18 @@ export function PrepareExportPage() {
 
   const handleProductChange = (name: string) => {
     setProduct(name);
-    const found = PRODUCTS.find((p) => p.name === name);
-    if (found) setPctCode(found.pct);
+    const found = products.find((p) => p.product_name === name);
+    if (found) setPctCode(found.pct_code);
   };
+
+  const grouped = products.reduce<Record<string, SupportedProduct[]>>(
+    (acc, item) => {
+      (acc[item.textile_category] ??= []).push(item);
+      return acc;
+    },
+    {},
+  );
+  const selected = products.find((p) => p.pct_code === pctCode);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,8 +249,17 @@ export function PrepareExportPage() {
                     onChange={(e) => handleProductChange(e.target.value)}
                     className="text-input"
                   >
-                    {PRODUCTS.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
+                    {Object.entries(grouped).map(([category, items]) => (
+                      <optgroup
+                        key={category}
+                        label={CATEGORY_LABELS[category] ?? category}
+                      >
+                        {items.map((p) => (
+                          <option key={p.pct_code} value={p.product_name}>
+                            {p.product_name} ({p.display_pct_code})
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -224,7 +273,20 @@ export function PrepareExportPage() {
                     onChange={(e) => setPctCode(e.target.value.replace(/[^0-9]/g, ''))}
                     className="text-input"
                   />
-                  <p className="muted" style={{fontSize: "0.85rem", marginTop: "0.25rem"}}>Normalized to 8 digits automatically.</p>
+                  <p className="muted" style={{fontSize: "0.85rem", marginTop: "0.25rem"}}>
+                    Normalized to 8 digits automatically.
+                    {products.length > 0
+                      ? ` ${products.length} validated textile PCT codes are supported.`
+                      : ""}
+                  </p>
+                  {selected ? (
+                    <p className="muted" style={{fontSize: "0.85rem"}}>
+                      {selected.tariff_description}
+                      {selected.tariff_source_page
+                        ? ` (Pakistan Customs Tariff FY 2025-26, page ${selected.tariff_source_page})`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="form-group">
@@ -249,6 +311,16 @@ export function PrepareExportPage() {
               </form>
             </div>
           </section>
+
+          {catalogError && (
+            <div className="notice notice--danger">
+              <AlertTriangle size={18} />
+              <div>
+                <strong>Supported products unavailable</strong>
+                <p>{catalogError}</p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="notice notice--danger">
@@ -334,7 +406,9 @@ export function PrepareExportPage() {
               <ul className="plain-list">
                 <li>This assistant is running in single-user prototype mode.</li>
                 <li>Account-based authorization and multi-user document isolation are not implemented.</li>
-                <li>Deterministic compliance guidance covers only the five supported PCT codes.</li>
+                <li>
+                  Deterministic compliance guidance covers only the {products.length || "validated"} textile PCT codes in the catalog.
+                </li>
                 <li>
                   For questions about other codes or general regulation, use{" "}
                   <Link to="/ask">Ask CACE</Link>.

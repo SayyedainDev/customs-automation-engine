@@ -583,7 +583,7 @@ export function SearchPage() {
         <div>
           <strong>Search scope</strong>
           <span>
-            Regulatory results come from the curated five-PCT legal index.
+            Regulatory results come from the indexed regulatory corpus, which is broader than the deterministic PCT catalog. Legacy note: five-PCT legal index.
             Shipment results appear only after an audit workflow is finalized.
           </span>
         </div>

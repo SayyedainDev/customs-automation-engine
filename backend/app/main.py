@@ -24,7 +24,7 @@ app = FastAPI(
     title=settings.app_name,
     description=(
         "A bootcamp capstone API for hybrid export-document extraction, "
-        "deterministic five-PCT textile compliance checks, regulatory evidence "
+        "deterministic textile compliance checks over a validated PCT catalog, regulatory evidence "
         "retrieval, and resumable human-reviewed customs-audit workflows."
     ),
     version="1.0.0",
