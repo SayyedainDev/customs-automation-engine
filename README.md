@@ -102,6 +102,23 @@ enterprise_customs_engine/
 └── synthetic_factory/       Fictional invoices, packing lists, and support documents
 ```
 
+## Database bootstrap
+
+A fresh database is created from the ORM metadata and then brought up to date
+with the numbered SQL migrations:
+
+```bash
+python -m app.core.init_db          # create tables from app/models
+python -m scripts.apply_migrations  # apply backend/migrations in order
+python -m scripts.apply_migrations --status
+```
+
+Both steps are idempotent and safe to re-run. Migrations 001-004 are ALTER-only
+upgrade scripts for databases created before those columns existed, so they
+assume `init_db` (or an earlier deployment) has already created the base
+tables; the migration runner is not a from-scratch schema builder on its own.
+Do not create tables by hand.
+
 ## Local setup
 
 ### 1. Prerequisites

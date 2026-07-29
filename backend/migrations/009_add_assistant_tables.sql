@@ -1,5 +1,10 @@
 -- Up Migration
-CREATE TABLE assistant_conversations (
+--
+-- Idempotent: a database bootstrapped from the ORM metadata
+-- (`python -m app.core.init_db`) already has these tables, and the
+-- migration must still be recordable as applied rather than aborting.
+-- Matches the IF NOT EXISTS style of 007 and 011.
+CREATE TABLE IF NOT EXISTS assistant_conversations (
     id UUID PRIMARY KEY,
     shipment_id UUID REFERENCES customs_audit_workflows(id),
     mode VARCHAR(64) NOT NULL,
@@ -8,10 +13,10 @@ CREATE TABLE assistant_conversations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX ix_assistant_conversations_shipment_id ON assistant_conversations(shipment_id);
-CREATE INDEX ix_assistant_conversations_created_at ON assistant_conversations(created_at);
+CREATE INDEX IF NOT EXISTS ix_assistant_conversations_shipment_id ON assistant_conversations(shipment_id);
+CREATE INDEX IF NOT EXISTS ix_assistant_conversations_created_at ON assistant_conversations(created_at);
 
-CREATE TABLE assistant_messages (
+CREATE TABLE IF NOT EXISTS assistant_messages (
     id UUID PRIMARY KEY,
     conversation_id UUID NOT NULL REFERENCES assistant_conversations(id),
     role VARCHAR(16) NOT NULL,
@@ -20,10 +25,10 @@ CREATE TABLE assistant_messages (
     sources JSON,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX ix_assistant_messages_conversation_id ON assistant_messages(conversation_id);
-CREATE INDEX ix_assistant_messages_created_at ON assistant_messages(created_at);
+CREATE INDEX IF NOT EXISTS ix_assistant_messages_conversation_id ON assistant_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS ix_assistant_messages_created_at ON assistant_messages(created_at);
 
-CREATE TABLE shipment_document_chunks (
+CREATE TABLE IF NOT EXISTS shipment_document_chunks (
     id UUID PRIMARY KEY,
     shipment_id UUID NOT NULL REFERENCES customs_audit_workflows(id),
     workflow_id UUID,
@@ -49,13 +54,13 @@ CREATE TABLE shipment_document_chunks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     deactivated_at TIMESTAMP WITH TIME ZONE
 );
-CREATE INDEX ix_shipment_document_chunks_shipment_id ON shipment_document_chunks(shipment_id);
-CREATE INDEX ix_shipment_document_chunks_document_id ON shipment_document_chunks(document_id);
-CREATE INDEX ix_shipment_document_chunks_document_type ON shipment_document_chunks(document_type);
-CREATE INDEX ix_shipment_document_chunks_parent_chunk_id ON shipment_document_chunks(parent_chunk_id);
-CREATE INDEX ix_shipment_document_chunks_content_hash ON shipment_document_chunks(content_hash);
-CREATE INDEX ix_shipment_document_chunks_active ON shipment_document_chunks(active);
-CREATE INDEX ix_shipment_document_chunks_created_at ON shipment_document_chunks(created_at);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_shipment_id ON shipment_document_chunks(shipment_id);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_document_id ON shipment_document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_document_type ON shipment_document_chunks(document_type);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_parent_chunk_id ON shipment_document_chunks(parent_chunk_id);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_content_hash ON shipment_document_chunks(content_hash);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_active ON shipment_document_chunks(active);
+CREATE INDEX IF NOT EXISTS ix_shipment_document_chunks_created_at ON shipment_document_chunks(created_at);
 
 
 -- Down Migration
