@@ -179,6 +179,15 @@ _EVIDENCE_MARKER_PHRASE = re.compile(
 #: Any remaining bare marker, including one wrapped in markdown emphasis.
 _EVIDENCE_MARKER = re.compile(r"(?:\*\*)?\[\d+\](?:\*\*)?")
 
+#: The same defect without the brackets. Stripping "[1]" only moved the model
+#: on to "the first source" - still a pointer into a numbered list the reader
+#: was never shown, and still not the fact they asked for.
+_ORDINAL_SOURCE_REFERENCE = re.compile(
+    r"\bthe\s+(?:first|second|third|fourth|fifth|last|above|preceding)\s+"
+    r"(?:indexed\s+)?(?:evidence|passage|source|excerpt|citation)s?\b",
+    re.IGNORECASE,
+)
+
 
 def sanitize_for_display(text: str | None) -> str:
     """Remove internal serialization from anything shown to a user.
@@ -197,6 +206,7 @@ def sanitize_for_display(text: str | None) -> str:
     # them, but a prompt is a request, not a guarantee - this is the guarantee.
     cleaned = _EVIDENCE_MARKER_PHRASE.sub(" the indexed sources", cleaned)
     cleaned = _EVIDENCE_MARKER.sub("", cleaned)
+    cleaned = _ORDINAL_SOURCE_REFERENCE.sub("the indexed sources", cleaned)
     # The substitutions above can leave doubled or orphaned spaces mid-line.
     # Newlines are preserved - paragraph breaks carry meaning in these answers.
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)

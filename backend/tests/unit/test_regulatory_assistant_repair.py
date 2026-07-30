@@ -323,3 +323,28 @@ def test_paragraph_breaks_survive_sanitizing() -> None:
     from app.services.assistant.plain_language import sanitize_for_display
 
     assert sanitize_for_display("One.\n\nTwo.") == "One.\n\nTwo."
+
+
+def test_the_marker_defect_does_not_survive_as_an_ordinal() -> None:
+    """Stripping "[1]" only moved the model on to "the first source".
+
+    Both are pointers into a numbered list the reader was never shown, and
+    neither is the fact they asked for. Both prompts now forbid position as
+    well as number, and the display boundary enforces it.
+    """
+    from app.services.assistant.plain_language import sanitize_for_display
+
+    assert "first source" not in sanitize_for_display(
+        "The requirement for Form-E comes from the first source."
+    )
+    assert "second passage" not in sanitize_for_display(
+        "According to the second passage, a certificate of origin is conditional."
+    )
+
+
+def test_ordinal_stripping_does_not_touch_ordinary_prose() -> None:
+    """"The first shipment" is not a reference to the evidence list."""
+    from app.services.assistant.plain_language import sanitize_for_display
+
+    text = "The first shipment left on Monday and the source document is an invoice."
+    assert sanitize_for_display(text) == text
