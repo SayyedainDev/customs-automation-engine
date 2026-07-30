@@ -36,7 +36,15 @@ logger = logging.getLogger(__name__)
 
 Confidence = Literal["high", "medium", "low", "missing"]
 Method = Literal[
-    "regex_labeled", "regex_bare", "regex_table", "llm_gapfill", "none"
+    "regex_labeled",
+    "regex_bare",
+    "regex_table",
+    # A table flattened to one cell per line, read from text rather than from
+    # word coordinates. Distinguished from "regex_table" so provenance stays
+    # honest about which reconstruction produced the value.
+    "regex_stacked_table",
+    "llm_gapfill",
+    "none",
 ]
 
 
@@ -505,6 +513,136 @@ def reconstruct_line_items(page_words: list[list[tuple]]) -> list[dict[str, Fiel
     return items
 
 
+#: A table flattened to one cell per line. Coordinate reconstruction cannot see
+#: it: every cell has its own y, so row clustering yields one word per row and
+#: no row ever looks like a header. It is a common real shape - some PDF
+#: generators emit a table this way, and OCR of a narrow column does too - and
+#: it is what CACE's own synthetic invoices and packing lists produce.
+#:
+#: Without this, a document whose header fields all parsed cleanly still fell
+#: back to a full-document LLM call purely to read one line item, at about
+#: 4,075 reserved tokens. Two such documents in one review exceed an 8,000
+#: tokens-per-minute tier, so a first-time four-document review was rate
+#: limited while a repeat, served from the extraction cache, succeeded.
+#:
+#: The same vocabulary, end markers, row-validity rule and normalizers as the
+#: coordinate path are reused, so this recognises layout - not one fixture.
+_MIN_STACKED_HEADER_COLUMNS = 3
+
+
+def _stacked_header_phrase(line: str) -> tuple[str, str | None] | None:
+    """The header column this whole line names, if it names one exactly."""
+    key = re.sub(r"[^a-z ]", " ", line.casefold())
+    key = " ".join(key.split())
+    if not key:
+        return None
+    for phrase, field_name in _HEADER_PHRASES:
+        if key == phrase:
+            return phrase, field_name
+    return None
+
+
+def _stacked_header_run(lines: list[str], start: int) -> list[_Column] | None:
+    """A run of consecutive lines that together name a table's columns."""
+    columns: list[_Column] = []
+    index = start
+    while index < len(lines):
+        matched = _stacked_header_phrase(lines[index])
+        if matched is None:
+            break
+        _phrase, field_name = matched
+        # A repeated field name means the run has walked out of the header and
+        # into something else that happens to use the same words.
+        if field_name is not None and any(
+            column.field_name == field_name for column in columns
+        ):
+            break
+        columns.append(_Column(0.0, 0.0, lines[index], field_name))
+        index += 1
+
+    mapped = [column for column in columns if column.field_name]
+    if len(mapped) < _MIN_STACKED_HEADER_COLUMNS:
+        return None
+    if not any(column.field_name == "description" for column in mapped):
+        return None
+    return columns
+
+
+def _stacked_rows(
+    lines: list[str], start: int, columns: list[_Column]
+) -> list[dict[str, str]]:
+    """Read fixed-width groups of lines as rows beneath a stacked header."""
+    width = len(columns)
+    rows: list[dict[str, str]] = []
+    index = start
+    while index + width <= len(lines):
+        group = lines[index : index + width]
+        if any(
+            line.casefold().startswith(_TABLE_END_MARKERS) for line in group
+        ):
+            break
+        # A group that re-states the header is a repeated header on a new
+        # page, not data.
+        if _stacked_header_phrase(group[0]) is not None and any(
+            _stacked_header_phrase(line) is not None for line in group[1:]
+        ):
+            index += width
+            continue
+        cells = {
+            column.field_name: value
+            for column, value in zip(columns, group)
+            if column.field_name is not None
+        }
+        if not cells.get("description") or not any(
+            cells.get(name) for name in ("quantity", "line_total", "unit_price")
+        ):
+            break
+        rows.append(cells)
+        index += width
+    return rows
+
+
+def reconstruct_line_items_from_text(text: str) -> list[dict[str, FieldResult]]:
+    """Rebuild line items from a table flattened to one cell per line.
+
+    Used only when coordinate reconstruction found nothing, and it returns an
+    empty list unless a genuine header run is present - so a document with no
+    table still falls back exactly as before.
+    """
+    lines = [line.strip() for line in (text or "").splitlines()]
+    lines = [line for line in lines if line]
+
+    for start in range(len(lines)):
+        columns = _stacked_header_run(lines, start)
+        if columns is None:
+            continue
+        rows = _stacked_rows(lines, start + len(columns), columns)
+        if not rows:
+            continue
+        items: list[dict[str, FieldResult]] = []
+        for cells in rows:
+            item: dict[str, FieldResult] = {}
+            for name, raw in cells.items():
+                normalised = _normalise_value(name, raw)
+                if normalised is None:
+                    item[name] = FieldResult(
+                        confidence="low",
+                        method="regex_stacked_table",
+                        candidates=[raw],
+                        reason=f"cell text {raw!r} did not normalise for {name}",
+                    )
+                    continue
+                item[name] = FieldResult(
+                    value=normalised,
+                    confidence="high",
+                    method="regex_stacked_table",
+                    candidates=[normalised],
+                )
+            items.append(item)
+        return items
+    return []
+
+
 # --------------------------------------------------------------------------- #
 # Document-level entrypoint
 # --------------------------------------------------------------------------- #
@@ -525,6 +663,16 @@ def extract_document(
         except Exception:  # noqa: BLE001 - reconstruction is best-effort
             logger.warning("Line-item table reconstruction failed", exc_info=True)
             line_items = []
+    if not line_items:
+        # Coordinates could not see a table. Before conceding the document to
+        # a full-document LLM call, try the flattened one-cell-per-line shape,
+        # which carries no coordinates to work from.
+        try:
+            line_items = reconstruct_line_items_from_text(normalised)
+        except Exception:  # noqa: BLE001 - reconstruction is best-effort
+            logger.warning(
+                "Stacked line-item reconstruction failed", exc_info=True
+            )
 
     return RegexExtraction(
         fields=results,

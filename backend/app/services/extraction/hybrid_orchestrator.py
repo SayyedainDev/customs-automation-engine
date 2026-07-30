@@ -43,6 +43,9 @@ LLM_GAPFILL_CONFIDENCE = Decimal("0.80")
 _CONFIDENCE_BY_METHOD: dict[str, Decimal] = {
     "regex_labeled": REGEX_LABELED_CONFIDENCE,
     "regex_table": REGEX_LABELED_CONFIDENCE,
+    # Same class of evidence as "regex_table": the value came from a cell
+    # whose column was named by a header, not from a bare pattern match.
+    "regex_stacked_table": REGEX_LABELED_CONFIDENCE,
     "regex_bare": REGEX_BARE_CONFIDENCE,
     "llm_gapfill": LLM_GAPFILL_CONFIDENCE,
 }
