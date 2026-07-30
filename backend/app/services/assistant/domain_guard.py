@@ -248,7 +248,13 @@ _FORBIDDEN_CLAIM_PATTERNS = (
         r"|\bthe\s+only\s+documents?\s+(you\s+)?(need|needed|require[ds]?)\b"
         r"|\bnothing\s+else\s+is\s+(needed|required)\b"
         r"|\bno\s+other\s+documents?\s+(are|is)\s+(needed|required)\b"
-        r"|\bthis\s+is\s+(a\s+)?(the\s+)?(complete|exhaustive|full)\s+list\b",
+        r"|\bthis\s+is\s+(a\s+)?(the\s+)?(complete|exhaustive|full)\s+list\b"
+        # "No extra documents are needed for most destinations, so just
+        # prepare these four items" reached a live answer past the first
+        # wording of this rule.
+        r"|\bno\s+(extra|further|additional|other)\s+documents?\b"
+        r"|\bjust\s+prepare\s+these\b"
+        r"|\bonly\s+need\s+(these|the\s+above)\b",
         "completeness claim",
     ),
 )

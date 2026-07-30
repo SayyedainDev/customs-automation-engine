@@ -210,12 +210,31 @@ _CONCEPTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "trade development authority of pakistan",
     ),
     (
+        # The shipment deadline is stated in terms of the letter of credit it
+        # is measured from, so a question asking about "the 180 day rule" and
+        # the passage that answers it share almost no vocabulary. Without this
+        # the question retrieved general Export Policy Order text and CACE
+        # reported that its sources do not cover a rule they state.
+        re.compile(
+            r"\b180[\s-]?days?\b|\b180[\s-]?day\b"
+            r"|shipment (window|deadline|period)|within \d+ days",
+            re.IGNORECASE,
+        ),
+        "irrevocable letter of credit shipment 180 days raw cotton",
+    ),
+    (
         re.compile(r"\bcotton\b|\byarn\b|\bdenim\b|\btextiles?\b", re.IGNORECASE),
         "cotton textile export",
     ),
     (
+        # "rule" and "law" were triggers here and they appear in almost any
+        # regulatory question, while the expansion names one specific
+        # document. "What is the 180 day rule for raw cotton?" was therefore
+        # rewritten to look like a query for the Export Policy Order, which
+        # then outranked the SRO that actually states the rule. The remaining
+        # triggers are ones that really are about that instrument.
         re.compile(
-            r"export polic|\bsro\b|regulations?\b|\brules?\b|\blaws?\b|prohibit|restrict",
+            r"export polic|\bsro\b|regulations?\b|prohibit|restrict",
             re.IGNORECASE,
         ),
         "export policy order schedule conditions",
@@ -1094,10 +1113,23 @@ def answer_regulatory_question(
             if code in SUPPORTED_PCT_PRODUCTS
         ]
         if not candidates:
+            # "Cotton" names a family, not an article, so there are no
+            # candidates to choose between. Asking the user to "be more
+            # precise" without saying what the options are leaves them
+            # guessing; the supported catalog is short, so show it.
+            catalog = "\n".join(
+                f"- {name} - PCT {code}"
+                for code, name in sorted(
+                    SUPPORTED_PCT_PRODUCTS.items(), key=lambda pair: pair[1]
+                )
+            )
             return respond(
                 answer=(
-                    "I could not tell which supported product you mean. Name the "
-                    "product more precisely, or give its eight-digit PCT code."
+                    "That names a group of products rather than one item, so I "
+                    "cannot tell which you mean. CACE gives deterministic "
+                    "document checklists for these:\n\n"
+                    f"{catalog}\n\n"
+                    "Name one of them, or give its eight-digit PCT code."
                 ),
                 intent=decision.intent,
                 evidence_status="not_applicable",

@@ -135,6 +135,35 @@ def test_completeness_claims_are_rejected() -> None:
     assert "completeness claim" in verdict.violations
 
 
+def test_softer_completeness_wording_is_also_rejected() -> None:
+    """The first wording of this rule let a live answer through.
+
+    "No extra documents are needed for most destinations, so just prepare
+    these four items" is the same claim in gentler words.
+    """
+    verdict = validate_answer(
+        "No extra documents are needed for most destinations, so just prepare "
+        "these four items before you send the goods.",
+        has_accepted_evidence=True,
+    )
+    assert not verdict.ok
+    assert "completeness claim" in verdict.violations
+
+
+def test_deadline_questions_reach_the_letter_of_credit_vocabulary() -> None:
+    """The 180-day rule is stated in terms of the letter of credit.
+
+    A question about "the 180 day rule" and the passage that answers it share
+    almost no words, and "rule" used to expand to the name of a *different*
+    instrument (the Export Policy Order), which then outranked the SRO that
+    actually states it.
+    """
+    query = _normalize_for_retrieval("What is the 180 day rule for raw cotton?", None)
+
+    assert "letter" in query and "credit" in query
+    assert "policy" not in query
+
+
 def test_ordinary_document_wording_is_still_allowed() -> None:
     verdict = validate_answer(
         "A commercial invoice and a packing list are normally prepared for a "
