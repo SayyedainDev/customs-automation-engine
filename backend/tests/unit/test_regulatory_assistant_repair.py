@@ -171,3 +171,33 @@ def test_ordinary_document_wording_is_still_allowed() -> None:
         has_accepted_evidence=True,
     )
     assert verdict.ok
+
+
+def test_every_checklist_document_has_its_own_explanation() -> None:
+    """A real checklist repeated one empty sentence against four documents.
+
+    "Phytosanitary certificate: It provides information needed for this export
+    and destination" says nothing, and the raw-cotton checklist showed it for
+    the phytosanitary certificate, both SBP documents and the letter of credit.
+    """
+    from app.services.assistant.guidance import get_document_explanation
+    from app.services.assistant.regulatory_chat import _document_type_for_name
+
+    names = [
+        "Commercial Invoice",
+        "Packing List",
+        "Form-E / PSW export declaration",
+        "Certificate of origin",
+        "Phytosanitary certificate",
+        "Proof of SBP deposit",
+        "SBP confirmation",
+        "Irrevocable letter of credit",
+        "Import permit",
+    ]
+    explanations = [
+        get_document_explanation(_document_type_for_name(name)) for name in names
+    ]
+
+    assert not any("provides information needed" in text for text in explanations)
+    # Each document is described distinctly, not with one shared sentence.
+    assert len(set(explanations)) == len(explanations)

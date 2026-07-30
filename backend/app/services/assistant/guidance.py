@@ -196,10 +196,57 @@ def get_document_explanation(doc_type: str) -> str:
             "It shows where the goods were made. The destination or a trade "
             "scheme may require it."
         ),
+        # The raw-cotton documents had no entry, so a real checklist read
+        # "Phytosanitary certificate: It provides information needed for this
+        # export and destination" four times over - the same empty sentence
+        # against four documents that do quite different jobs.
+        "phytosanitary_certificate": (
+            "It certifies the goods are free of plant pests and disease. The "
+            "importing country's plant-protection service asks for it."
+        ),
+        "sbp_deposit_proof": (
+            "It evidences the 1% security deposit lodged with the State Bank "
+            "of Pakistan for this export."
+        ),
+        "proof_of_sbp_deposit": (
+            "It evidences the 1% security deposit lodged with the State Bank "
+            "of Pakistan for this export."
+        ),
+        "sbp_confirmation": (
+            "It is the State Bank of Pakistan's confirmation, presented to "
+            "Customs alongside the shipping documents."
+        ),
+        "irrevocable_letter_of_credit": (
+            "It is the buyer's bank undertaking to pay once the shipping "
+            "documents are presented, and it cannot be withdrawn."
+        ),
+        "letter_of_credit": (
+            "It is the buyer's bank undertaking to pay once the shipping "
+            "documents are presented."
+        ),
+        "import_permit": (
+            "It is the destination country's permission to bring the goods in. "
+            "Whether it applies depends on that country's rules."
+        ),
+        "bill_of_entry": (
+            "It records an earlier import of material used in the goods."
+        ),
+        "product_licence": (
+            "It is the licence the product itself requires before export."
+        ),
+        "product_permit": (
+            "It is the permit the product itself requires before export."
+        ),
+        "product_certificate": (
+            "It is the certificate the product itself requires before export."
+        ),
+        "product_approval": (
+            "It is the approval the product itself requires before export."
+        ),
     }
     return explanations.get(
         key,
-        f"It provides information needed for this export and destination.",
+        "CACE's rules ask for this document for this product and destination.",
     )
 
 
