@@ -292,3 +292,34 @@ def test_a_repaired_word_still_needs_textile_context() -> None:
     assert resolve_product("paint for my house").pct_code is None
     assert resolve_product("I need paint").pct_code is None
     assert classify_regulatory_intent("paint for my house").intent == "out_of_scope"
+
+
+def test_prompt_evidence_markers_never_reach_the_reader() -> None:
+    """The [1], [2] markers number a list only the model sees.
+
+    A live evidence-lookup answer read "The source that says Form-E is
+    required is evidence **[1]**" - a pointer to nothing, since the reader is
+    shown named sources, not a numbered list. Both prompts now forbid citing
+    them, and this is the guarantee behind that request.
+    """
+    from app.services.assistant.plain_language import sanitize_for_display
+
+    cleaned = sanitize_for_display(
+        "The source that says Form-E is required is evidence **[1]**. "
+        "According to passage 2, a certificate of origin is conditional."
+    )
+
+    assert "[1]" not in cleaned
+    assert "passage 2" not in cleaned
+    assert "evidence **" not in cleaned
+    assert "the indexed sources" in cleaned
+    # No doubled spaces or space-before-punctuation left behind.
+    assert "  " not in cleaned
+    assert " ." not in cleaned
+
+
+def test_paragraph_breaks_survive_sanitizing() -> None:
+    """Answers are read as paragraphs; collapsing them would run them together."""
+    from app.services.assistant.plain_language import sanitize_for_display
+
+    assert sanitize_for_display("One.\n\nTwo.") == "One.\n\nTwo."

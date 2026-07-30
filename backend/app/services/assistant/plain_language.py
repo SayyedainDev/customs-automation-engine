@@ -165,6 +165,21 @@ _TRAILING_KEY = re.compile(
 _SAFE_IDENTIFIERS = frozenset({"form_e", "e_form"})
 
 
+#: "evidence [1]", "passage 2", "according to source [3]" - the model naming
+#: the numbered list it was shown. Replaced by wording that refers to the
+#: sources the reader can actually see below the answer.
+_EVIDENCE_MARKER_PHRASE = re.compile(
+    r"\b(?:according to|per|from|in|see)?\s*"
+    r"(?:the\s+)?(?:evidence|passage|source|excerpt|document)s?\s*"
+    r"(?:\*\*)?\[\d+\](?:\*\*)?"
+    r"|\b(?:evidence|passage|source|excerpt)\s+(?:number\s+)?\d+\b",
+    re.IGNORECASE,
+)
+
+#: Any remaining bare marker, including one wrapped in markdown emphasis.
+_EVIDENCE_MARKER = re.compile(r"(?:\*\*)?\[\d+\](?:\*\*)?")
+
+
 def sanitize_for_display(text: str | None) -> str:
     """Remove internal serialization from anything shown to a user.
 
@@ -175,6 +190,17 @@ def sanitize_for_display(text: str | None) -> str:
     if not text:
         return ""
     cleaned = text
+
+    # The [1], [2] markers number the evidence passages in the model's prompt.
+    # The reader never sees that list, so a sentence like "the source is
+    # evidence [1]" points at nothing. The prompt asks the model not to cite
+    # them, but a prompt is a request, not a guarantee - this is the guarantee.
+    cleaned = _EVIDENCE_MARKER_PHRASE.sub(" the indexed sources", cleaned)
+    cleaned = _EVIDENCE_MARKER.sub("", cleaned)
+    # The substitutions above can leave doubled or orphaned spaces mid-line.
+    # Newlines are preserved - paragraph breaks carry meaning in these answers.
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r" +([.,;:])", r"\1", cleaned)
 
     # Known verification identifiers first: they are long and specific, and
     # would otherwise be shredded by the generic snake_case rule below.
