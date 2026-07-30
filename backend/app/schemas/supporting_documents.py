@@ -290,10 +290,17 @@ class SupportingDocumentResult(BaseModel):
                 check.status.value == "failed" and check.check_id.endswith("_match")
                 for check in self.checks
             )
-            if not self.uploaded or self.state in {
-                SupportingDocumentState.CLAIMED_ONLY,
-                SupportingDocumentState.UNREADABLE,
-            }:
+            # "No document was uploaded at all" and "a document was uploaded but
+            # could not be reliably read" used to share one bucket
+            # ("unresolved"), so a claimed-but-never-uploaded Form-E rendered
+            # under "Needs confirmation" - a heading that tells the exporter to
+            # go check something they were never given a chance to provide.
+            # They ask for different actions (upload the file vs. confirm a
+            # field), so they get different states, matching the required
+            # missing/unresolved/mismatched/matched distinction.
+            if not self.uploaded or self.state is SupportingDocumentState.CLAIMED_ONLY:
+                self.presence_status = "missing"
+            elif self.state is SupportingDocumentState.UNREADABLE:
                 self.presence_status = "unresolved"
             elif self.state is SupportingDocumentState.TYPE_MISMATCH:
                 self.presence_status = "invalid"

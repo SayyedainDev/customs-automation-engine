@@ -437,23 +437,26 @@ export function ComplianceReviewResult({
         shipment_mismatched: "Uploaded but does not match this shipment",
         unresolved: "Uploaded, but some information needs confirmation",
         invalid: "Uploaded but invalid",
+        missing: "Not yet uploaded",
       }[presenceStatus];
       const failedChecks = document.checks.filter(
         (check) => check.status === "failed" || check.status === "manual_review",
       );
       const issue =
-        presenceStatus === "unresolved"
-          ? failedChecks.find(
-              (check) =>
-                check.check_id.endsWith("_required_fields") ||
-                check.check_id.endsWith("_exporter_match"),
-            )?.message ??
-            "CACE could not reliably read all information needed to match this document."
-          : presenceStatus === "shipment_mismatched"
-            ? "The document was read, but one or more verified values differ from this shipment."
-            : presenceStatus === "invalid"
-              ? "The uploaded file could not be accepted as this supporting-document type."
-              : null;
+        presenceStatus === "missing"
+          ? "This document was named for the shipment, but no file has been uploaded for it yet."
+          : presenceStatus === "unresolved"
+            ? failedChecks.find(
+                (check) =>
+                  check.check_id.endsWith("_required_fields") ||
+                  check.check_id.endsWith("_exporter_match"),
+              )?.message ??
+              "CACE could not reliably read all information needed to match this document."
+            : presenceStatus === "shipment_mismatched"
+              ? "The document was read, but one or more verified values differ from this shipment."
+              : presenceStatus === "invalid"
+                ? "The uploaded file could not be accepted as this supporting-document type."
+                : null;
       return {
         documentType,
         documentId: document.document_id,
@@ -479,6 +482,14 @@ export function ComplianceReviewResult({
   const invalidSupporting = supportingExtractionStatuses.filter(
     (document) => document.presenceStatus === "invalid",
   );
+  // Named for the shipment (additional_uploaded_document_types) but no file
+  // was ever uploaded for it - genuinely missing, not merely unread. Rendered
+  // in the same "Still missing" section as the rule-engine's outstanding
+  // list below, not folded into "Needs confirmation": that heading tells the
+  // exporter to go check something, and there is nothing to check yet.
+  const missingSupporting = supportingExtractionStatuses.filter(
+    (document) => document.presenceStatus === "missing",
+  );
   const uploadedSupportingKeys = new Set(
     result.supporting_documents
       .filter((document) => document.uploaded)
@@ -491,6 +502,20 @@ export function ComplianceReviewResult({
     (document) =>
       !uploadedSupportingKeys.has(normalizedDocumentKey(document.document_type)),
   );
+  // A claimed-but-never-uploaded type can also appear in the rule engine's
+  // outstanding list above; keep it in one "Still missing" section rather
+  // than listing the same document twice.
+  const stillMissingKeys = new Set(
+    stillMissing.map((document) => normalizedDocumentKey(document.document_type)),
+  );
+  const uniqueMissingSupporting = missingSupporting.filter(
+    (document) => !stillMissingKeys.has(normalizedDocumentKey(document.documentType)),
+  );
+  // "Still to obtain" means every document the exporter has not yet handed
+  // over, whether the rule engine flagged the type or the exporter merely
+  // named it without a file - both are the same "still missing" fact.
+  const documentsStillToObtain =
+    stillMissing.length + uniqueMissingSupporting.length;
   const supportingGroups = [
     { heading: "Matched", documents: matchedSupporting },
     { heading: "Needs confirmation", documents: supportingNeedsConfirmation },
@@ -525,7 +550,7 @@ export function ComplianceReviewResult({
           <div className="submission-readiness">
             <div>
               <span className="eyebrow">Customs submission readiness</span>
-              <p>{submissionCopy(result.overall_status, stillMissing.length)}</p>
+              <p>{submissionCopy(result.overall_status, documentsStillToObtain)}</p>
             </div>
             <StatusBadge status={result.overall_status} />
           </div>
@@ -537,7 +562,7 @@ export function ComplianceReviewResult({
             </div>
             <div className="summary-item">
               <span>Documents still to obtain</span>
-              <strong>{stillMissing.length}</strong>
+              <strong>{documentsStillToObtain}</strong>
             </div>
             <div className="summary-item">
               <span>Shipment lines matched</span>
@@ -622,7 +647,7 @@ export function ComplianceReviewResult({
                 </section>
               ) : null,
             )}
-            {stillMissing.length ? (
+            {stillMissing.length || uniqueMissingSupporting.length ? (
               <section className="supporting-document-group">
                 <h3>Still missing</h3>
                 <ul className="document-checklist">
@@ -650,6 +675,22 @@ export function ComplianceReviewResult({
                       ) : null}
                       {document.sources.length ? (
                         <small>Source: {document.sources.join(" · ")}</small>
+                      ) : null}
+                    </li>
+                  ))}
+                  {uniqueMissingSupporting.map((document) => (
+                    <li
+                      key={`missing-${document.documentType}-${document.documentId ?? "unavailable"}`}
+                      data-presence-status="missing"
+                    >
+                      <div className="document-checklist__head">
+                        <strong>{document.label}</strong>
+                        <span className="requirement-tag requirement-tag--required">
+                          Not yet uploaded
+                        </span>
+                      </div>
+                      {document.requiredAction ? (
+                        <small>{document.requiredAction}</small>
                       ) : null}
                     </li>
                   ))}

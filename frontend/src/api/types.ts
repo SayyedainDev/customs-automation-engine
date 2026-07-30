@@ -115,7 +115,12 @@ export interface SupportingDocumentResult {
   state: string;
   detected_document_type?: string | null;
   content_status: ComplianceStatus;
-  presence_status?: "shipment_matched" | "shipment_mismatched" | "unresolved" | "invalid";
+  presence_status?:
+    | "shipment_matched"
+    | "shipment_mismatched"
+    | "unresolved"
+    | "invalid"
+    | "missing";
   extraction_summary?: string | null;
   required_action?: string | null;
   checks: CrossDocumentCheck[];

@@ -154,8 +154,32 @@ def test_uploaded_unresolved_document_is_not_also_rendered_as_missing() -> None:
         "!uploadedSupportingKeys.has(normalizedDocumentKey(document.document_type))"
         in REVIEW_RESULT
     )
-    assert "submissionCopy(result.overall_status, stillMissing.length)" in REVIEW_RESULT
-    assert "<strong>{stillMissing.length}</strong>" in REVIEW_RESULT
+    # "Still to obtain" combines the rule engine's outstanding list with
+    # documents the exporter named but never uploaded a file for
+    # (presence_status "missing") - both are the same fact to the exporter,
+    # so one combined count feeds both the readiness copy and the summary tile.
+    assert "const documentsStillToObtain =" in REVIEW_RESULT
+    assert "stillMissing.length + uniqueMissingSupporting.length" in REVIEW_RESULT
+    assert (
+        "submissionCopy(result.overall_status, documentsStillToObtain)"
+        in REVIEW_RESULT
+    )
+    assert "<strong>{documentsStillToObtain}</strong>" in REVIEW_RESULT
+
+
+def test_claimed_but_never_uploaded_document_is_missing_not_unresolved() -> None:
+    """A document the exporter named but never uploaded a file for is
+    "missing", not "unresolved" - they call for different actions (upload the
+    file vs. confirm a field), so they must not share one bucket or heading.
+    """
+    assert 'missing: "Not yet uploaded"' in REVIEW_RESULT
+    assert 'presenceStatus === "missing"' in REVIEW_RESULT
+    assert "const missingSupporting = supportingExtractionStatuses.filter(" in REVIEW_RESULT
+    # Rendered inside the same "Still missing" section as the rule engine's
+    # outstanding list, not a new heading and not folded into "Needs
+    # confirmation".
+    assert "const uniqueMissingSupporting = missingSupporting.filter(" in REVIEW_RESULT
+    assert "{uniqueMissingSupporting.map((document) => (" in REVIEW_RESULT
 
 
 def test_raw_supporting_check_messages_are_collapsed() -> None:

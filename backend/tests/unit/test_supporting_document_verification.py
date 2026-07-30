@@ -848,3 +848,30 @@ def test_42_malformed_provider_output_is_not_reported_as_unreadable(
     assert not isinstance(
         caught.value, StructuredExtractionProviderUnavailableError
     )
+
+
+def test_43_claimed_but_never_uploaded_document_is_missing_not_unresolved() -> None:
+    """A claimed document-type string with no document_id/extraction at all
+    ("claimed_only") is genuinely missing - the exporter must upload a file,
+    not confirm a field on one that already exists. It must not share the
+    "unresolved" bucket with a document that was uploaded but could not be
+    fully read: those call for different actions and must render under
+    different headings.
+    """
+    result = _verify("form_e", extraction=None, document_id=None)
+    assert result.uploaded is False
+    assert result.state is SupportingDocumentState.CLAIMED_ONLY
+    assert result.presence_status == "missing"
+    assert result.presence_status != "unresolved"
+
+
+def test_44_uploaded_but_unreadable_document_stays_unresolved() -> None:
+    """An uploaded PDF that could not be read reliably is "unresolved", not
+    "missing" - the file exists; only reading it failed.
+    """
+    unreadable = _extraction(confidence="0")
+    result = _verify("certificate_of_origin", extraction=unreadable)
+    assert result.uploaded is True
+    assert result.state is SupportingDocumentState.UNREADABLE
+    assert result.presence_status == "unresolved"
+    assert result.presence_status != "missing"
