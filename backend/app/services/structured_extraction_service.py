@@ -440,6 +440,35 @@ def extract_shipment_from_text(
     )
 
 
+#: A structured reply restates the source document as JSON: the values from
+#: the page, wrapped in field names and per-field provenance. It therefore
+#: scales with how much text there is to restate, and a small document cannot
+#: produce a large one. The budget was a flat ceiling sized for the largest
+#: fixture, and because the provider reserves against the ceiling rather than
+#: the reply, a 700-character packing list requested 4,075 tokens. Two such
+#: calls exceed a 8,000-token-per-minute tier, which is why a first review of
+#: four documents was rate limited while a repeat - served from the extraction
+#: cache - succeeded.
+#:
+#: The multiplier is deliberately generous: under-reserving truncates the JSON
+#: and fails the extraction, which is far worse than reserving too much. Large
+#: documents are unaffected, keeping the full configured budget.
+_COMPLETION_TOKENS_PER_INPUT_TOKEN = 4
+_COMPLETION_TOKENS_OVERHEAD = 400
+_COMPLETION_TOKENS_FLOOR = 600
+
+
+def completion_ceiling_for_text(extracted_text: str) -> int:
+    """A completion budget proportional to the document being restated."""
+    configured = get_settings().groq_structured_max_completion_tokens
+    input_tokens = (len(extracted_text or "") + 3) // 4
+    estimated = (
+        _COMPLETION_TOKENS_OVERHEAD
+        + _COMPLETION_TOKENS_PER_INPUT_TOKEN * input_tokens
+    )
+    return max(_COMPLETION_TOKENS_FLOOR, min(configured, estimated))
+
+
 def extract_structured_model_from_text(
     *,
     extracted_text: str,
@@ -464,6 +493,8 @@ def extract_structured_model_from_text(
     groq_client = client or _get_groq_client()
     model = get_settings().groq_model
     strict_schema = _groq_strict_schema(response_model)
+    if max_completion_tokens is None:
+        max_completion_tokens = completion_ceiling_for_text(extracted_text)
 
     # Step 1: strict json_schema mode.
     try:

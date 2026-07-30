@@ -278,3 +278,54 @@ def test_the_completion_ceiling_matches_what_was_asked_for() -> None:
     # the configured cap.
     assert one >= 128
     assert hybrid._completion_ceiling(["a"] * 50) <= 512
+
+
+def test_completion_budget_scales_with_the_document() -> None:
+    """A 700-character packing list cannot emit 2,000 tokens of JSON.
+
+    The provider reserves against the ceiling, not the reply, so a flat 2,000
+    made each extraction request 4,075 tokens - and two of them exceed an
+    8,000-token-per-minute tier. That is why a first review of four documents
+    was rate limited while a repeat, served from the extraction cache,
+    succeeded.
+    """
+    from app.services.structured_extraction_service import (
+        completion_ceiling_for_text,
+    )
+
+    small = completion_ceiling_for_text("x" * 700)
+    medium = completion_ceiling_for_text("x" * 1200)
+    large = completion_ceiling_for_text("x" * 12_000)
+
+    assert small < medium < large
+    # A small document costs materially less than the flat budget did.
+    assert small < 1_400
+    # A large one is unaffected: it still gets the full configured budget.
+    assert large == 2_000
+    # Never so small that a valid reply would be truncated.
+    assert completion_ceiling_for_text("") >= 600
+
+
+def test_completion_budget_leaves_headroom_over_a_realistic_reply() -> None:
+    """Under-reserving truncates the JSON and fails the whole extraction.
+
+    Worse than reserving too much, so the multiplier is checked against a
+    fully populated multi-line payload rather than a minimal one.
+    """
+    import json
+
+    from app.services.structured_extraction_service import (
+        completion_ceiling_for_text,
+    )
+
+    field = {
+        "value": "Cotton bed sheets, mill-made, printed",
+        "source_page": 1,
+        "confidence": 0.93,
+        "validation_status": "verified",
+        "validation_note": "Read from the goods table on page 1.",
+    }
+    payload = {"line_items": [dict.fromkeys(range(6), field)]}
+    reply_tokens = len(json.dumps(payload)) // 4
+
+    assert completion_ceiling_for_text("x" * 700) > reply_tokens * 1.3
