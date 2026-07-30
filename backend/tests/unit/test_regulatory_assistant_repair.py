@@ -201,3 +201,52 @@ def test_every_checklist_document_has_its_own_explanation() -> None:
     assert not any("provides information needed" in text for text in explanations)
     # Each document is described distinctly, not with one shared sentence.
     assert len(set(explanations)) == len(explanations)
+
+
+def test_a_two_part_question_keeps_the_half_that_needs_no_product() -> None:
+    """"What is form E and is it required for Yarn export" is two questions.
+
+    Yarn is ambiguous between two supported codes, so the clarification
+    branch fired and returned only "which yarn do you mean?" - discarding the
+    Form-E explanation CACE had already detected and holds written out. The
+    reader learned neither what Form-E is nor whether they need one, even
+    though both candidates require it.
+    """
+    from app.services.assistant.regulatory_chat import _render_clarification
+
+    answer = _render_clarification(
+        [("52051100", "Cotton yarn"), ("52052100", "Combed cotton yarn (heavy count)")],
+        guidance_pairs=(
+            ["Commercial Invoice", "Packing List", "Form-E / PSW export declaration"],
+            [],
+        ),
+        destination=None,
+        corrections={},
+        matched_term="yarn",
+        question="What is form E and is it required for Yarn export",
+    )
+
+    # The definition half is answered.
+    assert "records an export and its expected payment" in answer
+    # The requirement half is answered without waiting for the product.
+    assert "required for both of the products below" in answer
+    # The clarification itself is still asked.
+    assert "could mean" in answer
+    assert "PCT 52051100" in answer
+
+
+def test_clarification_without_a_named_concept_is_unchanged() -> None:
+    """A plain "cotton yarn" still just asks which product."""
+    from app.services.assistant.regulatory_chat import _render_clarification
+
+    answer = _render_clarification(
+        [("52051100", "Cotton yarn"), ("52052100", "Combed cotton yarn (heavy count)")],
+        guidance_pairs=(["Commercial Invoice"], []),
+        destination=None,
+        corrections={},
+        matched_term="yarn",
+        question="cotton yarn",
+    )
+
+    assert "required for both of the products below" not in answer
+    assert answer.startswith("Cotton yarn could mean")

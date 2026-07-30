@@ -606,17 +606,48 @@ def _render_clarification(
     destination: str | None,
     corrections: dict[str, str],
     matched_term: str | None,
+    question: str = "",
 ) -> str:
     """Ask which product was meant, and show what they already share."""
     lines: list[str] = []
     if corrections:
         readable = "; ".join(f"'{typed}' as '{used}'" for typed, used in corrections.items())
         lines.append(f"Interpreting {readable}.")
+
+    shared_required, shared_conditional = guidance_pairs
+
+    # "What is Form E and is it required for yarn export?" is two questions.
+    # Needing the product to answer the second is no reason to drop the first:
+    # CACE has a written explanation of Form-E and detected it here, then
+    # discarded it and asked which yarn was meant, so the reader learned
+    # neither what Form-E is nor whether they need one.
+    concepts = detect_concepts(question) if question else []
+    if concepts:
+        lines.append(explain_concepts(question, concepts))
+        # The candidates may already agree about the document that was asked
+        # about, in which case choosing between them is not needed to answer.
+        asked_about = {concept.title.casefold() for concept in concepts}
+        agreed = [
+            name
+            for name in shared_required
+            if any(
+                token in name.casefold()
+                for title in asked_about
+                for token in title.split(" / ")
+            )
+        ]
+        if agreed:
+            joined = ", ".join(agreed)
+            lines.append(
+                f"For your question: {joined} is required for both of the "
+                "products below, so that part does not depend on which you mean."
+            )
+        lines.append("")
+
     names = " or ".join(name for _, name in candidates)
     subject = f"Cotton {matched_term}" if matched_term else "That product"
     lines.append(f"{subject} could mean {names}.")
 
-    shared_required, shared_conditional = guidance_pairs
     if shared_required:
         lines += ["", "Common documents", "", "Required documents"]
         lines += [
@@ -1166,6 +1197,7 @@ def answer_regulatory_question(
                 destination=destination_used,
                 corrections=corrections,
                 matched_term=decision.product.matched_term if decision.product else None,
+                question=question,
             ),
             intent=decision.intent,
             evidence_status="not_applicable",
