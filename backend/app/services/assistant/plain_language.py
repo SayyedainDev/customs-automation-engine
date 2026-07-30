@@ -189,6 +189,26 @@ _ORDINAL_SOURCE_REFERENCE = re.compile(
 )
 
 
+def strip_evidence_references(text: str) -> str:
+    """Remove a model's pointers into the prompt's numbered evidence list.
+
+    Applied to generated prose only, never to CACE's own rendering. The
+    document-search answer numbers the sources it lists - "[1] Export Policy
+    Order..." - and those numbers are real: the reader sees them. Running this
+    over the whole answer stripped them and left the list unnumbered.
+    """
+    if not text:
+        return ""
+    cleaned = _EVIDENCE_MARKER_PHRASE.sub(" the indexed sources", text)
+    cleaned = _EVIDENCE_MARKER.sub("", cleaned)
+    cleaned = _ORDINAL_SOURCE_REFERENCE.sub("the indexed sources", cleaned)
+    # The substitutions can leave doubled or orphaned spaces mid-line.
+    # Newlines are preserved - paragraph breaks carry meaning in these answers.
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r" +([.,;:])", r"\1", cleaned)
+    return cleaned.strip()
+
+
 def sanitize_for_display(text: str | None) -> str:
     """Remove internal serialization from anything shown to a user.
 
@@ -199,18 +219,6 @@ def sanitize_for_display(text: str | None) -> str:
     if not text:
         return ""
     cleaned = text
-
-    # The [1], [2] markers number the evidence passages in the model's prompt.
-    # The reader never sees that list, so a sentence like "the source is
-    # evidence [1]" points at nothing. The prompt asks the model not to cite
-    # them, but a prompt is a request, not a guarantee - this is the guarantee.
-    cleaned = _EVIDENCE_MARKER_PHRASE.sub(" the indexed sources", cleaned)
-    cleaned = _EVIDENCE_MARKER.sub("", cleaned)
-    cleaned = _ORDINAL_SOURCE_REFERENCE.sub("the indexed sources", cleaned)
-    # The substitutions above can leave doubled or orphaned spaces mid-line.
-    # Newlines are preserved - paragraph breaks carry meaning in these answers.
-    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
-    cleaned = re.sub(r" +([.,;:])", r"\1", cleaned)
 
     # Known verification identifiers first: they are long and specific, and
     # would otherwise be shredded by the generic snake_case rule below.

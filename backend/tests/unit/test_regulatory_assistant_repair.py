@@ -302,9 +302,9 @@ def test_prompt_evidence_markers_never_reach_the_reader() -> None:
     shown named sources, not a numbered list. Both prompts now forbid citing
     them, and this is the guarantee behind that request.
     """
-    from app.services.assistant.plain_language import sanitize_for_display
+    from app.services.assistant.plain_language import strip_evidence_references
 
-    cleaned = sanitize_for_display(
+    cleaned = strip_evidence_references(
         "The source that says Form-E is required is evidence **[1]**. "
         "According to passage 2, a certificate of origin is conditional."
     )
@@ -320,9 +320,23 @@ def test_prompt_evidence_markers_never_reach_the_reader() -> None:
 
 def test_paragraph_breaks_survive_sanitizing() -> None:
     """Answers are read as paragraphs; collapsing them would run them together."""
+    from app.services.assistant.plain_language import strip_evidence_references
+
+    assert strip_evidence_references("One.\n\nTwo.") == "One.\n\nTwo."
+
+
+def test_cace_own_source_numbering_is_never_stripped() -> None:
+    """The document-search answer numbers the sources it lists, visibly.
+
+    Marker removal was first applied at the global display boundary, which
+    also ran over CACE's own rendering and turned "[1] Export Policy Order..."
+    into " Export Policy Order..." - unnumbering a list the reader does see.
+    It applies to generated prose only.
+    """
     from app.services.assistant.plain_language import sanitize_for_display
 
-    assert sanitize_for_display("One.\n\nTwo.") == "One.\n\nTwo."
+    rendered = '[1] Export Policy Order, 2022 — official SRO, page 4'
+    assert sanitize_for_display(rendered) == rendered
 
 
 def test_the_marker_defect_does_not_survive_as_an_ordinal() -> None:
@@ -332,19 +346,19 @@ def test_the_marker_defect_does_not_survive_as_an_ordinal() -> None:
     neither is the fact they asked for. Both prompts now forbid position as
     well as number, and the display boundary enforces it.
     """
-    from app.services.assistant.plain_language import sanitize_for_display
+    from app.services.assistant.plain_language import strip_evidence_references
 
-    assert "first source" not in sanitize_for_display(
+    assert "first source" not in strip_evidence_references(
         "The requirement for Form-E comes from the first source."
     )
-    assert "second passage" not in sanitize_for_display(
+    assert "second passage" not in strip_evidence_references(
         "According to the second passage, a certificate of origin is conditional."
     )
 
 
 def test_ordinal_stripping_does_not_touch_ordinary_prose() -> None:
     """"The first shipment" is not a reference to the evidence list."""
-    from app.services.assistant.plain_language import sanitize_for_display
+    from app.services.assistant.plain_language import strip_evidence_references
 
     text = "The first shipment left on Monday and the source document is an invoice."
-    assert sanitize_for_display(text) == text
+    assert strip_evidence_references(text) == text

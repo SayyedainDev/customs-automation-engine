@@ -51,6 +51,7 @@ from app.services.assistant.plain_language import (
     detect_concepts,
     explain_concepts,
     sanitize_for_display,
+    strip_evidence_references,
 )
 from app.services.assistant.guidance import (
     generate_pre_submission_guidance,
@@ -847,7 +848,7 @@ def _groq_explanation_or_none(
     )
     if raw is None:
         return None, reason
-    safe = sanitize_for_display(raw)
+    safe = strip_evidence_references(sanitize_for_display(raw))
     if not _groq_answer_is_acceptable(safe):
         return None, "the generated wording did not pass CACE's answer checks"
     return safe, None
@@ -976,7 +977,7 @@ def _groq_checklist_explanation_or_none(
     )
     if raw is None:
         return None, reason
-    safe = sanitize_for_display(raw)
+    safe = strip_evidence_references(sanitize_for_display(raw))
     allowed = [d.display_name for d in (*required, *conditional)]
     if not safe or not _checklist_explanation_is_acceptable(safe, allowed):
         return None, "the generated wording did not pass CACE's answer checks"
@@ -1013,7 +1014,7 @@ def _groq_clarification_explanation_or_none(
     )
     if raw is None:
         return None, reason
-    safe = sanitize_for_display(raw)
+    safe = strip_evidence_references(sanitize_for_display(raw))
     if not safe or not _checklist_explanation_is_acceptable(
         safe, [*required, *conditional]
     ):
