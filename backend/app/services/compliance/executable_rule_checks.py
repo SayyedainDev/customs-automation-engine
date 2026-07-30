@@ -44,6 +44,7 @@ def _result(
     message: str,
     rule_data_version: str,
     government_rule: bool = True,
+    required_document: str | None = None,
 ) -> ComplianceCheckResult:
     return build_result(
         check_id=rule.rule_id,
@@ -51,7 +52,10 @@ def _result(
         status=status,
         message=message,
         pct_code=pct_code,
-        required_document=rule.required_document,
+        # A deadline rule carries no required document of its own, but when it
+        # is unverifiable purely because the anchor document is absent it names
+        # that document so the exporter sees one thing to obtain, not two.
+        required_document=required_document or rule.required_document,
         source_document=rule.source_document,
         sro_number=rule.sro_number,
         source_url=rule.source_url,
@@ -159,23 +163,52 @@ def _evaluate_destination_document(
     )
 
 
+#: The document that carries each deadline anchor date. When the anchor is
+#: unknown *because that document was never supplied*, the window is not
+#: verifiable for a paperwork reason, so the check belongs on the "still to
+#: obtain" checklist rather than among findings about the uploaded files.
+_ANCHOR_DOCUMENTS: dict[str, str] = {
+    "letter_of_credit_date": "irrevocable_letter_of_credit",
+}
+
+#: How to name each anchor document to an exporter.
+_ANCHOR_LABELS: dict[str, str] = {
+    "irrevocable_letter_of_credit": "letter of credit",
+}
+
+
 def _evaluate_shipment_deadline(
     rule: ExecutableRule,
     shipment: ShipmentComplianceInput,
+    uploaded_documents: set[str],
     pct_code: str | None,
     rule_data_version: str,
 ) -> ComplianceCheckResult:
     anchor_value = getattr(shipment, rule.deadline_anchor or "", None)
     if anchor_value is None or shipment.shipment_date is None or rule.deadline_days is None:
+        anchor_document = _ANCHOR_DOCUMENTS.get(rule.deadline_anchor or "")
+        # Only when the exporter does not hold the document. If it was
+        # uploaded and only its date could not be read, telling them to obtain
+        # it would be wrong - that stays a finding to confirm.
+        anchor_not_supplied = (
+            anchor_value is None
+            and anchor_document is not None
+            and anchor_document not in uploaded_documents
+        )
         return _result(
             rule,
             pct_code=pct_code,
             status=ComplianceCheckStatus.MANUAL_REVIEW,
             message=(
-                f"{rule.rule_name}: the anchor date or shipment date is missing, so the "
-                f"{rule.deadline_days}-day window cannot be verified."
+                f"{rule.rule_name}: the {_ANCHOR_LABELS.get(anchor_document or '', 'anchor')} "
+                f"has not been provided, so the {rule.deadline_days}-day window "
+                "cannot be verified."
+                if anchor_not_supplied
+                else f"{rule.rule_name}: the anchor date or shipment date is missing, "
+                f"so the {rule.deadline_days}-day window cannot be verified."
             ),
             rule_data_version=rule_data_version,
+            required_document=anchor_document if anchor_not_supplied else None,
         )
     elapsed = shipment.shipment_date - anchor_value
     within = timedelta(0) <= elapsed <= timedelta(days=rule.deadline_days)
@@ -298,7 +331,9 @@ def evaluate_rule(
             rule, shipment, uploaded_documents, pct_code, rule_data_version
         )
     if rule.check_type is ExecutableCheckType.SHIPMENT_DEADLINE:
-        return _evaluate_shipment_deadline(rule, shipment, pct_code, rule_data_version)
+        return _evaluate_shipment_deadline(
+            rule, shipment, uploaded_documents, pct_code, rule_data_version
+        )
     if rule.check_type is ExecutableCheckType.REQUIREMENT_STATUS:
         return _evaluate_requirement_status(rule, shipment, pct_code, rule_data_version)
     return _evaluate_export_status(rule, pct_code, rule_data_version)

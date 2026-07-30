@@ -176,10 +176,30 @@ def test_held_letter_of_credit_with_an_unread_date_is_not_paperwork_to_obtain() 
     assert is_outstanding_document_check(check) is False
 
 
+def test_executable_deadline_twin_also_points_at_the_missing_document() -> None:
+    """The legacy rule and its executable twin must agree.
+
+    Both the legacy raw-cotton rule and the generated executable rule check
+    the same 180-day window. Fixing only the legacy one left the twin in the
+    findings panel, so the exporter still saw their correct invoice blamed
+    for an absent letter of credit.
+    """
+    from app.services.compliance.executable_rule_checks import _ANCHOR_DOCUMENTS
+
+    assert _ANCHOR_DOCUMENTS["letter_of_credit_date"] == "irrevocable_letter_of_credit"
+
+
 def test_one_missing_letter_of_credit_is_reported_once() -> None:
-    """Two rules naming the same document are one thing for the exporter."""
+    """Rules naming the same document are one thing for the exporter."""
     outstanding = collect_outstanding_documents(
         [
+            _Check(
+                "xr_52010090_shipment_within_180_days",
+                ComplianceCheckStatus.MANUAL_REVIEW.value,
+                "irrevocable_letter_of_credit",
+                "Raw cotton shipment within 180 days: the letter of credit has "
+                "not been provided.",
+            ),
             _Check(
                 "raw_cotton_irrevocable_letter_of_credit",
                 ComplianceCheckStatus.FAILED.value,
@@ -197,5 +217,5 @@ def test_one_missing_letter_of_credit_is_reported_once() -> None:
 
     assert len(outstanding) == 1
     assert outstanding[0].document_type == "irrevocable_letter_of_credit"
-    # Both citations are kept against the single entry.
-    assert len(outstanding[0].reasons) == 2
+    # Every rule's citation is kept against the single entry.
+    assert len(outstanding[0].reasons) == 3
