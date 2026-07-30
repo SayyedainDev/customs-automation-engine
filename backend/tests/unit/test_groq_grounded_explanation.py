@@ -148,23 +148,36 @@ def test_no_call_when_there_is_no_evidence_to_ground_on(
     fake = _fake_groq("should never be reached", calls=calls)
     monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
 
-    result = _groq_explanation_or_none("why is form e required", [])
-    assert result is None
+    text, reason = _groq_explanation_or_none("why is form e required", [])
+    assert text is None
+    # The reason is now returned rather than swallowed, so the caller can tell
+    # the reader why there is no generated explanation.
+    assert reason == "no supporting passage was retrieved to explain from"
     assert calls == []
 
 
 # --------------------------------------------------------------------------- #
-# Fallback: unavailable, erroring, or invalid output never reaches the user
+# Fallback: unavailable, erroring, or invalid output never reaches the user,
+# and the reader is told the explanation was not generated
 # --------------------------------------------------------------------------- #
 def test_falls_back_to_template_when_no_key_is_configured(
     isolated_database: Engine,
 ) -> None:
-    """The autouse fixture blanks the key; this pins that this is safe."""
+    """The autouse fixture blanks the key; this pins that this is safe.
+
+    The template is still the fallback and still correct. What changed is
+    that it is now labelled: a silent substitution made a fixed answer
+    indistinguishable from one written for this question against the
+    retrieved passages, and only the generated one reflects them.
+    """
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "what is a packing list")
     assert response.answer_mode == "explanation"
-    assert response.answer.startswith("A Packing List")
+    assert response.answer.startswith("CACE could not write the plain-language")
+    assert "the AI provider is not configured" in response.answer
+    # The deterministic answer is still there, below the notice.
+    assert "A Packing List" in response.answer
 
 
 @pytest.mark.parametrize(
@@ -183,7 +196,8 @@ def test_falls_back_to_template_when_the_provider_is_unreachable(
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "what is a packing list")
-    assert response.answer.startswith("A Packing List")
+    assert "A Packing List" in response.answer
+    assert response.answer.startswith("CACE could not write the plain-language")
 
 
 def test_falls_back_when_generated_output_fails_validation(
@@ -196,7 +210,8 @@ def test_falls_back_when_generated_output_fails_validation(
         build_corpus(db)
         response = ask(db, "what is a packing list")
     assert "will clear customs" not in response.answer.casefold()
-    assert response.answer.startswith("A Packing List")
+    assert "A Packing List" in response.answer
+    assert "did not pass CACE's answer checks" in response.answer
 
 
 def test_no_retry_on_a_single_provider_failure(
@@ -257,11 +272,11 @@ def test_leaked_tokens_are_sanitized_before_validation(
         "the length floor for a generated answer about licence requirements."
     )
     monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
-    result = _groq_explanation_or_none(
+    result, reason = _groq_explanation_or_none(
         "why is a licence required",
         [_citation("Licence required: value=False; some detail about licences.")],
     )
-    assert result is not None
+    assert result is not None and reason is None
     assert not contains_internal_tokens(result)
     assert "value=False" not in result
 
@@ -322,17 +337,29 @@ def test_checklist_prose_is_dropped_if_it_invents_a_document(
     assert "Required documents" in response.answer
 
 
-def test_groq_is_not_called_for_document_search(
+def test_document_search_gets_an_answer_above_its_passages(
     isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The passages are the evidence, not the reply.
+
+    Groq was excluded from this mode, so someone searching the corpus got
+    quotations and no answer. The quotations and citations are unchanged; a
+    plain-language answer now sits above them.
+    """
     calls: list[dict] = []
-    fake = _fake_groq("should never be reached", calls=calls)
+    fake = _fake_groq(
+        "A certificate of origin shows which country the goods were made in. "
+        "Some buyers need it to pay a lower import duty on the shipment.",
+        calls=calls,
+    )
     monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "find passages mentioning Certificate of Origin")
     assert response.answer_mode == "document_search"
-    assert calls == []
+    assert len(calls) == 1
+    assert response.answer.startswith("A certificate of origin shows")
+    assert response.sources
 
 
 def test_groq_is_not_called_for_out_of_scope_questions(
@@ -348,15 +375,134 @@ def test_groq_is_not_called_for_out_of_scope_questions(
     assert calls == []
 
 
-def test_groq_is_not_called_for_evidence_lookup(
+def test_evidence_lookup_answers_as_well_as_citing(
     isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Evidence lookup returns the exact source; it does not need paraphrasing."""
+    """"Which rule says Form-E is required?" asks two things.
+
+    This mode returned only the source and page. Someone asking it wants the
+    answer as well as the reference, so the exact source line is kept and an
+    answer is written above it.
+    """
     calls: list[dict] = []
-    fake = _fake_groq("should never be reached", calls=calls)
+    fake = _fake_groq(
+        "Form-E is the export form your bank and customs use to record a "
+        "shipment. It is normally needed before goods leave the country.",
+        calls=calls,
+    )
     monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "which rule says Form-E is required?")
     assert response.answer_mode == "evidence_lookup"
-    assert calls == []
+    assert len(calls) == 1
+    assert response.answer.startswith("Form-E is the export form")
+    # The exact source and page are still shown underneath.
+    assert "closest supporting source" in response.answer
+
+
+# --------------------------------------------------------------------------- #
+# The call is mandatory: every answerable question attempts it, and a failure
+# is reported rather than silently replaced
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    "question",
+    [
+        "why is form e required",                                  # explanation
+        "what documents do I need for cotton towels to China?",    # checklist
+        "cotton yarn",                                             # clarification
+        "find passages mentioning Certificate of Origin",          # document_search
+        "which rule says Form-E is required?",                     # evidence_lookup
+    ],
+)
+def test_every_answerable_mode_calls_groq(
+    isolated_database: Engine, monkeypatch: pytest.MonkeyPatch, question: str
+) -> None:
+    """Requested by the project owner: a mandatory Groq call.
+
+    Each of these modes reaches the model. Previously checklist, clarification,
+    document search and evidence lookup answered from templates alone, so the
+    mode a question happened to land in decided whether it got a
+    plain-language answer at all.
+    """
+    calls: list[dict] = []
+    fake = _fake_groq(
+        "This is a plain answer about the export paperwork you need. It is "
+        "long enough to clear the minimum length that generated answers must "
+        "meet before CACE will show them to anyone.",
+        calls=calls,
+    )
+    monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        ask(db, question)
+
+    assert len(calls) == 1, f"expected exactly one Groq call for {question!r}"
+
+
+def test_a_refusal_still_makes_no_call() -> None:
+    """Mandatory means every *answerable* question, not every keystroke.
+
+    There is nothing to explain about a question CACE has declined, and
+    sending it to the provider would spend tokens to produce nothing.
+    """
+    # Asserted by test_groq_is_not_called_for_out_of_scope_questions above;
+    # this restates the boundary so the intent is not lost when reading the
+    # mandatory-call tests.
+    assert True
+
+
+def test_a_rate_limit_is_retried_once_then_reported(
+    isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A token-per-minute limit clears in seconds, so one wait is worth it."""
+    from app.core.exceptions import StructuredExtractionRateLimitedError
+
+    attempts: list[int] = []
+
+    class _Completions:
+        def create(self, **kwargs):
+            attempts.append(1)
+            raise StructuredExtractionRateLimitedError(
+                "rate limited", retry_after_seconds=0.01, limit_kind="tokens"
+            )
+
+    monkeypatch.setattr(
+        extraction_service,
+        "_get_groq_client",
+        lambda: SimpleNamespace(chat=SimpleNamespace(completions=_Completions())),
+    )
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "why is form e required")
+
+    assert len(attempts) == 2, "expected one retry before giving up"
+    assert "rate limited" in response.answer
+    # The deterministic answer is still delivered underneath the notice.
+    assert response.answer.startswith("CACE could not write the plain-language")
+
+
+def test_an_auth_failure_is_not_retried(
+    isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bad credentials cannot be fixed by asking again."""
+    from app.core.exceptions import StructuredExtractionAuthError
+
+    attempts: list[int] = []
+
+    class _Completions:
+        def create(self, **kwargs):
+            attempts.append(1)
+            raise StructuredExtractionAuthError("bad key")
+
+    monkeypatch.setattr(
+        extraction_service,
+        "_get_groq_client",
+        lambda: SimpleNamespace(chat=SimpleNamespace(completions=_Completions())),
+    )
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "why is form e required")
+
+    assert len(attempts) == 1
+    assert "rejected CACE's credentials" in response.answer

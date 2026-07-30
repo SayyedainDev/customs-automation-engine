@@ -24,7 +24,8 @@ nothing in this path interprets passage text as a directive.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -66,7 +67,12 @@ from app.services.assistant.scopes import (
     UNSUPPORTED_PCT_NOTICE,
     supported_compliance_scope_labels,
 )
-from app.core.exceptions import StructuredExtractionProviderError
+from app.core.exceptions import (
+    StructuredExtractionAuthError,
+    StructuredExtractionConfigurationError,
+    StructuredExtractionProviderError,
+    StructuredExtractionRateLimitedError,
+)
 from app.services.structured_extraction_service import (
     generate_checklist_explanation,
     generate_grounded_explanation,
@@ -742,6 +748,67 @@ _MAX_GROQ_ANSWER_WORDS = 220
 _MIN_GROQ_ANSWER_WORDS = 8
 
 
+#: A rate limit clears in seconds, so one bounded wait is worth it before
+#: giving up. More than that and the caller is left staring at a spinner.
+_GROQ_RETRY_ATTEMPTS = 2
+_GROQ_MAX_RETRY_WAIT_SECONDS = 12.0
+
+
+def _groq_failure_reason(exc: Exception) -> str:
+    """A short, non-technical phrase for why the explanation is missing."""
+    if isinstance(exc, StructuredExtractionConfigurationError):
+        return "the AI provider is not configured"
+    if isinstance(exc, StructuredExtractionAuthError):
+        return "the AI provider rejected CACE's credentials"
+    if isinstance(exc, StructuredExtractionRateLimitedError):
+        wait = exc.retry_after_seconds
+        if wait:
+            return (
+                "the AI provider is rate limited; it should work again in "
+                f"about {int(wait) + 1} seconds"
+            )
+        return "the AI provider is rate limited"
+    if isinstance(exc, StructuredExtractionProviderError):
+        return "the AI provider is unavailable"
+    return "the AI provider could not be reached"
+
+
+def _call_groq(generate: Callable[[], str]) -> tuple[str | None, str | None]:
+    """Run one Groq generation, retrying once on a rate limit.
+
+    Returns ``(text, None)`` on success or ``(None, reason)`` on failure.
+    The reason is always reported to the reader rather than swallowed: an
+    answer that quietly became a fixed template is indistinguishable from one
+    the model wrote, and the difference matters to anyone judging the output.
+    """
+    last_reason = "the AI provider could not be reached"
+    for attempt in range(_GROQ_RETRY_ATTEMPTS):
+        try:
+            return generate(), None
+        except StructuredExtractionRateLimitedError as exc:
+            last_reason = _groq_failure_reason(exc)
+            wait = exc.retry_after_seconds
+            is_last = attempt == _GROQ_RETRY_ATTEMPTS - 1
+            if is_last or wait is None or wait > _GROQ_MAX_RETRY_WAIT_SECONDS:
+                # Waiting longer than the cap would hold the request open past
+                # what a caller will sit through; report instead.
+                break
+            time.sleep(wait + 0.5)
+        except Exception as exc:  # noqa: BLE001 - every failure is reported
+            last_reason = _groq_failure_reason(exc)
+            break
+    return None, last_reason
+
+
+def groq_unavailable_notice(reason: str) -> str:
+    """Told plainly, because the deterministic output below is still valid."""
+    return (
+        f"CACE could not write the plain-language explanation just now, because "
+        f"{reason}. Everything below comes from CACE's own rules and is not "
+        "affected."
+    )
+
+
 def _groq_answer_is_acceptable(answer: str) -> bool:
     """The same checks every other visible answer in this module passes.
 
@@ -762,30 +829,28 @@ def _groq_answer_is_acceptable(answer: str) -> bool:
 
 def _groq_explanation_or_none(
     question: str, citations: list[RegulatoryCitationSchema]
-) -> str | None:
-    """Try a grounded, Groq-generated explanation; None on any failure.
+) -> tuple[str | None, str | None]:
+    """A grounded, Groq-generated explanation, or the reason there isn't one.
 
-    Every failure mode falls back to the deterministic composer rather than
-    surfacing to the caller: no Groq credential configured, the provider
-    rejecting/rate-limiting/erroring, and a generated answer that fails the
-    same validation every other answer in this module has to pass. Nothing
-    here retries - one user question makes at most one Groq call.
+    Returns ``(text, None)`` or ``(None, reason)``. Failures used to be
+    swallowed and replaced by a deterministic composer, which made a template
+    answer indistinguishable from a generated one; the reason is now returned
+    so the caller can say plainly that the model did not write this.
     """
     passages = [c.accepted_passage for c in citations if c.accepted_passage]
     if not passages:
-        return None
-    try:
-        raw = generate_grounded_explanation(
+        return None, "no supporting passage was retrieved to explain from"
+    raw, reason = _call_groq(
+        lambda: generate_grounded_explanation(
             question=question, evidence_passages=passages[:5]
         )
-    except StructuredExtractionProviderError:
-        return None
-    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
-        return None
+    )
+    if raw is None:
+        return None, reason
     safe = sanitize_for_display(raw)
     if not _groq_answer_is_acceptable(safe):
-        return None
-    return safe
+        return None, "the generated wording did not pass CACE's answer checks"
+    return safe, None
 
 
 def _render_plain_explanation(
@@ -817,14 +882,22 @@ def _render_plain_explanation(
         _concept_relevant_citations(citations, concepts)[:3] if concepts else citations[:3]
     )
 
-    groq_answer = _groq_explanation_or_none(question, relevant_citations or citations)
+    groq_answer, groq_failure = _groq_explanation_or_none(
+        question, relevant_citations or citations
+    )
     if groq_answer:
         if destination:
             groq_answer = f"{groq_answer}\n\n{NO_DESTINATION_RULE_NOTE}"
         return groq_answer, [], relevant_citations or citations[:3]
 
     if concepts:
+        # The written template is still the fallback, but it is now labelled
+        # as one. A reader could not previously tell a generated answer from a
+        # fixed one, and only the generated path reflects the retrieved
+        # passages for *this* question.
         answer = explain_concepts(question, concepts)
+        if groq_failure:
+            answer = f"{groq_unavailable_notice(groq_failure)}\n\n{answer}"
         if destination:
             answer = f"{answer}\n\n{NO_DESTINATION_RULE_NOTE}"
         return answer, [], relevant_citations
@@ -887,10 +960,10 @@ def _groq_checklist_explanation_or_none(
     required: list[ChecklistDocumentSchema],
     conditional: list[ChecklistDocumentSchema],
     citations: list[RegulatoryCitationSchema],
-) -> str | None:
-    """Plain-language prose for a deterministic checklist; None on any failure."""
-    try:
-        raw = generate_checklist_explanation(
+) -> tuple[str | None, str | None]:
+    """Prose for a deterministic checklist, or the reason there isn't any."""
+    raw, reason = _call_groq(
+        lambda: generate_checklist_explanation(
             question=question,
             product=guidance.product,
             pct_code=guidance.pct_code,
@@ -900,15 +973,14 @@ def _groq_checklist_explanation_or_none(
                 c.accepted_passage for c in citations[:4] if c.accepted_passage
             ],
         )
-    except StructuredExtractionProviderError:
-        return None
-    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
-        return None
+    )
+    if raw is None:
+        return None, reason
     safe = sanitize_for_display(raw)
     allowed = [d.display_name for d in (*required, *conditional)]
     if not safe or not _checklist_explanation_is_acceptable(safe, allowed):
-        return None
-    return safe
+        return None, "the generated wording did not pass CACE's answer checks"
+    return safe, None
 
 
 def _groq_clarification_explanation_or_none(
@@ -918,8 +990,8 @@ def _groq_clarification_explanation_or_none(
     required: list[str],
     conditional: list[str],
     citations: list[RegulatoryCitationSchema],
-) -> str | None:
-    """Plain-language prose for an ambiguous-product answer; None on failure.
+) -> tuple[str | None, str | None]:
+    """Prose for an ambiguous-product answer, or the reason there isn't any.
 
     Uses the same explainer and the same guard as the checklist path: the
     documents listed are the ones every candidate already shares, so naming
@@ -927,8 +999,8 @@ def _groq_clarification_explanation_or_none(
     """
     product_line = " or ".join(name for _code, name in candidates)
     codes = ", ".join(code for code, _name in candidates)
-    try:
-        raw = generate_checklist_explanation(
+    raw, reason = _call_groq(
+        lambda: generate_checklist_explanation(
             question=question,
             product=f"{product_line} (the question does not say which)",
             pct_code=codes,
@@ -938,16 +1010,15 @@ def _groq_clarification_explanation_or_none(
                 c.accepted_passage for c in citations[:4] if c.accepted_passage
             ],
         )
-    except StructuredExtractionProviderError:
-        return None
-    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
-        return None
+    )
+    if raw is None:
+        return None, reason
     safe = sanitize_for_display(raw)
     if not safe or not _checklist_explanation_is_acceptable(
         safe, [*required, *conditional]
     ):
-        return None
-    return safe
+        return None, "the generated wording did not pass CACE's answer checks"
+    return safe, None
 
 
 def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
@@ -1246,7 +1317,7 @@ def answer_regulatory_question(
             _to_citation(item, get_corpus_snapshot_date(db))
             for item in clarification_evidence
         ][:3]
-        clarification_prose = _groq_clarification_explanation_or_none(
+        clarification_prose, clarification_failure = _groq_clarification_explanation_or_none(
             question=question,
             candidates=candidates,
             required=shared_required or [],
@@ -1267,7 +1338,8 @@ def answer_regulatory_question(
             answer=(
                 f"{clarification_prose}\n\n{clarification_body}"
                 if clarification_prose
-                else clarification_body
+                else f"{groq_unavailable_notice(clarification_failure or '')}"
+                f"\n\n{clarification_body}"
             ),
             intent=decision.intent,
             evidence_status="not_applicable",
@@ -1322,7 +1394,7 @@ def answer_regulatory_question(
             _to_citation(item, get_corpus_snapshot_date(db))
             for item in checklist_evidence
         ][:3]
-        prose = _groq_checklist_explanation_or_none(
+        prose, prose_failure = _groq_checklist_explanation_or_none(
             question=question,
             guidance=guidance,
             required=required,
@@ -1334,7 +1406,10 @@ def answer_regulatory_question(
         )
         return respond(
             answer=(
-                f"{prose}\n\n{checklist_body}" if prose else checklist_body
+                f"{prose}\n\n{checklist_body}"
+                if prose
+                else f"{groq_unavailable_notice(prose_failure or '')}"
+                f"\n\n{checklist_body}"
             ),
             intent="supported_pct_guidance",
             evidence_status="accepted",
@@ -1437,12 +1512,29 @@ def answer_regulatory_question(
     # five raw quotations led by "These indexed sources contain passages
     # matching your search".
     mode = decision.answer_mode
-    if mode == "evidence_lookup":
-        body = _render_evidence_lookup(citations)
-        snippets = [_first_sentences(c.accepted_passage, 300) for c in citations[:1]]
-        citations = citations[:3]
-    elif mode == "document_search":
-        body, snippets = _compose_grounded_answer(citations, decision.intent)
+    if mode in ("evidence_lookup", "document_search"):
+        # These two modes exist to show *where* something is stated, so the
+        # citations and quotations below stay exactly as they were. What was
+        # missing is a plain-language answer above them: someone who asks
+        # "which source says Form-E is required?" wants the answer as well as
+        # the reference. The quotation is the evidence, not the reply.
+        if mode == "evidence_lookup":
+            deterministic = _render_evidence_lookup(citations)
+            snippets = [
+                _first_sentences(c.accepted_passage, 300) for c in citations[:1]
+            ]
+            citations = citations[:3]
+        else:
+            deterministic, snippets = _compose_grounded_answer(
+                citations, decision.intent
+            )
+        lookup_prose, lookup_failure = _groq_explanation_or_none(question, citations)
+        if lookup_prose:
+            body = f"{lookup_prose}\n\n{deterministic}"
+        else:
+            body = (
+                f"{groq_unavailable_notice(lookup_failure or '')}\n\n{deterministic}"
+            )
     else:
         # Plain language first. The answer is written prose from a template when
         # the question names a concept CACE knows, so an exporter reads an

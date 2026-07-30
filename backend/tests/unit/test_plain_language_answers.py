@@ -175,13 +175,18 @@ def test_form_e_explanation_is_short_and_direct(isolated_database: Engine) -> No
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "Why is Form-E required?")
-    words = len(response.answer.split())
+    # These tests run with no Groq credential (the autouse fixture blanks it),
+    # so the answer opens with the notice saying the plain-language
+    # explanation was not generated. The deterministic content it introduces
+    # is what this test is about, and is asserted below the notice.
+    body = response.answer.split("affected.\n\n", 1)[-1]
+    words = len(body.split())
     assert 40 <= words <= 160, f"{words} words"
-    assert response.answer.startswith("Form-E")
+    assert body.startswith("Form-E")
     # Never opens with retrieval language.
     for opener in ("These indexed sources", "The corpus", "The retrieved evidence",
                    "According to the structured rule", "Answer\n"):
-        assert not response.answer.startswith(opener)
+        assert not body.startswith(opener)
 
 
 def test_certificate_of_origin_explains_conditionality(
@@ -202,7 +207,11 @@ def test_always_question_is_answered_no_first(isolated_database: Engine) -> None
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "Is a Certificate of Origin always required?")
-    assert response.answer.lstrip().startswith("No.")
+    # No Groq credential in tests, so the answer opens with the notice that
+    # the plain-language explanation was not generated; the deterministic
+    # answer this test is about follows it.
+    body = response.answer.split("affected.\n\n", 1)[-1]
+    assert body.lstrip().startswith("No.")
     assert "destination country" in response.answer.casefold()
 
 

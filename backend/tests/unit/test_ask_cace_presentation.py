@@ -147,8 +147,13 @@ def test_checklist_is_deterministic_concise_and_focused(isolated_database: Engin
     names = {d.display_name for d in response.required_documents}
     assert {"Commercial Invoice", "Packing List"} <= names
     assert response.sources == []
+    # These tests run with no Groq credential (the autouse fixture blanks it),
+    # so the answer opens with the notice saying the plain-language
+    # explanation was not generated. The deterministic content it introduces
+    # is what this test is about, and is asserted below the notice.
     # Concise.
-    assert len(response.answer.split()) < 150
+    body = response.answer.split("affected.\n\n", 1)[-1]
+    assert len(body.split()) < 150
     # All 17 supported codes are not dumped into the answer.
     present = [code for code in supported_pct_codes() if code in response.answer]
     assert present == ["62034200"]
@@ -248,7 +253,12 @@ def test_what_is_form_e_uses_explanation_mode(isolated_database: Engine) -> None
     assert response.answer_mode == "explanation"
     # Plain language now, not the internal label: the answer opens by
     # explaining what Form-E is rather than restating its identifier.
-    assert response.answer.startswith("Form-E")
+    # These tests run with no Groq credential (the autouse fixture blanks it),
+    # so the answer opens with the notice saying the plain-language
+    # explanation was not generated. The deterministic content it introduces
+    # is what this test is about, and is asserted below the notice.
+    body = response.answer.split("affected.\n\n", 1)[-1]
+    assert body.startswith("Form-E")
     assert "Pakistan Single Window" in response.answer
     # The equivalent statement, in the plain-language wording.
     assert "match your Commercial Invoice" in response.answer
@@ -256,9 +266,9 @@ def test_what_is_form_e_uses_explanation_mode(isolated_database: Engine) -> None
     assert "customs clearance" in response.answer.casefold()
     # The plain-language budget is 60-160 words; the old 80-word cap was
     # sized for the terser template this replaced.
-    assert 60 <= len(response.answer.split()) <= 160
+    assert 60 <= len(body.split()) <= 160
     assert len(response.sources) == 1
-    assert not response.answer.startswith("These indexed sources")
+    assert not body.startswith("These indexed sources")
 
 
 def test_which_source_uses_evidence_lookup(isolated_database: Engine) -> None:
@@ -266,7 +276,8 @@ def test_which_source_uses_evidence_lookup(isolated_database: Engine) -> None:
         build_corpus(db)
         response = ask(db, "Which source says Form-E is required?")
     assert response.answer_mode == "evidence_lookup"
-    assert len(response.answer.split()) < 150
+    body = response.answer.split("affected.\n\n", 1)[-1]
+    assert len(body.split()) < 150
     assert response.sources
 
 
