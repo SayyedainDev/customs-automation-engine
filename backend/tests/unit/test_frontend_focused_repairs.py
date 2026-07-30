@@ -160,10 +160,15 @@ def test_uploaded_unresolved_document_is_not_also_rendered_as_missing() -> None:
     # so one combined count feeds both the readiness copy and the summary tile.
     assert "const documentsStillToObtain =" in REVIEW_RESULT
     assert "stillMissing.length + uniqueMissingSupporting.length" in REVIEW_RESULT
+    # The headline verdict judges the documents the exporter uploaded, not
+    # the full submission. `overall_status` folds in rules that are unresolved
+    # only because paperwork has not been obtained yet, which put a red FAILED
+    # on a correct set of invoice, packing list, Form E and COO. Those are
+    # counted separately as documents still to obtain.
     assert (
-        "submissionCopy(result.overall_status, documentsStillToObtain)"
-        in REVIEW_RESULT
+        "submissionCopy(documentStatus, documentsStillToObtain)" in REVIEW_RESULT
     )
+    assert "const documentStatus = result.document_review_status" in REVIEW_RESULT
     assert "<strong>{documentsStillToObtain}</strong>" in REVIEW_RESULT
 
 

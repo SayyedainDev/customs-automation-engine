@@ -219,3 +219,62 @@ def test_one_missing_letter_of_credit_is_reported_once() -> None:
     assert outstanding[0].document_type == "irrevocable_letter_of_credit"
     # Every rule's citation is kept against the single entry.
     assert len(outstanding[0].reasons) == 3
+
+
+# --------------------------------------------------------------------------- #
+# Hybrid extraction: fewer tokens, because fewer calls are needed at all
+# --------------------------------------------------------------------------- #
+REAL_FORM_E_FULL = """SYNTHETIC TEST DOCUMENT
+FORM E EXPORT DECLARATION
+Form E number
+SYN-PSW-52010090-01
+Issue date
+2026-07-28
+Exporter
+Multan Raw Cotton Traders (Pvt.) Ltd.
+Consignee
+Al Ain Fibre Trading LLC
+Destination country
+United Arab Emirates
+Authorised Dealer
+Habib Bank Limited, Multan Branch
+Related invoice
+MRC-INV-2026-101
+Declared export value
+USD 2000.00
+Currency
+USD
+"""
+
+
+def test_a_complete_form_e_needs_no_provider_call_at_all() -> None:
+    """The whole point of the hybrid path is not to call the model.
+
+    "Related invoice" had no alias, so the invoice reference stayed unresolved
+    on a document that prints it, and a gap-fill call was made for a value
+    already on the page.
+    """
+    extraction = hybrid.extract_deterministically(
+        _page_bundle(REAL_FORM_E_FULL),
+        SupportingDocumentType.FORM_E_OR_PSW_EXPORT_DECLARATION,
+    )
+
+    assert extraction.fields["invoice_reference"].value == "MRC-INV-2026-101"
+    assert extraction.unresolved_important_fields() == []
+
+
+def test_the_completion_ceiling_matches_what_was_asked_for() -> None:
+    """A gap-fill reply is a flat object of a few values, not 512 tokens.
+
+    The reservation is made from the ceiling, so a flat 512 made two small
+    documents reserve nearly a thousand tokens to produce about twenty - budget
+    the other documents in the same review then could not use.
+    """
+    one = hybrid._completion_ceiling(["invoice_reference"])
+    two = hybrid._completion_ceiling(["invoice_reference", "amount"])
+
+    assert one < two < 512
+    # Never below a floor that could truncate a valid reply, and never above
+    # the configured cap.
+    assert one >= 128
+    assert hybrid._completion_ceiling(["a"] * 50) <= 512

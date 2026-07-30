@@ -294,7 +294,23 @@ _COMMON_SPECS: dict[str, FieldSpec] = {
         _organisation,
     ),
     "invoice_reference": FieldSpec(
-        ("Invoice Number", "Invoice No.", "Invoice Reference"), _identifier
+        (
+            "Invoice Number",
+            "Invoice No.",
+            "Invoice Reference",
+            # A supporting document points *back* at the invoice, so it labels
+            # the field by that relationship rather than as its own number.
+            # Real Form-E and COO pages say "Related invoice", and without
+            # these the reference stayed unresolved and spent a gap-fill call
+            # on a value printed on the page.
+            "Related Invoice",
+            "Related Invoice Number",
+            "Invoice Ref",
+            "Commercial Invoice Number",
+            "Commercial Invoice",
+            "Against Invoice",
+        ),
+        _identifier,
     ),
     "pct_code": FieldSpec(
         ("PCT Code", "PCT", "HS Code", "H.S. Code", "Tariff Code"), _pct
@@ -1001,6 +1017,27 @@ def select_snippets(
     return snippets
 
 
+#: A gap-fill reply is one flat JSON object holding only the unresolved
+#: fields - `{"invoice_reference": "MRC-INV-2026-101", "amount": "2000.00"}`.
+#: That is tens of tokens, not hundreds. The configured ceiling is a single
+#: flat cap sized for the worst case, and because the TPM reservation is made
+#: from the ceiling rather than the likely reply, a two-field gap-fill on a
+#: 700-character Form-E reserved 953 tokens to produce about twenty. Sizing
+#: the ceiling to the request frees that budget for the other documents in the
+#: same review. The configured value stays the upper bound.
+_GAPFILL_TOKENS_PER_FIELD = 48
+_GAPFILL_TOKENS_OVERHEAD = 64
+
+
+def _completion_ceiling(unresolved: list[str]) -> int:
+    """Enough room for the fields actually asked for, and no more."""
+    configured = get_settings().groq_supporting_gapfill_max_completion_tokens
+    needed = (
+        _GAPFILL_TOKENS_OVERHEAD + _GAPFILL_TOKENS_PER_FIELD * len(unresolved)
+    )
+    return max(128, min(configured, needed))
+
+
 def _gapfill_model(unresolved: list[str]) -> type[BaseModel]:
     # Groq's strict decoder rejects ``integer | number`` as an ambiguous union.
     # The important fields are textual except Form-E's declared amount, so the
@@ -1066,9 +1103,7 @@ def gapfill(
     model = _gapfill_model(unresolved)
     prompt_characters = len(GAPFILL_SYSTEM_PROMPT) + len(prompt)
     estimated_input_tokens = (prompt_characters + 3) // 4
-    completion_ceiling = (
-        get_settings().groq_supporting_gapfill_max_completion_tokens
-    )
+    completion_ceiling = _completion_ceiling(unresolved)
     estimated_reserved_tokens = estimated_input_tokens + completion_ceiling
     if token_budget is not None and not token_budget.reserve(
         estimated_reserved_tokens

@@ -271,19 +271,19 @@ function decisionCopy(status: ComplianceStatus): {
       return {
         title: "The uploaded documents are sound",
         description:
-          "Extraction, invoice-to-packing-list matching, arithmetic, and product classification all passed on the two files you uploaded.",
+          "Extraction, invoice-to-packing-list matching, arithmetic, and product classification all passed on the documents you uploaded.",
       };
     case "manual_review":
       return {
         title: "The uploaded documents need a person to confirm a value",
         description:
-          "Both files were read, but at least one value could not be determined safely enough for the rule engine to decide on its own.",
+          "The documents were read, but at least one value could not be determined safely enough for the rule engine to decide on its own.",
       };
     case "failed":
       return {
         title: "The uploaded documents contain a problem to correct",
         description:
-          "Both files were read, but something in them did not hold up: the reasons and the corrections are listed below.",
+          "The documents were read, but something in them did not hold up: the reasons and the corrections are listed below.",
       };
     default:
       return {
@@ -294,24 +294,33 @@ function decisionCopy(status: ComplianceStatus): {
 }
 
 /** Plain wording for the strict customs verdict, shown beside the checklist. */
+// The verdict answers "are the documents I uploaded in order?", which is the
+// question the exporter is actually asking when they upload them. A document
+// they have not obtained yet is reported as outstanding, not as a failure:
+// nothing is wrong with the invoice, packing list, Form E or COO because a
+// letter of credit has not been arranged. Reading `overall_status` here put a
+// red FAILED on a set of four correct documents.
 function submissionCopy(
   status: ComplianceStatus,
   outstandingCount: number,
 ): string {
-  if (outstandingCount > 0) {
-    return status === "passed"
-      ? "Confirm the documents listed below before submission."
-      : `Not ready for submission: ${outstandingCount} customs ${
-          outstandingCount === 1 ? "document is" : "documents are"
-        } still outstanding.`;
-  }
+  const stillToObtain =
+    outstandingCount === 1
+      ? "1 further customs document is still to obtain."
+      : `${outstandingCount} further customs documents are still to obtain.`;
   switch (status) {
     case "passed":
-      return "Ready for the next submission step under the configured rules.";
+      return outstandingCount > 0
+        ? `The uploaded documents passed every check CACE could run. ${stillToObtain}`
+        : "The uploaded documents passed every check CACE could run.";
     case "manual_review":
-      return "A person must review the flagged points before submission.";
+      return outstandingCount > 0
+        ? `A person must confirm the flagged points in the uploaded documents. ${stillToObtain}`
+        : "A person must confirm the flagged points in the uploaded documents.";
     default:
-      return "Not ready for submission until the findings below are resolved.";
+      return outstandingCount > 0
+        ? `The uploaded documents have findings that must be resolved. ${stillToObtain}`
+        : "The uploaded documents have findings that must be resolved.";
   }
 }
 
@@ -538,11 +547,11 @@ export function ComplianceReviewResult({
           <div className="notice notice--success processing-success">
             <CheckCircle2 aria-hidden="true" size={18} />
             <div>
-              <strong>Invoice and packing list processed successfully</strong>
+              <strong>Uploaded documents processed successfully</strong>
               <p>
-                Both files were uploaded, their text and fields were extracted,
-                and the shipment comparison finished. A failed compliance
-                decision does not mean document processing failed.
+                Every file you uploaded was read, its fields were extracted,
+                and the shipment comparison finished. A finding below does not
+                mean document processing failed.
               </p>
             </div>
           </div>
@@ -550,9 +559,9 @@ export function ComplianceReviewResult({
           <div className="submission-readiness">
             <div>
               <span className="eyebrow">Customs submission readiness</span>
-              <p>{submissionCopy(result.overall_status, documentsStillToObtain)}</p>
+              <p>{submissionCopy(documentStatus, documentsStillToObtain)}</p>
             </div>
-            <StatusBadge status={result.overall_status} />
+            <StatusBadge status={documentStatus} />
           </div>
 
           <div className="summary-grid">
@@ -720,8 +729,10 @@ export function ComplianceReviewResult({
           <div>
             <h2 id="findings-heading">Findings in the uploaded documents</h2>
             <p>
-              Invoice and packing-list findings are shown once here. Supporting
-              documents are reported separately by matching status.
+              Findings about the files you uploaded are shown once here.
+              Supporting documents are also reported separately by matching
+              status, and paperwork you have not obtained yet is listed as
+              still to obtain rather than as a finding.
             </p>
           </div>
           <ShieldCheck aria-hidden="true" size={19} />

@@ -1065,7 +1065,12 @@ def test_projected_tpm_overflow_prevents_the_second_provider_call(
         )
 
     monkeypatch.setattr(hybrid, "extract_structured_model_from_text", provider)
-    budget = hybrid.GapfillTokenBudget(limit_tokens=1_000)
+    # Sized so the first gap-fill fits and the second cannot. The number moved
+    # down with the completion ceiling: reserving a flat 512 tokens for a reply
+    # of about twenty made two small documents overflow a 1,000-token budget
+    # that comfortably holds them both. The behaviour under test - an overflow
+    # is detected before the call, not after - is unchanged.
+    budget = hybrid.GapfillTokenBudget(limit_tokens=560)
 
     _, first = hybrid.gapfill(
         form, form.unresolved_important_fields(), token_budget=budget
