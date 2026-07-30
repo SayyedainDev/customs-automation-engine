@@ -440,19 +440,17 @@ def extract_shipment_from_text(
     )
 
 
-#: A structured reply restates the source document as JSON: the values from
-#: the page, wrapped in field names and per-field provenance. It therefore
-#: scales with how much text there is to restate, and a small document cannot
-#: produce a large one. The budget was a flat ceiling sized for the largest
-#: fixture, and because the provider reserves against the ceiling rather than
-#: the reply, a 700-character packing list requested 4,075 tokens. Two such
-#: calls exceed a 8,000-token-per-minute tier, which is why a first review of
-#: four documents was rate limited while a repeat - served from the extraction
-#: cache - succeeded.
+#: DO NOT wire this into the extraction path. It sizes a budget against the
+#: JSON a document would produce, and that is the wrong measure for this
+#: model: ``openai/gpt-oss-20b`` reasons before it answers, and
+#: ``max_completion_tokens`` bounds reasoning *and* output together. The reply
+#: for a 900-character invoice is only a few hundred tokens, but the reasoning
+#: ahead of it is not, and it does not shrink with the document.
 #:
-#: The multiplier is deliberately generous: under-reserving truncates the JSON
-#: and fails the extraction, which is far worse than reserving too much. Large
-#: documents are unaffected, keeping the full configured budget.
+#: Applying this as the default truncated generation mid-object and Groq
+#: rejected the result with ``json_validate_failed`` - a whole review lost to
+#: save tokens. The flat configured ceiling is correct and stays in force.
+#: Kept only so the reasoning is recorded where the next person will look.
 _COMPLETION_TOKENS_PER_INPUT_TOKEN = 4
 _COMPLETION_TOKENS_OVERHEAD = 400
 _COMPLETION_TOKENS_FLOOR = 600
@@ -493,8 +491,6 @@ def extract_structured_model_from_text(
     groq_client = client or _get_groq_client()
     model = get_settings().groq_model
     strict_schema = _groq_strict_schema(response_model)
-    if max_completion_tokens is None:
-        max_completion_tokens = completion_ceiling_for_text(extracted_text)
 
     # Step 1: strict json_schema mode.
     try:

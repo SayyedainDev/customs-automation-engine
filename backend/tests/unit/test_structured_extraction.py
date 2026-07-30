@@ -151,15 +151,7 @@ def test_groq_request_uses_strict_schema_and_validates_response() -> None:
     response_format = captured["response_format"]
     schema = response_format["json_schema"]["schema"]
     assert response_format["json_schema"]["strict"] is True
-    # The completion budget is sized to the document rather than flat. This
-    # request carries the twelve-character string "Invoice text", so it gets
-    # the floor; a document large enough to need the full budget still gets it,
-    # which is asserted separately.
-    assert captured["max_completion_tokens"] == 600
-    assert (
-        structured_extraction_service.completion_ceiling_for_text("x" * 12_000)
-        == 2000
-    )
+    assert captured["max_completion_tokens"] == 2000
     assert set(schema["required"]) == set(schema["properties"])
     assert schema["additionalProperties"] is False
     assert shipment.invoice_number == "INV-1001"
