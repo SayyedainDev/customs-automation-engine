@@ -331,6 +331,13 @@ _COMMON_SPECS: dict[str, FieldSpec] = {
             "Declared Amount",
             "Amount",
             "Declared Value",
+            # A real Form-E laid the figure out as "Declared export value /
+            # USD 2000.00". Without these aliases the amount stayed unresolved
+            # and spent a gap-fill call on a value the page states plainly.
+            "Declared Export Value",
+            "Export Value",
+            "Invoice Value",
+            "Total Value",
             "FOB Value",
             "Total FOB Value",
         ),

@@ -632,11 +632,57 @@ def normalise_identifier(raw: str) -> str | None:
     return value
 
 
+#: Words that are part of a heading, never an organisation's whole name. A
+#: capture consisting only of these is a piece of an adjacent label, not a
+#: party.
+#:
+#: Found live on a real invoice laid out as:
+#:
+#:     Exporter
+#:     Multan Raw Cotton Traders (Pvt.) Ltd.
+#:     Exporter address
+#:     Multan Industrial Estate, Punjab, Pakistan
+#:
+#: The next-line pattern correctly read the company, and then the OCR
+#: single-line pattern read the *label* line "Exporter address" and captured
+#: "address" as a second exporter_name candidate. Two disagreeing candidates
+#: make the extractor refuse to choose, so exporter_name came back empty -
+#: and because the shipment exporter was then unknown, every supporting
+#: document was reported as "CACE could not reliably read the exporter's
+#: name", blaming the Form-E and certificate of origin for an invoice-side
+#: failure. These words cannot be swallowed into the label instead: "address"
+#: heads its own field, so absorbing it would capture the street address as
+#: the company name - a confident wrong answer rather than no answer.
+_LABEL_ONLY_ORG_WORDS = frozenset(
+    {
+        "address",
+        "name",
+        "names",
+        "details",
+        "detail",
+        "information",
+        "particulars",
+        "contact",
+        "reference",
+        "number",
+        "no",
+        "code",
+        "and",
+        "or",
+        "of",
+    }
+)
+
+
 def normalise_org(raw: str) -> str | None:
     """Trim a captured organisation line without inventing structure."""
     value = " ".join(raw.split()).strip(" .,;:-")
     # A capture that is only punctuation or a stray label fragment is not a name.
     if len(value) < 3 or not re.search(r"[A-Za-z]{2}", value):
+        return None
+    # ... nor is a capture made entirely of heading vocabulary.
+    words = [word for word in re.split(r"[^A-Za-z]+", value.casefold()) if word]
+    if words and all(word in _LABEL_ONLY_ORG_WORDS for word in words):
         return None
     return value
 

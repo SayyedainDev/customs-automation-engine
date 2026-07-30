@@ -100,16 +100,54 @@ def check_raw_cotton_rules(
         )
 
     if shipment.letter_of_credit_date is None or shipment.shipment_date is None:
+        # Not knowing whether the window was met is not the same as knowing it
+        # was breached. This branch returned FAILED, which reads as "this
+        # shipment missed the 180-day deadline" when the truth is only that the
+        # letter of credit has not been supplied yet, so there is no anchor date
+        # to measure from. The executable rule covering the same requirement
+        # already reports manual review for exactly this case; returning FAILED
+        # here contradicted it in the same result and, being the stronger
+        # status, decided the overall verdict.
+        #
+        # The requirement itself is unchanged: an outstanding letter of credit
+        # still blocks submission - it is now reported as paperwork to obtain
+        # rather than as a rule the uploaded documents broke.
+        # Two different situations share this branch and must not share one
+        # message. If the letter of credit was never supplied, the blocker is
+        # paperwork to obtain. If it was supplied but its date could not be
+        # read, the exporter already holds the document - telling them to go
+        # and get it would be wrong - so only the date needs confirming.
+        lc_date_unknown = shipment.letter_of_credit_date is None
+        lc_held = "irrevocable_letter_of_credit" in uploaded_documents
+        lc_not_supplied = lc_date_unknown and not lc_held
         results.append(
             build_result(
                 check_id="raw_cotton_shipment_within_180_days",
                 check_name="Raw cotton shipment within 180 days",
-                status=ComplianceCheckStatus.FAILED,
+                status=ComplianceCheckStatus.MANUAL_REVIEW,
                 message=(
-                    "Letter-of-credit date and shipment date are required to "
-                    "check the 180-day shipment period."
+                    "The 180-day shipment window could not be checked because "
+                    + (
+                        "the letter of credit has not been provided, so its "
+                        "date is unknown."
+                        if lc_not_supplied
+                        else "the letter-of-credit date could not be read from "
+                        "the documents provided."
+                        if lc_date_unknown
+                        else "the shipment date is unknown."
+                    )
                 ),
                 pct_code=pct_code,
+                # When the blocker is the absent letter of credit, name it as
+                # the required document. That routes this check into the
+                # "still to obtain" checklist instead of the findings panel
+                # about the uploaded files - the invoice and packing list did
+                # nothing wrong here - and merges it with the letter-of-credit
+                # document check above, so one missing document is reported
+                # once rather than as two separate problems.
+                required_document=(
+                    "irrevocable_letter_of_credit" if lc_not_supplied else None
+                ),
                 source_document=source_document,
                 sro_number=RAW_COTTON_SRO,
                 source_url=source_url,

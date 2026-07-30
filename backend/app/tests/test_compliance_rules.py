@@ -271,15 +271,35 @@ def test_raw_cotton_shipment_after_180_day_limit() -> None:
 
 
 def test_raw_cotton_missing_letter_of_credit_date() -> None:
+    """An unsupplied letter of credit is unverifiable, not a proven breach.
+
+    This asserted "failed", which states that the shipment missed the 180-day
+    deadline. CACE cannot know that: without the letter of credit there is no
+    anchor date to measure from. The executable rule for the same requirement
+    already reported manual review for this case, so the result contradicted
+    itself and the stronger FAILED decided the overall verdict.
+
+    The requirement is not weakened - the shipment is still not compliant and
+    still cannot be submitted; the outstanding letter of credit is reported as
+    paperwork to obtain rather than as a rule the uploaded documents broke.
+    The genuine-breach case above (181 days elapsed) still fails.
+    """
     payload = valid_raw_cotton_payload()
     payload["letter_of_credit_date"] = None
 
     body = run_check(payload)
     check = result_by_id(body, "raw_cotton_shipment_within_180_days")
 
-    assert check["status"] == "failed"
-    assert "Letter-of-credit date" in check["message"]
-    assert body["overall_status"] == "failed"
+    assert check["status"] == "manual_review"
+    assert "could not be checked" in check["message"]
+    # This payload uploads the letter of credit and only omits its date, so the
+    # exporter holds the document - the message must ask them to confirm the
+    # date, not to obtain paperwork they already have.
+    assert "date could not be read" in check["message"]
+    assert check["required_document"] is None
+    # Still blocked for submission, just not reported as a breach.
+    assert body["overall_status"] == "manual_review"
+    assert body["is_compliant"] is False
 
 
 def test_unknown_destination_requires_manual_review_without_origin_certificate() -> None:

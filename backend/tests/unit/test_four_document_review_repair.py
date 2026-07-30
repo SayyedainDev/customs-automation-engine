@@ -1,0 +1,201 @@
+"""Regression tests for the four-document (invoice, packing list, Form E, COO) review.
+
+Each test here pins one defect found in a live review of a raw-cotton
+shipment where all four documents were uploaded and correct, yet the result
+reported the exporter and consignee as unreadable, blamed the uploaded files
+for paperwork that was simply not in hand, and reported one missing letter of
+credit as two separate problems.
+
+The document text below is the text of the real uploaded documents, kept
+verbatim (including the "Exporter" / "Exporter address" label pairing that
+caused the collision) so a future parser change cannot quietly reintroduce it.
+"""
+
+from uuid import uuid4
+
+from app.schemas.compliance import ComplianceCheckStatus
+from app.schemas.supporting_documents import SupportingDocumentType
+from app.services.compliance.document_requirements import (
+    collect_outstanding_documents,
+    is_outstanding_document_check,
+)
+from app.services.extraction import supporting_document_hybrid as hybrid
+from app.services.extraction.document_bundle import DocumentTextBundle, StoredPage
+from app.services.extraction.patterns import normalise_org
+from app.services.extraction.regex_extractor import extract_field
+
+
+REAL_INVOICE_TEXT = """SYNTHETIC TEST DOCUMENT
+COMMERCIAL INVOICE
+CACE TEST - Raw cotton, other - PCT 5201.0090
+Exporter
+Multan Raw Cotton Traders (Pvt.) Ltd.
+Exporter address
+Multan Industrial Estate, Punjab, Pakistan
+Buyer / Consignee
+Al Ain Fibre Trading LLC
+Buyer address
+Industrial Area, Al Ain, UAE
+Invoice number
+MRC-INV-2026-101
+Invoice date
+2026-08-02
+Destination country
+United Arab Emirates
+Currency
+USD
+"""
+
+REAL_FORM_E_AMOUNT_TEXT = """FORM E / PSW EXPORT DECLARATION
+Form E number
+SYN-PSW-52010090-01
+Exporter
+Multan Raw Cotton Traders (Pvt.) Ltd.
+Declared export value
+USD 2000.00
+"""
+
+
+def _page_bundle(text: str) -> DocumentTextBundle:
+    return DocumentTextBundle(
+        document_id=uuid4(),
+        document_type="supporting_document",
+        pages=[
+            StoredPage(
+                page_number=1,
+                text=text,
+                original_embedded_text=text,
+                extraction_method="pdf_embedded_text",
+                ocr_confidence=None,
+                ocr_validation_status=None,
+            )
+        ],
+        reviews=[],
+    )
+
+
+def test_address_label_does_not_block_the_exporter_and_consignee_names() -> None:
+    """"Exporter" and "Exporter address" are two labels, not one ambiguity.
+
+    Both matched the exporter-name pattern, so extraction saw two candidate
+    values - the real company and the bare word "address" from the second
+    label's own line - and refused to choose, reporting the exporter as
+    unreadable on an invoice that states it plainly.
+    """
+    exporter = extract_field("exporter_name", REAL_INVOICE_TEXT)
+    consignee = extract_field("consignee_name", REAL_INVOICE_TEXT)
+
+    assert exporter.value == "Multan Raw Cotton Traders (Pvt.) Ltd"
+    assert exporter.confidence == "high"
+    assert consignee.value == "Al Ain Fibre Trading LLC"
+    assert consignee.confidence == "high"
+
+
+def test_address_field_still_reads_its_own_value() -> None:
+    """The fix must not be "ignore anything near the word address"."""
+    address = extract_field("exporter_address", REAL_INVOICE_TEXT)
+    assert address.value == "Multan Industrial Estate, Punjab, Pakistan"
+
+
+def test_a_real_name_containing_a_heading_word_survives() -> None:
+    """Only captures made *entirely* of heading vocabulary are rejected."""
+    assert normalise_org("Karachi Address Exporters Ltd") == (
+        "Karachi Address Exporters Ltd"
+    )
+    assert normalise_org("address") is None
+    assert normalise_org("Name and Address") is None
+
+
+def test_form_e_declared_export_value_needs_no_gap_fill_call() -> None:
+    """The amount is on the page; reading it must not cost a Groq call."""
+    extraction = hybrid.extract_deterministically(
+        _page_bundle(REAL_FORM_E_AMOUNT_TEXT),
+        SupportingDocumentType.FORM_E_OR_PSW_EXPORT_DECLARATION,
+    )
+
+    amount = extraction.fields["amount"]
+    assert amount.value is not None
+    assert str(amount.value) == "2000.00"
+    # The excerpt above deliberately omits the invoice reference, so only the
+    # amount is asserted to be resolved - it is the field that used to spend a
+    # gap-fill call on a figure the page states outright.
+    assert "amount" not in extraction.unresolved_important_fields()
+
+
+class _Check:
+    """Minimal stand-in for a built compliance check result."""
+
+    def __init__(
+        self,
+        check_id: str,
+        status: str,
+        required_document: str | None,
+        message: str = "unverifiable",
+    ):
+        self.check_id = check_id
+        self.check_name = check_id
+        self.status = status
+        self.message = message
+        self.required_document = required_document
+        self.source_document = "SRO 2486(I)/2025"
+        self.sro_number = "2486(I)/2025"
+        self.source_page = 1
+
+
+def test_unverifiable_180_day_window_is_paperwork_not_a_document_defect() -> None:
+    """An absent letter of credit belongs on the checklist, not the findings.
+
+    Without a letter of credit there is no date to measure the 180-day window
+    from. The check reported this as a finding about the uploaded files, which
+    told the exporter their correct invoice and packing list were at fault.
+    Naming the required document routes it to "still to obtain" instead.
+    """
+    check = _Check(
+        "raw_cotton_shipment_within_180_days",
+        ComplianceCheckStatus.MANUAL_REVIEW.value,
+        "irrevocable_letter_of_credit",
+    )
+    assert is_outstanding_document_check(check) is True
+
+
+def test_held_letter_of_credit_with_an_unread_date_is_not_paperwork_to_obtain() -> None:
+    """Holding the document but not its date is a different problem.
+
+    Routing the unverifiable window to the "still to obtain" checklist is only
+    right when the letter of credit was never supplied. If it was uploaded and
+    only its date could not be read, telling the exporter to go and obtain a
+    document they already hold would be wrong, so the check stays a finding.
+    """
+    check = _Check(
+        "raw_cotton_shipment_within_180_days",
+        ComplianceCheckStatus.MANUAL_REVIEW.value,
+        None,
+        "The 180-day shipment window could not be checked because the "
+        "letter-of-credit date could not be read from the documents provided.",
+    )
+    assert is_outstanding_document_check(check) is False
+
+
+def test_one_missing_letter_of_credit_is_reported_once() -> None:
+    """Two rules naming the same document are one thing for the exporter."""
+    outstanding = collect_outstanding_documents(
+        [
+            _Check(
+                "raw_cotton_irrevocable_letter_of_credit",
+                ComplianceCheckStatus.FAILED.value,
+                "irrevocable_letter_of_credit",
+                "Raw cotton requires an irrevocable letter of credit.",
+            ),
+            _Check(
+                "raw_cotton_shipment_within_180_days",
+                ComplianceCheckStatus.MANUAL_REVIEW.value,
+                "irrevocable_letter_of_credit",
+                "The 180-day shipment window could not be checked.",
+            ),
+        ]
+    )
+
+    assert len(outstanding) == 1
+    assert outstanding[0].document_type == "irrevocable_letter_of_credit"
+    # Both citations are kept against the single entry.
+    assert len(outstanding[0].reasons) == 2
