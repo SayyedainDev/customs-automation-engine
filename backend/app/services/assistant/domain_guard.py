@@ -238,6 +238,19 @@ _FORBIDDEN_CLAIM_PATTERNS = (
     (r"\b(is|are)\s+authentic\b", "external-authenticity claim"),
     (r"\bcertified\s+authentic\b", "external-authenticity claim"),
     (r"\bcace\s+(approves|certifies|clears)\b", "compliance verdict"),
+    # Completeness is a claim about everything the corpus does *not* say, which
+    # retrieved passages can never support. A live answer about denim pants
+    # ended "These are the only documents required for denim pants export
+    # according to the indexed sources" - an exporter who trusted that would
+    # arrive at customs short of paperwork.
+    (
+        r"\b(these|those)\s+are\s+the\s+only\s+documents?\b"
+        r"|\bthe\s+only\s+documents?\s+(you\s+)?(need|needed|require[ds]?)\b"
+        r"|\bnothing\s+else\s+is\s+(needed|required)\b"
+        r"|\bno\s+other\s+documents?\s+(are|is)\s+(needed|required)\b"
+        r"|\bthis\s+is\s+(a\s+)?(the\s+)?(complete|exhaustive|full)\s+list\b",
+        "completeness claim",
+    ),
 )
 
 

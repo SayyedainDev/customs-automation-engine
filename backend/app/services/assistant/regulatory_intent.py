@@ -17,13 +17,17 @@ to return.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from app.services.assistant.domain_guard import DomainVerdict, check_domain
 from app.services.assistant.destinations import extract_destination
 from app.services.assistant.foundation import normalize_pct_code
-from app.services.assistant.product_resolver import ProductResolution, resolve_product
+from app.services.assistant.product_resolver import (
+    ProductResolution,
+    resolve_product,
+    textile_signals,
+)
 from app.services.assistant.scopes import is_deterministic_compliance_scope
 
 RegulatoryIntent = Literal[
@@ -153,6 +157,31 @@ def extract_pct_code(text: str) -> str | None:
     return normalize_pct_code(match.group(1) + match.group(2))
 
 
+#: Wording that adds nothing beyond naming the product: articles, the export
+#: framing itself, and the generic "requirements/documents" ask that already
+#: routes to the checklist anyway.
+_PRODUCT_FRAMING_WORDS = frozenset(
+    """
+    a an the my our of for to from in on and or about please tell me i want
+    need help with export exports exporting shipment shipments ship shipping
+    consignment goods product products item items requirement requirements
+    document documents documentation paperwork papers checklist rules
+    """.split()
+)
+
+
+def _is_bare_product_mention(text: str) -> bool:
+    """Whether the question is a product name and nothing substantive else."""
+    from app.services.assistant.product_resolver import product_vocabulary
+
+    leftover = [
+        word
+        for word in re.findall(r"[a-z0-9][a-z0-9'-]*", (text or "").casefold())
+        if word not in _PRODUCT_FRAMING_WORDS and word not in product_vocabulary()
+    ]
+    return not leftover
+
+
 def classify_regulatory_intent(
     question: str,
     *,
@@ -160,11 +189,38 @@ def classify_regulatory_intent(
     shipment_selected: bool = False,
 ) -> IntentDecision:
     """Route a question asked of the global regulatory assistant."""
+    text = question or ""
     domain = check_domain(question)
     if not domain.in_domain:
-        return IntentDecision("out_of_scope", domain)
-
-    text = question or ""
+        # A question the product resolver understands is a question about a
+        # product CACE deterministically supports, so it cannot be off-topic.
+        # The guard wants a trade-context word alongside the product, which
+        # bare product names do not have: "Cotton", "cotton yarn" and "denim
+        # pants" were all refused with "I can only answer questions about
+        # customs, trade..." while resolving cleanly to supported PCT codes.
+        rescued = resolve_product(text)
+        names_a_product = rescued is not None and (
+            rescued.is_resolved or rescued.is_ambiguous
+        )
+        # A bare textile family word - "Cotton" - names no single article, so
+        # the resolver cannot pick a code and the guard saw no trade context.
+        # It is still plainly a question for a textile customs assistant, and
+        # the honest reply is to ask which product rather than to refuse.
+        names_a_family = _is_bare_product_mention(text) and bool(
+            set(re.findall(r"[a-z]+", text.casefold())) & textile_signals()
+        )
+        if not (names_a_product or names_a_family):
+            return IntentDecision("out_of_scope", domain)
+        domain = replace(domain, in_domain=True)
+        if names_a_family and not names_a_product:
+            return IntentDecision(
+                "product_clarification_required",
+                domain,
+                None,
+                answer_mode="clarification",
+                product=rescued,
+                destination=None,
+            )
     pct_code = normalize_pct_code(pct_filter) if pct_filter else extract_pct_code(text)
     supported = is_deterministic_compliance_scope(pct_code)
     verdict_requested = bool(_COMPLIANCE_DECISION.search(text))
@@ -201,7 +257,11 @@ def classify_regulatory_intent(
     # document search: previously "what documents to prepare for cotton pants"
     # matched the document-search pattern and never reached guidance at all,
     # because a PCT code was only ever taken from digits typed in the question.
-    product = resolve_product(text) if checklist_wanted else None
+    # Resolved unconditionally. Gating this on a checklist verb meant that
+    # naming a product without one - "cotton yarn", "denim pants" - carried no
+    # product at all, so the question fell through to generic passage
+    # retrieval and answered about cotton in general.
+    product = resolve_product(text)
     if checklist_wanted and product is not None:
         if not pct_code and product.is_resolved:
             pct_code = product.pct_code
@@ -287,6 +347,35 @@ def classify_regulatory_intent(
             answer_mode="document_search",
             destination=destination,
         )
+
+    # Naming a supported product and nothing else is a question about
+    # exporting it. Someone who types "cotton yarn" into a customs assistant
+    # wants to know what that export involves, and CACE has a deterministic
+    # answer for it - far better than retrieving passages about cotton.
+    #
+    # Only when the product *is* the whole question. "What is the 180 day rule
+    # for raw cotton?" also names a supported product, but it asks about a
+    # rule, and answering it with a document checklist would ignore what was
+    # asked. Anything left over after the product wording is a real question.
+    if product is not None and not pct_code and _is_bare_product_mention(text):
+        if product.is_resolved and is_deterministic_compliance_scope(product.pct_code):
+            return IntentDecision(
+                "supported_pct_guidance",
+                domain,
+                product.pct_code,
+                answer_mode="checklist",
+                product=product,
+                destination=destination,
+            )
+        if product.is_ambiguous:
+            return IntentDecision(
+                "product_clarification_required",
+                domain,
+                None,
+                answer_mode="clarification",
+                product=product,
+                destination=destination,
+            )
 
     return IntentDecision(
         "general_regulatory_information",

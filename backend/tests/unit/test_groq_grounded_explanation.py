@@ -269,17 +269,57 @@ def test_leaked_tokens_are_sanitized_before_validation(
 # --------------------------------------------------------------------------- #
 # Groq must never run for the modes it was explicitly excluded from
 # --------------------------------------------------------------------------- #
-def test_groq_is_not_called_for_checklist_questions(
+def test_checklist_questions_are_explained_by_groq_over_a_fixed_list(
     isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Checklist answers are now retrieved and explained, not just templated.
+
+    This asserted Groq was never called here, which made the most common
+    question in the product - "what documents do I need to export X" - the one
+    path that never reached the corpus or the model at all. It now retrieves
+    and explains.
+
+    What must not change is where the document list comes from: the checklist
+    is decided by the deterministic compliance rules and is still rendered
+    verbatim underneath the prose, and the structured document fields are
+    untouched by the model.
+    """
     calls: list[dict] = []
-    fake = _fake_groq("should never be reached", calls=calls)
+    fake = _fake_groq(
+        "Cotton towels are a mill-made textile export. The invoice and packing "
+        "list describe what you are sending, and the export declaration files "
+        "it with customs.",
+        calls=calls,
+    )
     monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
     with Session(isolated_database) as db:
         build_corpus(db)
         response = ask(db, "what documents do I need for cotton towels to China?")
+
     assert response.answer_mode == "checklist"
-    assert calls == []
+    assert len(calls) == 1
+    assert "Cotton towels are a mill-made textile export" in response.answer
+    # The deterministic checklist survives underneath the generated prose.
+    assert "Required documents" in response.answer
+    assert "Commercial Invoice" in response.answer
+    assert [d.display_name for d in response.required_documents]
+
+
+def test_checklist_prose_is_dropped_if_it_invents_a_document(
+    isolated_database: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The model may explain the checklist; it may not extend it."""
+    fake = _fake_groq(
+        "For cotton towels you must also obtain a bill of entry and an "
+        "inspection certificate before the goods can be shipped anywhere.",
+    )
+    monkeypatch.setattr(extraction_service, "_get_groq_client", lambda: fake)
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = ask(db, "what documents do I need for cotton towels to China?")
+
+    assert "bill of entry" not in response.answer.casefold()
+    assert "Required documents" in response.answer
 
 
 def test_groq_is_not_called_for_document_search(

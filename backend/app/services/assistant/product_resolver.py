@@ -66,11 +66,31 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "bedsheet": ("63023110",),
     "bedsheets": ("63023110",),
     "bedlinen": ("63023110",),
+    "jeans": ("62034200", "62046290"),
     # Materials and fabric.
     "yarn": ("52051100", "52052100"),
     "denim": ("52094200", "52114200"),
     "fabric": ("52085200", "52093100", "52094200", "52114200"),
 }
+
+#: Aliases that name a material or raw commodity rather than a finished
+#: article. When a garment alias is present too, the garment is what the user
+#: is asking about and the material is only describing it - "denim pants" are
+#: trousers, not fabric. Matching took the first alias token in the sentence,
+#: so "denim pants" resolved to denim fabric.
+_MATERIAL_ALIASES = frozenset({"yarn", "denim", "fabric"})
+
+#: Multi-word product names, checked before single-word aliases so the longer
+#: and more specific reading wins. "Raw cotton" is a supported code in its own
+#: right (52010090) but had no vocabulary at all, so the single product whose
+#: rules CACE models most fully could not be named in words.
+_PHRASE_ALIASES: tuple[tuple[re.Pattern[str], str, tuple[str, ...]], ...] = (
+    (re.compile(r"\braw\s+cotton\b"), "raw cotton", ("52010090",)),
+    (re.compile(r"\bcotton\s+lint\b"), "cotton lint", ("52010090",)),
+    (re.compile(r"\bcombed\s+(cotton\s+)?yarn\b"), "combed yarn", ("52052100",)),
+    (re.compile(r"\bterry\s+towels?\b"), "terry towel", ("63026010",)),
+    (re.compile(r"\bbed\s+sheets?\b"), "bed sheet", ("63023110",)),
+)
 
 #: Qualifiers that disambiguate an alias, applied only within its candidates.
 _MENS = frozenset({"men", "mens", "man", "male", "boy", "boys", "gents", "gentlemen"})
@@ -113,6 +133,16 @@ class ProductResolution:
         if not self.pct_code:
             return None
         return supported_pct_products().get(self.pct_code)
+
+
+def product_vocabulary() -> frozenset[str]:
+    """Every word this resolver recognises as naming or describing a product.
+
+    Callers use it to tell "the question is just a product name" from "the
+    question is about something else and happens to name a product".
+    """
+    phrase_words = {word for _p, term, _c in _PHRASE_ALIASES for word in term.split()}
+    return frozenset(_REPAIRABLE | phrase_words)
 
 
 def _edit_distance_within_one(a: str, b: str) -> bool:
@@ -174,9 +204,38 @@ def resolve_product(question: str) -> ProductResolution:
         # No textile context: refuse to map anything, however close the spelling.
         return ProductResolution(corrections={})
 
-    matched_term = next((t for t in tokens if t in _ALIASES), None)
-    if matched_term is None:
+    # A multi-word name is more specific than any single word inside it.
+    normalized_text = " ".join(tokens)
+    phrase = next(
+        (
+            (term, codes)
+            for pattern, term, codes in _PHRASE_ALIASES
+            if pattern.search(normalized_text)
+        ),
+        None,
+    )
+    if phrase is not None:
+        matched_term, phrase_codes = phrase
+        supported_now = set(supported_pct_codes())
+        usable = [code for code in phrase_codes if code in supported_now]
+        if len(usable) == 1:
+            return ProductResolution(
+                pct_code=usable[0], corrections=corrections, matched_term=matched_term
+            )
+        if usable:
+            return ProductResolution(
+                candidates=tuple(sorted(usable)),
+                corrections=corrections,
+                matched_term=matched_term,
+            )
+
+    alias_tokens = [t for t in tokens if t in _ALIASES]
+    # A garment named alongside its material is a question about the garment.
+    article_tokens = [t for t in alias_tokens if t not in _MATERIAL_ALIASES]
+    preferred = article_tokens or alias_tokens
+    if not preferred:
         return ProductResolution(corrections=corrections)
+    matched_term = preferred[0]
 
     candidates = list(_ALIASES[matched_term])
     supported = set(supported_pct_codes())
@@ -210,3 +269,8 @@ def resolve_product(question: str) -> ProductResolution:
         corrections=corrections,
         matched_term=matched_term,
     )
+
+
+def textile_signals() -> frozenset[str]:
+    """The textile-family words that place a question in this domain."""
+    return _TEXTILE_SIGNALS

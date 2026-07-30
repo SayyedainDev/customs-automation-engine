@@ -67,7 +67,10 @@ from app.services.assistant.scopes import (
     supported_compliance_scope_labels,
 )
 from app.core.exceptions import StructuredExtractionProviderError
-from app.services.structured_extraction_service import generate_grounded_explanation
+from app.services.structured_extraction_service import (
+    generate_checklist_explanation,
+    generate_grounded_explanation,
+)
 from app.services.regulatory.citation_validation import (
     DraftCitation,
     validate_rag_output,
@@ -132,6 +135,9 @@ _QUERY_STOPWORDS = frozenset(
     indexed corpus cace
     source sources specifically specific regarding concerning related relating
     broader exists exist anything something mentioned
+    passage passages excerpt excerpts quote quotes text texts
+    mentioning containing referencing covering discussing stating saying
+    listing finding searching
     """.split()
 )
 
@@ -217,15 +223,31 @@ _CONCEPTS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+#: A tariff code as typed: eight digits, optionally split by a dot or space.
+_PCT_SHAPED = re.compile(r"\b\d{4}[.\s-]?\d{4}\b")
+
+
 def _normalize_for_retrieval(question: str, pct_code: str | None) -> str:
     """Rewrite a question into the corpus's own vocabulary before retrieval."""
     text = question or ""
-    canonical = [terms for pattern, terms in _CONCEPTS if pattern.search(text)]
-    if canonical:
-        parts = " ".join(canonical).split()
-    else:
-        words = re.findall(r"[a-z0-9][a-z0-9\-]*", text.casefold())
-        parts = [word for word in words if word not in _QUERY_STOPWORDS] or words
+    # The question's own words come first, and the canonical vocabulary is
+    # added after them. Matching a concept used to *replace* the question
+    # entirely, which discarded exactly the terms that made it specific:
+    # "What is the 180 day rule for raw cotton?" was searched as "cotton
+    # textile export policy order schedule conditions", with "180" and "day"
+    # gone, so the SRO that states the rule could never rank. Expansion helps
+    # recall; substitution destroys precision.
+    # Tariff codes come from the ``pct_code`` argument, never from the
+    # question's own words. Stage 2 broadens precisely by dropping the code,
+    # and it cannot do that if the digits the user typed are still in the
+    # query - a question naming an unsupported code would retrieve nothing at
+    # all instead of the related-category passages it is meant to fall back to.
+    stripped = _PCT_SHAPED.sub(" ", text.casefold())
+    words = re.findall(r"[a-z0-9][a-z0-9\-]*", stripped)
+    parts = [word for word in words if word not in _QUERY_STOPWORDS] or words
+    for _pattern, terms in _CONCEPTS:
+        if _pattern.search(text):
+            parts.extend(terms.split())
     if pct_code:
         parts.append(pct_code)
     seen: set[str] = set()
@@ -770,6 +792,75 @@ def _render_plain_explanation(
     return "\n\n".join(lines), [], citations[:3]
 
 
+#: Documents an explanation may name. Anything else means the model invented
+#: a requirement, which is the one failure the checklist path cannot tolerate.
+_DOCUMENT_MENTION = re.compile(
+    r"\b(bill of entry|bill of lading|letter of credit|import permit|"
+    r"export licence|export license|insurance certificate|inspection "
+    r"certificate|phytosanitary|fumigation|health certificate|gsp form|"
+    r"form a\b|atr\b|eur1|movement certificate)\b",
+    re.IGNORECASE,
+)
+
+
+def _checklist_explanation_is_acceptable(
+    answer: str, allowed_documents: list[str]
+) -> bool:
+    """The checklist's own gate, on top of the shared answer checks.
+
+    The document list is deterministic and drives what an exporter goes and
+    obtains. An explanation that names a document the rules did not require -
+    or that declares the list complete - would contradict the very thing it is
+    explaining, so it is rejected and the written template is used instead.
+    """
+    if not _groq_answer_is_acceptable(answer):
+        return False
+    allowed = " ".join(allowed_documents).casefold()
+    for match in _DOCUMENT_MENTION.finditer(answer):
+        if match.group(0).casefold() not in allowed:
+            return False
+    if re.search(
+        r"\b(only|all（?)?\s+(the\s+)?documents?\s+(you\s+)?(need|required)\b"
+        r"|\bthese are the only\b|\bnothing else is (needed|required)\b"
+        r"|\bcomplete list\b|\bexhaustive\b",
+        answer,
+        re.IGNORECASE,
+    ):
+        return False
+    return True
+
+
+def _groq_checklist_explanation_or_none(
+    *,
+    question: str,
+    guidance,  # type: ignore[no-untyped-def]
+    required: list[ChecklistDocumentSchema],
+    conditional: list[ChecklistDocumentSchema],
+    citations: list[RegulatoryCitationSchema],
+) -> str | None:
+    """Plain-language prose for a deterministic checklist; None on any failure."""
+    try:
+        raw = generate_checklist_explanation(
+            question=question,
+            product=guidance.product,
+            pct_code=guidance.pct_code,
+            required_documents=[d.display_name for d in required],
+            conditional_documents=[d.display_name for d in conditional],
+            evidence_passages=[
+                c.accepted_passage for c in citations[:4] if c.accepted_passage
+            ],
+        )
+    except StructuredExtractionProviderError:
+        return None
+    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
+        return None
+    safe = sanitize_for_display(raw)
+    allowed = [d.display_name for d in (*required, *conditional)]
+    if not safe or not _checklist_explanation_is_acceptable(safe, allowed):
+        return None
+    return safe
+
+
 def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
     """One short answer with the exact source and page."""
     if not citations:
@@ -1079,13 +1170,41 @@ def answer_regulatory_question(
             destination=country,
         )
         required, conditional = _checklist_documents(guidance)
+        # Retrieve, then explain. This path used to answer entirely from a
+        # written template with no retrieval and no model call at all, so the
+        # most common question in the product - "what do I need to export X" -
+        # never reached the corpus. The checklist stays deterministic; the
+        # passages and the model only supply the words around it.
+        checklist_evidence, _scope = _staged_retrieve(
+            db,
+            question=question,
+            pct_code=effective_pct,
+            supported=True,
+            destination=destination,
+            source_document=source_document,
+            top_k=top_k,
+        )
+        checklist_citations = [
+            _to_citation(item, get_corpus_snapshot_date(db))
+            for item in checklist_evidence
+        ][:3]
+        prose = _groq_checklist_explanation_or_none(
+            question=question,
+            guidance=guidance,
+            required=required,
+            conditional=conditional,
+            citations=checklist_citations,
+        )
+        checklist_body = _render_checklist(
+            guidance, destination=destination_used, corrections=corrections
+        )
         return respond(
-            answer=_render_checklist(
-                guidance, destination=destination_used, corrections=corrections
+            answer=(
+                f"{prose}\n\n{checklist_body}" if prose else checklist_body
             ),
             intent="supported_pct_guidance",
             evidence_status="accepted",
-            citations=[],
+            citations=checklist_citations,
             limitations=[GENERAL_LIMITATION],
             informational_only=False,
             evidence_scope=EXACT_PCT,
