@@ -85,6 +85,7 @@ _MATERIAL_ALIASES = frozenset({"yarn", "denim", "fabric"})
 #: right (52010090) but had no vocabulary at all, so the single product whose
 #: rules CACE models most fully could not be named in words.
 _PHRASE_ALIASES: tuple[tuple[re.Pattern[str], str, tuple[str, ...]], ...] = (
+    (re.compile(r"\bt\s+shirts?\b"), "t-shirt", ("61091000",)),
     (re.compile(r"\braw\s+cotton\b"), "raw cotton", ("52010090",)),
     (re.compile(r"\bcotton\s+lint\b"), "cotton lint", ("52010090",)),
     (re.compile(r"\bcombed\s+(cotton\s+)?yarn\b"), "combed yarn", ("52052100",)),
@@ -142,7 +143,12 @@ def product_vocabulary() -> frozenset[str]:
     question is about something else and happens to name a product".
     """
     phrase_words = {word for _p, term, _c in _PHRASE_ALIASES for word in term.split()}
-    return frozenset(_REPAIRABLE | phrase_words)
+    # Plurals count as naming the product, so "Tshirts" on its own reads as a
+    # bare product mention rather than as a question with leftover words.
+    plurals = {f"{word}s" for word in _REPAIRABLE} | {
+        f"{word}es" for word in _REPAIRABLE
+    }
+    return frozenset(_REPAIRABLE | phrase_words | plurals)
 
 
 def _edit_distance_within_one(a: str, b: str) -> bool:
@@ -169,6 +175,20 @@ def _edit_distance_within_one(a: str, b: str) -> bool:
     return True
 
 
+def _singular(token: str) -> str | None:
+    """The known vocabulary word this token is the plural of, if it is one."""
+    for stem in (token[:-3] + "y", token[:-2], token[:-1]):
+        # "jerseys" -> "jersey" via the -es/-s forms; the -ies form covers
+        # nothing in this table today but costs nothing and is not wrong.
+        if token.endswith("ies") and stem.endswith("y") and stem in _REPAIRABLE:
+            return stem
+        if token.endswith("es") and stem in _REPAIRABLE and len(stem) > 2:
+            return stem
+        if token.endswith("s") and stem in _REPAIRABLE and len(stem) > 2:
+            return stem
+    return None
+
+
 def _repair(token: str) -> str | None:
     """The single vocabulary word this token is an obvious misspelling of."""
     if len(token) < _MIN_REPAIR_LENGTH or token in _REPAIRABLE:
@@ -192,6 +212,16 @@ def resolve_product(question: str) -> ProductResolution:
         if normalized in _REPAIRABLE:
             tokens.append(normalized)
             continue
+        # A plural is not a misspelling, and it has to be recognised as such
+        # *before* spelling repair. "t-shirts" was repaired to "t-shirt" and
+        # so counted as a correction, while "tshirts" sat at edit distance 1
+        # from both "tshirt" and "shirts" and was therefore rejected as an
+        # ambiguous repair - a plain plural of a catalog product resolved to
+        # nothing. Only strip the s when what remains is already known.
+        singular = _singular(normalized)
+        if singular is not None:
+            tokens.append(singular)
+            continue
         repaired = _repair(normalized)
         if repaired:
             corrections[token] = repaired
@@ -200,8 +230,23 @@ def resolve_product(question: str) -> ProductResolution:
             tokens.append(normalized)
 
     present = set(tokens)
-    if not (present & _TEXTILE_SIGNALS):
+    # A word from the product table is itself the textile context. Requiring a
+    # *separate* signal word meant "Tshirts", "shirts" and "T-shirts" resolved
+    # to nothing at all, because the question never said "cotton" or "textile"
+    # - so asking about the catalog's own products in the most natural way
+    # possible failed. The signal is still required for a *repaired* token,
+    # which is where the guard actually earns its keep: it stops "paint" in a
+    # hardware question being rewritten into "pants" and routed to a garment.
+    direct_alias = bool(present & set(_ALIASES))
+    repaired_only = set(corrections.values()) & set(_ALIASES)
+    if not direct_alias and not (present & _TEXTILE_SIGNALS):
         # No textile context: refuse to map anything, however close the spelling.
+        return ProductResolution(corrections={})
+    if repaired_only and not (present & _TEXTILE_SIGNALS) and not (
+        (present & set(_ALIASES)) - repaired_only
+    ):
+        # The only product word here came from a spelling repair, with nothing
+        # else placing the question in textiles. Too weak to act on.
         return ProductResolution(corrections={})
 
     # A multi-word name is more specific than any single word inside it.

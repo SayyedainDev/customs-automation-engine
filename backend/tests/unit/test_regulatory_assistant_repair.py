@@ -250,3 +250,45 @@ def test_clarification_without_a_named_concept_is_unchanged() -> None:
 
     assert "required for both of the products below" not in answer
     assert answer.startswith("Cotton yarn could mean")
+
+
+# --------------------------------------------------------------------------- #
+# Plain product names, as people actually type them
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("Tshirts", "61091000"),
+        ("tshirts", "61091000"),
+        ("T-shirts", "61091000"),
+        ("t shirts", "61091000"),
+        ("towels", "63026010"),
+        ("blankets", "63013000"),
+        ("jerseys", "61102000"),
+    ],
+)
+def test_plural_product_names_resolve(question: str, expected: str) -> None:
+    """Nobody types the singular. These all resolved to nothing.
+
+    Two causes. The resolver demanded a *separate* textile signal word
+    ("cotton", "fabric"), which a bare "Tshirts" does not have. And plurals
+    were handed to the spelling repairer, where "tshirts" sat at edit distance
+    1 from both "tshirt" and "shirts" and was rejected as an ambiguous repair.
+    """
+    assert resolve_product(question).pct_code == expected
+
+
+def test_a_product_word_is_its_own_textile_context() -> None:
+    """"What is Form E and is it required for Tshirts" - no "cotton" anywhere."""
+    decision = classify_regulatory_intent(
+        "What is Form E and is it required for Tshirts"
+    )
+    assert decision.intent == "supported_pct_guidance"
+    assert decision.pct_code == "61091000"
+
+
+def test_a_repaired_word_still_needs_textile_context() -> None:
+    """The guard that stops "paint" becoming "pants" must survive all this."""
+    assert resolve_product("paint for my house").pct_code is None
+    assert resolve_product("I need paint").pct_code is None
+    assert classify_regulatory_intent("paint for my house").intent == "out_of_scope"

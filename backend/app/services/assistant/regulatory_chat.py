@@ -911,6 +911,45 @@ def _groq_checklist_explanation_or_none(
     return safe
 
 
+def _groq_clarification_explanation_or_none(
+    *,
+    question: str,
+    candidates: list[tuple[str, str]],
+    required: list[str],
+    conditional: list[str],
+    citations: list[RegulatoryCitationSchema],
+) -> str | None:
+    """Plain-language prose for an ambiguous-product answer; None on failure.
+
+    Uses the same explainer and the same guard as the checklist path: the
+    documents listed are the ones every candidate already shares, so naming
+    anything outside them would be inventing a requirement here too.
+    """
+    product_line = " or ".join(name for _code, name in candidates)
+    codes = ", ".join(code for code, _name in candidates)
+    try:
+        raw = generate_checklist_explanation(
+            question=question,
+            product=f"{product_line} (the question does not say which)",
+            pct_code=codes,
+            required_documents=required,
+            conditional_documents=conditional,
+            evidence_passages=[
+                c.accepted_passage for c in citations[:4] if c.accepted_passage
+            ],
+        )
+    except StructuredExtractionProviderError:
+        return None
+    except Exception:  # noqa: BLE001 - any provider/transport failure falls back
+        return None
+    safe = sanitize_for_display(raw)
+    if not safe or not _checklist_explanation_is_acceptable(
+        safe, [*required, *conditional]
+    ):
+        return None
+    return safe
+
+
 def _render_evidence_lookup(citations: list[RegulatoryCitationSchema]) -> str:
     """One short answer with the exact source and page."""
     if not citations:
@@ -1190,18 +1229,49 @@ def answer_regulatory_question(
                     pair for pair in (shared_conditional or []) if pair[0] in
                     {n for n, _ in cond_pairs}
                 ]
+        # Retrieve and explain here too. This branch answered entirely from a
+        # template, so a question like "What is Form E and is it required for
+        # yarn?" came back as headings and bullet lists with no plain-language
+        # answer in it anywhere.
+        clarification_evidence, _clarify_scope = _staged_retrieve(
+            db,
+            question=question,
+            pct_code=None,
+            supported=False,
+            destination=destination,
+            source_document=source_document,
+            top_k=top_k,
+        )
+        clarification_citations = [
+            _to_citation(item, get_corpus_snapshot_date(db))
+            for item in clarification_evidence
+        ][:3]
+        clarification_prose = _groq_clarification_explanation_or_none(
+            question=question,
+            candidates=candidates,
+            required=shared_required or [],
+            conditional=[name for name, _ in (shared_conditional or [])],
+            citations=clarification_citations,
+        )
+        clarification_body = _render_clarification(
+            candidates,
+            guidance_pairs=(shared_required or [], shared_conditional or []),
+            destination=destination_used,
+            corrections=corrections,
+            matched_term=decision.product.matched_term if decision.product else None,
+            # The written concept template is the fallback for the plain-language
+            # half, so it is only rendered when the model did not supply one.
+            question="" if clarification_prose else question,
+        )
         return respond(
-            answer=_render_clarification(
-                candidates,
-                guidance_pairs=(shared_required or [], shared_conditional or []),
-                destination=destination_used,
-                corrections=corrections,
-                matched_term=decision.product.matched_term if decision.product else None,
-                question=question,
+            answer=(
+                f"{clarification_prose}\n\n{clarification_body}"
+                if clarification_prose
+                else clarification_body
             ),
             intent=decision.intent,
             evidence_status="not_applicable",
-            citations=[],
+            citations=clarification_citations,
             limitations=[GENERAL_LIMITATION],
             answer_mode="clarification",
             required_documents=[
