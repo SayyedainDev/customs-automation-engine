@@ -224,3 +224,24 @@ def test_a_genuine_gap_fill_is_still_labelled_as_one() -> None:
     )
 
     assert field.extraction_method == ExtractionMethod.LLM_GAPFILL
+
+
+# --------------------------------------------------------------------------- #
+# The review screen
+# --------------------------------------------------------------------------- #
+def test_the_review_screen_shows_the_question_not_the_internal_reason() -> None:
+    """The plain-language question rendered only inside CorrectionPanel.
+
+    That panel does not render when no value is in dispute - exactly the case
+    where the reviewer most needs the question - so they were shown the raw
+    consensus string instead: "unresolved issues: evidence_partial;
+    required_fields: no source page/locator".
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    source = (root / "frontend/src/components/AgentAuditResult.tsx").read_text()
+
+    assert "{reviewTask.plain_language_question || reviewTask.reason}" in source
+    # The raw internal strings are kept, but behind a technical disclosure.
+    assert '<summary>Why this needs a person</summary>' in source

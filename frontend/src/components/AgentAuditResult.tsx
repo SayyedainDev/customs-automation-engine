@@ -938,7 +938,14 @@ export function AgentAuditResult({
             <UserCheck aria-hidden="true" size={19} />
             <div>
               <strong>{reviewTask.title || "Human decision required"}</strong>
-              <p>{reviewTask.reason}</p>
+              {/* The plain-language question was rendered only inside
+                  CorrectionPanel, which does not render when no value is in
+                  dispute - exactly the case where the reviewer most needs it.
+                  They were left with the raw consensus string ("unresolved
+                  issues: evidence_partial; required_fields: no source
+                  page/locator"), which states the internal reason rather than
+                  the decision being asked for. */}
+              <p>{reviewTask.plain_language_question || reviewTask.reason}</p>
 
               {onCorrection && reviewTask.disputed_field_details.length ? (
                 <CorrectionPanel
@@ -947,14 +954,14 @@ export function AgentAuditResult({
                   onCorrection={onCorrection}
                 />
               ) : reviewTask.disputed_fields.length ? (
-                <div>
-                  <strong>Disputed fields</strong>
+                <details className="technical-details">
+                  <summary>Why this needs a person</summary>
                   <ul className="plain-list">
                     {reviewTask.disputed_fields.map((field, index) => (
                       <li key={index}>{displayValue(field)}</li>
                     ))}
                   </ul>
-                </div>
+                </details>
               ) : null}
 
               <div className="action-row">
