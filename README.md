@@ -1,28 +1,22 @@
-CACE — Customs Automation and Compliance Engine
+Enterprise Customs Automation Engine
 
-CACE is an end-to-end Generative AI capstone for auditing Pakistan textileexport documents before customs submission. It combines a FastAPI backend witha React operations console and demonstrates document extraction, deterministiccompliance validation, grounded regulatory retrieval, LangGraph-based reviewroles, human review, and persistent shipment history.
+A GenAI bootcamp capstone for auditing Pakistan textile export documents beforecustoms submission. It includes a FastAPI backend and a restrained operationsconsole for the class demonstration.
 
-The current MVP covers 17 validated textile PCT codes. Deterministic rulesremain the authority for passed, failed, and manual_review; LLM componentsonly assist with unresolved extraction and evidence-based explanations. CACE isan educational prototype, not a production customs system or source of legaladvice.
+The project is an agentic customs-audit prototype covering 17 validatedtextile PCT codes. It combines hybrid PDF extraction, deterministiccompliance rules, regulatory retrieval with Groq-generated plain-languageexplanation, LangGraph validation roles, human review, and persistent shipmenthistory. It is a demonstrable MVP, not a production customs or legal-advicesystem.
 
 Submission links
 
-Resource
 
-Link
 
-Live Railway application
 
-Open CACE review console
 
-Railway API documentation
+Live application
 
-Open Swagger UI
+https://cace-production.up.railway.app/app/#/review
 
-Demo video (Google Drive)
+Demo video
 
-GOOGLE_DRIVE_DEMO_VIDEO_LINK
-
-Replace the Google Drive placeholder with the shared folder or video URL. Setaccess to Anyone with the link → Viewer before the final evaluation.
+add the URL here before submitting
 
 The live console opens on Review Export Documents. The other twoexperiences are Prepare an Export and Ask CACE, reachable from thenavigation.
 
@@ -511,24 +505,32 @@ Auto deploys: enabled
 
 With those settings, pushing a commit to main rebuilds the same Railwayservice automatically. Container startup runs init_db and then the numberedmigration runner before accepting requests. The public domain redirects to theconsole, while Swagger remains available at /docs.
 
-Team reflection
-
-This capstone was completed as a solo end-to-end project. The most importantlesson was separating deterministic compliance decisions from LLM-assistedextraction and explanation. This reduced hallucination risk and kept everystatus traceable to explicit rules and regulatory evidence.
-
-The main engineering challenges were extracting inconsistent PDF layouts,keeping Groq usage within free-tier limits, grounding explanations withretrieved evidence, and making LangGraph workflows resumable after humanreview. The project strengthened practical skills in FastAPI, PostgreSQL,hybrid RAG, reranking, LangGraph, testing, Docker, Railway deployment, andfrontend/backend integration.
-
-Contribution
-
-Muhammad Sayyedain — system design, backend and frontend development, PDFextraction, compliance rules, hybrid retrieval and reranking, LangGraphworkflow, testing, deployment, and documentation.
-
 Known limitations
 
-The current scope covers 17 textile PCT codes and a fixed regulatory snapshotdated 2026-07-22, not the full customs tariff or live legal updates.
+17 textile PCT codes, not the complete customs tariff.
 
-The system does not calculate duties or taxes and does not integrate directlywith WeBOC, PSW, or other government systems.
+Fixed regulatory snapshot, not automated daily legal updates.
 
-Testing is based mainly on synthetic documents; unusual scans and genuineexporter documents may still require human review.
+No tax/duty calculation and no live government-system integration.
 
-Some regulatory text is only partially verified page by page, so uncertaincases intentionally return manual_review instead of guessing.
+Tesseract OCR, not a multimodal vision model.
 
-This bootcamp MVP does not include authentication, distributed backgroundjobs, production monitoring, or enterprise-scale infrastructure.
+Synthetic documents are the main benchmark; genuine exporter-documentvalidation is not complete.
+
+Broker/Auditor are structured validation roles; optional LLM use isnon-authoritative narration.
+
+8 of the 9 regulatory sources are partially_verified: the documents areofficial, but their extracted text has not been validated page by page, so aclean shipment can still be routed to human review.
+
+Shipment date is not inferred from an invoice, declaration or issue date. Ifno document states it, the review reports manual_review rather thanguessing.
+
+Historical search is top-k semantic retrieval, not aggregate analytics.
+
+Embeddings are stored in SQL JSON fields and scored in-process.
+
+Core work is executed inline in API requests; there is no distributed jobqueue.
+
+No authentication, authorization, production monitoring, or enterprisescaling.
+
+The API has no UUID-upload or workflow-list endpoint, so console overviewtotals cover documents tracked by the current browser, not every databaserecord.
+
+The legacy /shipments CRUD demonstration is in memory; customs-auditworkflow records and search summaries are persisted.
