@@ -4,11 +4,23 @@ A GenAI bootcamp capstone for auditing Pakistan textile export documents before
 customs submission. It includes a FastAPI backend and a restrained operations
 console for the class demonstration.
 
-The project is an **agentic customs-audit prototype for five PCT codes**. It
-combines hybrid PDF extraction, deterministic compliance rules, regulatory
-retrieval, LangGraph validation roles, human review, and persistent shipment
+The project is an **agentic customs-audit prototype covering 17 validated
+textile PCT codes**. It combines hybrid PDF extraction, deterministic
+compliance rules, regulatory retrieval with Groq-generated plain-language
+explanation, LangGraph validation roles, human review, and persistent shipment
 history. It is a demonstrable MVP, not a production customs or legal-advice
 system.
+
+## Submission links
+
+| | |
+| --- | --- |
+| **Live application** | <https://cace-production.up.railway.app/app/#/review> |
+| **Demo video** | _add the URL here before submitting_ |
+
+The live console opens on **Review Export Documents**. The other two
+experiences are **Prepare an Export** and **Ask CACE**, reachable from the
+navigation.
 
 ## Capstone workflow
 
@@ -22,7 +34,7 @@ PyMuPDF text/coordinates -- scanned page --> Tesseract OCR
 Regex + table reconstruction -- unresolved fields --> one bounded Groq gap-fill
           |
           v
-Deterministic matching and five-PCT compliance checks
+Deterministic matching and 17-PCT compliance checks
           |
           v
 LangGraph Broker role --> Auditor challenge + regulatory evidence
@@ -47,10 +59,11 @@ status.
 | PDF extraction | PyMuPDF text and word coordinates, with Tesseract fallback for scanned pages |
 | Structured fields | Exporter, buyer, invoice data, PCT codes, quantities, prices, totals, and weights |
 | Multi-line matching | Invoice/packing-list item matching and discrepancy checks |
-| Compliance | Deterministic rules over a curated five-product textile dataset |
+| Compliance | Deterministic rules over a curated 17-product textile dataset |
 | Regulatory evidence | Local hybrid retrieval with source/page provenance and degraded-mode fallback |
 | Agent orchestration | LangGraph Broker and Auditor validation roles with structured consensus |
 | Human review | Durable interrupt, review task, correction history, resume, events, and retry |
+| Ask CACE | Hybrid retrieval, reranking and an evidence gate, then one bounded Groq call that explains the accepted passages in plain English |
 | Explanation | One bounded Groq narration call with deterministic template fallback and caching |
 | Historical search | Persistent shipment summaries with local semantic top-k retrieval |
 | Operations console | React interface for uploads, compliance results, audit workflows, and evidence search |
@@ -61,13 +74,25 @@ The hybrid extraction design and free-tier safeguards are documented in
 
 ## Supported compliance scope
 
-| PCT code | Product |
-| --- | --- |
-| `5201.0090` | Raw cotton, other |
-| `5205.1100` | Cotton yarn |
-| `5209.4200` | Denim fabric |
-| `6109.1000` | Cotton knitted T-shirts |
-| `6302.3110` | Cotton bed sheets, mill-made |
+| PCT code | Product | Category |
+| --- | --- | --- |
+| `5201.0090` | Raw cotton, other | Raw material |
+| `5205.1100` | Cotton yarn | Yarn |
+| `5205.2100` | Combed cotton yarn (heavy count) | Yarn |
+| `5208.5200` | Printed cotton fabric (light) | Woven fabric |
+| `5209.3100` | Dyed cotton fabric (heavy) | Woven fabric |
+| `5209.4200` | Denim fabric | Woven fabric |
+| `5211.4200` | Blended denim fabric | Woven fabric |
+| `6105.1000` | Men's knitted cotton shirts | Knitted garment |
+| `6106.1000` | Women's knitted cotton blouses | Knitted garment |
+| `6109.1000` | Cotton knitted T-shirts | Knitted garment |
+| `6110.2000` | Cotton knitted jerseys and pullovers | Knitted garment |
+| `6203.4200` | Men's woven cotton trousers | Woven garment |
+| `6204.6290` | Women's woven cotton trousers | Woven garment |
+| `6205.2090` | Men's woven cotton shirts | Woven garment |
+| `6301.3000` | Cotton blankets and travelling rugs | Made-up |
+| `6302.3110` | Cotton bed sheets, mill-made | Made-up |
+| `6302.6010` | Cotton terry towels (mill-made) | Made-up |
 
 The regulatory corpus is a curated FBR, Ministry of Commerce, PSW, and TDAP
 snapshot with a legal cutoff date of **2026-07-22**. Unsupported codes fail
@@ -352,7 +377,7 @@ console, while Swagger remains available at `/docs`.
 
 ## Known limitations
 
-- Five textile PCT codes, not the complete customs tariff.
+- 17 textile PCT codes, not the complete customs tariff.
 - Fixed regulatory snapshot, not automated daily legal updates.
 - No tax/duty calculation and no live government-system integration.
 - Tesseract OCR, not a multimodal vision model.
@@ -360,6 +385,12 @@ console, while Swagger remains available at `/docs`.
   validation is not complete.
 - Broker/Auditor are structured validation roles; optional LLM use is
   non-authoritative narration.
+- 8 of the 9 regulatory sources are `partially_verified`: the documents are
+  official, but their extracted text has not been validated page by page, so a
+  clean shipment can still be routed to human review.
+- Shipment date is not inferred from an invoice, declaration or issue date. If
+  no document states it, the review reports `manual_review` rather than
+  guessing.
 - Historical search is top-k semantic retrieval, not aggregate analytics.
 - Embeddings are stored in SQL JSON fields and scored in-process.
 - Core work is executed inline in API requests; there is no distributed job
