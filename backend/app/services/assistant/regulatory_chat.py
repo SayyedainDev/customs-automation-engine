@@ -441,6 +441,27 @@ def _is_quoted_from(snippet: str, passage: str) -> bool:
     return bool(candidate) and candidate in normalized_passage
 
 
+def _official_evidence_first(
+    citations: list[RegulatoryCitationSchema],
+) -> list[RegulatoryCitationSchema]:
+    """Put official sources ahead of curated summaries, ranking preserved.
+
+    Retrieval ranks by relevance alone, so a curated TIPP summary - CACE's own
+    paraphrase - was shown above the Export Policy Order pages that actually
+    state the rule, with their exact page numbers. Both were labelled
+    correctly, but the first citation is the one a reader treats as the
+    authority.
+
+    This reorders display only. It does not change what was retrieved, what
+    the evidence gate accepted, or any validation: within each group the
+    retrieval order is untouched, and a curated source is still shown - as
+    supplemental, which is what it is.
+    """
+    official = [c for c in citations if c.is_official]
+    curated = [c for c in citations if not c.is_official]
+    return [*official, *curated]
+
+
 def _to_citation(
     evidence: ScoredEvidence, snapshot_date, /
 ) -> RegulatoryCitationSchema:
@@ -1506,7 +1527,9 @@ def answer_regulatory_question(
         )
 
     snapshot_date = get_corpus_snapshot_date(db)
-    citations = [_to_citation(item, snapshot_date) for item in evidence]
+    citations = _official_evidence_first(
+        [_to_citation(item, snapshot_date) for item in evidence]
+    )
 
     # Mode decides presentation. Every informational intent used to share the
     # document-search rendering, which is why a checklist question came back as

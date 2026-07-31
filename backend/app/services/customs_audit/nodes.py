@@ -287,15 +287,30 @@ def _plain_language_question(
 
     issues = [i for i in (unresolved_issues or []) if _is_evidence_quality_issue(i)]
     if issues:
-        # The uploaded documents are not in question here. What is missing is
+        # The uploaded documents are not in question here. What is uncertain is
         # the citation behind a rule CACE applied, which only a person can
-        # accept or refuse to rely on.
+        # accept or refuse to rely on. The wording distinguishes the two causes
+        # because they call for different checking: a missing locator means the
+        # citation is incomplete, whereas partial evidence means the source is
+        # named but its extracted text has not been validated page by page.
+        joined = "; ".join(str(i) for i in issues)
+        if any("no source page" in str(i) or "no locator" in str(i) for i in issues):
+            detail = (
+                "could not be traced to an exact page or section of the "
+                "official document"
+            )
+        elif any("conflicting" in str(i) for i in issues):
+            detail = "is supported by sources that disagree with each other"
+        else:
+            detail = (
+                "rests on sources CACE holds but has not yet validated line by "
+                "line against the official text"
+            )
         return (
             "The documents were read successfully and the agents agree on what "
-            "they say. The rule CACE applied could not be traced to a fully "
-            "cited source - it is missing a page reference or a confirmed "
-            "effective date. Decide whether to accept the result on that basis, "
-            "or to reject it and verify the rule against the official document."
+            f"they say. The rule CACE applied {detail}. Decide whether to "
+            "accept the result on that basis, or to reject it and verify the "
+            f"rule against the official document. ({joined})"
         )
     return (
         "CACE could not complete this check on its own and no specific value is "

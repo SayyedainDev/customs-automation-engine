@@ -222,3 +222,79 @@ def test_the_shipment_date_gap_still_requires_a_person() -> None:
     result = check_required_fields(shipment, "52010090")
 
     assert "shipment_date" in result.message
+
+
+def test_the_question_distinguishes_the_two_provenance_causes() -> None:
+    """They call for different checking, so they must not read the same.
+
+    A missing locator means the citation is incomplete. Partial evidence means
+    the source is named and held, but its extracted text has not been
+    validated page by page against the official document - which is the state
+    of every official source in the corpus except SRO 2486(I)/2025.
+    """
+    from app.services.customs_audit.nodes import _plain_language_question
+
+    partial = _plain_language_question("manual_review_required", [], ["evidence_partial"])
+    no_page = _plain_language_question(
+        "manual_review_required", [], ["rule: no source page/locator"]
+    )
+    conflicting = _plain_language_question(
+        "manual_review_required", [], ["conflicting_evidence"]
+    )
+
+    assert "not yet validated line by line" in partial
+    assert "exact page or section" in no_page
+    assert "disagree with each other" in conflicting
+    assert partial != no_page != conflicting
+    # The raw signal is still shown, so the reviewer can see what CACE saw.
+    assert "evidence_partial" in partial
+
+
+# --------------------------------------------------------------------------- #
+# Ask CACE citation order
+# --------------------------------------------------------------------------- #
+def test_official_evidence_is_cited_before_a_curated_summary() -> None:
+    """The first citation is the one a reader treats as the authority.
+
+    Retrieval ranks by relevance alone, so a live answer about phytosanitary
+    certificates put CACE's own curated TIPP paraphrase above the Export Policy
+    Order pages that state the rule, complete with page numbers 78 and 92.
+    """
+    from app.schemas.assistant import RegulatoryCitationSchema
+    from app.services.assistant.regulatory_chat import _official_evidence_first
+
+    def _cite(title: str, official: bool) -> RegulatoryCitationSchema:
+        return RegulatoryCitationSchema(
+            title=title,
+            source_kind="official_policy" if official else "curated_rule_summary",
+            source_kind_label="Official policy" if official else "CACE curated rule summary",
+            is_official=official,
+            accepted_passage="passage",
+            evidence_status="accepted",
+        )
+
+    ordered = _official_evidence_first(
+        [
+            _cite("PSW/TIPP textile product export requirements", False),
+            _cite("Export Policy Order, 2022 - page 78", True),
+            _cite("Export Policy Order, 2022 - page 92", True),
+        ]
+    )
+
+    assert [c.is_official for c in ordered] == [True, True, False]
+    # Retrieval order is preserved within each group, and nothing is dropped.
+    assert ordered[0].title.endswith("page 78")
+    assert ordered[1].title.endswith("page 92")
+    assert len(ordered) == 3
+
+
+def test_a_curated_source_is_never_relabelled_official() -> None:
+    """Reordering must not upgrade anything."""
+    from app.services.regulatory.sources import discover_sources
+
+    curated = [s for s in discover_sources() if s.source_kind == "curated_rule_summary"]
+
+    assert curated, "the curated TIPP summary should still be in the corpus"
+    for source in curated:
+        assert "curated" in source.source_document.casefold()
+        assert source.validation_status != "verified"

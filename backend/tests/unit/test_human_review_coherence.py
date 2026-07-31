@@ -84,8 +84,7 @@ def test_the_question_names_the_real_blocker() -> None:
         ],
     )
 
-    assert "could not be traced to a fully cited source" in question
-    assert "page reference" in question
+    assert "could not be traced to an exact page or section" in question
     # It states the decision being asked for, rather than "review the item".
     assert "accept" in question.casefold() and "reject" in question.casefold()
 
@@ -142,7 +141,7 @@ def test_the_built_task_agrees_with_its_own_details() -> None:
     assert request.disputed_field_details == []
     assert HumanAction.CONFIRM_EXTRACTED_VALUE not in request.allowed_actions
     assert request.plain_language_question is not None
-    assert "could not be traced" in request.plain_language_question
+    assert "not yet validated line by line" in request.plain_language_question
 
 
 # --------------------------------------------------------------------------- #
