@@ -362,3 +362,21 @@ def test_ordinal_stripping_does_not_touch_ordinary_prose() -> None:
 
     text = "The first shipment left on Monday and the source document is an invoice."
     assert strip_evidence_references(text) == text
+
+
+def test_a_family_word_is_narrowed_by_kind_not_by_tariff_code_dump() -> None:
+    """"Cotton" was answered with all seventeen codes.
+
+    More precise than "be more specific", but a wall of tariff numbers is not
+    a step an exporter can take. One narrowing question is.
+    """
+    from app.services.assistant.regulatory_chat import _product_family_prompt
+
+    prompt = _product_family_prompt()
+
+    assert "Raw cotton" in prompt
+    assert "Made-ups" in prompt
+    # Six families, one line each - not seventeen codes.
+    assert len(prompt.splitlines()) == 6
+    assert "PCT" not in prompt
+    assert "52010090" not in prompt

@@ -638,6 +638,35 @@ def _document_type_for_name(display_name: str) -> str:
     return normalized.replace(" ", "_")
 
 
+#: One example per supported category, so a family word can be narrowed in a
+#: single step instead of being answered with all seventeen tariff codes.
+_FAMILY_LABELS: tuple[tuple[str, str], ...] = (
+    ("raw_material", "Raw cotton"),
+    ("yarn", "Yarn"),
+    ("woven_fabric", "Fabric"),
+    ("knitted_garment", "Knitted clothing (t-shirts, shirts, jerseys)"),
+    ("woven_garment", "Woven clothing (trousers, shirts)"),
+    ("made_up", "Made-ups (towels, bed sheets, blankets)"),
+)
+
+
+def _product_family_prompt() -> str:
+    """The supported categories, with how many products each holds."""
+    from app.services.compliance.pct_catalog import load_pct_catalog
+
+    counts: dict[str, int] = {}
+    for product in load_pct_catalog():
+        counts[product.textile_category] = counts.get(product.textile_category, 0) + 1
+    lines = []
+    for key, label in _FAMILY_LABELS:
+        total = counts.get(key, 0)
+        if not total:
+            continue
+        suffix = "1 product" if total == 1 else f"{total} products"
+        lines.append(f"- {label} ({suffix})")
+    return "\n".join(lines)
+
+
 def _render_clarification(
     candidates: list[tuple[str, str]],
     *,
@@ -1287,23 +1316,17 @@ def answer_regulatory_question(
             if code in SUPPORTED_PCT_PRODUCTS
         ]
         if not candidates:
-            # "Cotton" names a family, not an article, so there are no
-            # candidates to choose between. Asking the user to "be more
-            # precise" without saying what the options are leaves them
-            # guessing; the supported catalog is short, so show it.
-            catalog = "\n".join(
-                f"- {name} - PCT {code}"
-                for code, name in sorted(
-                    SUPPORTED_PCT_PRODUCTS.items(), key=lambda pair: pair[1]
-                )
-            )
+            # "Cotton" names a family, not an article. Listing all seventeen
+            # codes answered the question with a wall of tariff numbers -
+            # more precise than "be more specific", but not more useful.
+            # Narrowing by kind is one short step the exporter can actually
+            # take, and the codes are shown once they have taken it.
             return respond(
                 answer=(
-                    "That names a group of products rather than one item, so I "
-                    "cannot tell which you mean. CACE gives deterministic "
-                    "document checklists for these:\n\n"
-                    f"{catalog}\n\n"
-                    "Name one of them, or give its eight-digit PCT code."
+                    "That names a group of products rather than one item. "
+                    "Which kind do you mean?\n\n"
+                    f"{_product_family_prompt()}\n\n"
+                    "Name the product, or give its eight-digit PCT code."
                 ),
                 intent=decision.intent,
                 evidence_status="not_applicable",
