@@ -70,6 +70,7 @@ from app.services.assistant.guidance import (
 )
 from app.services.assistant.regulatory_intent import (
     IntentDecision,
+    _is_bare_product_mention,
     classify_regulatory_intent,
 )
 from app.services.assistant.scopes import (
@@ -648,6 +649,38 @@ _FAMILY_LABELS: tuple[tuple[str, str], ...] = (
     ("woven_garment", "Woven clothing (trousers, shirts)"),
     ("made_up", "Made-ups (towels, bed sheets, blankets)"),
 )
+
+
+#: Required for every one of the 17 supported products (verified by
+#: intersecting each product's own checklist), so this is true regardless of
+#: which one the exporter turns out to mean.
+_UNIVERSALLY_REQUIRED_DOCUMENTS: tuple[str, ...] = (
+    "Commercial Invoice",
+    "Packing List",
+    "Form-E / PSW export declaration",
+)
+
+
+def _baseline_document_answer() -> str:
+    """What is true for every supported product, without knowing which one.
+
+    Used when a question is checklist-shaped ("recommend documents for
+    textile export") but names no specific product at all - the honest
+    answer is the shared baseline, not a claim that something ambiguous was
+    named.
+    """
+    lines = [
+        "Every supported textile export needs these, whichever product it "
+        "is:",
+        "",
+    ]
+    lines += [f"- {name}" for name in _UNIVERSALLY_REQUIRED_DOCUMENTS]
+    lines += [
+        "",
+        "A Certificate of Origin is often needed too, but that depends on "
+        "the destination and product.",
+    ]
+    return "\n".join(lines)
 
 
 def _product_family_prompt() -> str:
@@ -1316,17 +1349,40 @@ def answer_regulatory_question(
             if code in SUPPORTED_PCT_PRODUCTS
         ]
         if not candidates:
-            # "Cotton" names a family, not an article. Listing all seventeen
-            # codes answered the question with a wall of tariff numbers -
-            # more precise than "be more specific", but not more useful.
-            # Narrowing by kind is one short step the exporter can actually
-            # take, and the codes are shown once they have taken it.
+            # Two different situations reached here and were given the same
+            # false wording. "Cotton" genuinely names a product family - the
+            # whole question is that one word, recognised as a textile term -
+            # so "which kind do you mean?" is honest. "Can you recommend
+            # documents for Textile Export" names nothing at all: "textile"
+            # and "export" are domain words, not a product, and the real
+            # content of the question ("can you recommend...") was ignored in
+            # favour of telling the user they had named something they had
+            # not. _is_bare_product_mention distinguishes the two: true only
+            # when the entire question is product vocabulary, so a full
+            # sentence with no real product noun falls through to an answer
+            # that is actually useful - the baseline every supported product
+            # shares - rather than a false claim.
+            if _is_bare_product_mention(question):
+                return respond(
+                    answer=(
+                        "That names a group of products rather than one "
+                        "item. Which kind do you mean?\n\n"
+                        f"{_product_family_prompt()}\n\n"
+                        "Name the product, or give its eight-digit PCT code."
+                    ),
+                    intent=decision.intent,
+                    evidence_status="not_applicable",
+                    citations=[],
+                    limitations=[GENERAL_LIMITATION],
+                    answer_mode="clarification",
+                    interpreted_as=corrections,
+                )
             return respond(
                 answer=(
-                    "That names a group of products rather than one item. "
-                    "Which kind do you mean?\n\n"
-                    f"{_product_family_prompt()}\n\n"
-                    "Name the product, or give its eight-digit PCT code."
+                    f"{_baseline_document_answer()}\n\n"
+                    "Name the specific product - for example \"cotton "
+                    "yarn\" or \"denim trousers\" - or give its "
+                    "eight-digit PCT code, for the exact checklist."
                 ),
                 intent=decision.intent,
                 evidence_status="not_applicable",

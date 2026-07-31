@@ -6,6 +6,8 @@ and got refused, because the wording is the point.
 """
 
 import pytest
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session
 
 from app.services.assistant.domain_guard import validate_answer
 from app.services.assistant.product_resolver import resolve_product
@@ -380,3 +382,57 @@ def test_a_family_word_is_narrowed_by_kind_not_by_tariff_code_dump() -> None:
     assert len(prompt.splitlines()) == 6
     assert "PCT" not in prompt
     assert "52010090" not in prompt
+
+
+def test_a_generic_checklist_question_is_not_told_it_named_a_product() -> None:
+    """"Can you recommend documents for Textile Export" names nothing.
+
+    It reached the exact same "That names a group of products rather than
+    one item" wording as a genuine bare family word like "Cotton" - false,
+    since nothing product-specific was said. The real content of the
+    question ("recommend documents") was answered with a deflection instead.
+    """
+    decision = classify_regulatory_intent("Can you recommend documents for Textile Export")
+    assert decision.intent == "product_clarification_required"
+
+    from app.services.assistant.regulatory_intent import _is_bare_product_mention
+
+    assert _is_bare_product_mention("Can you recommend documents for Textile Export") is False
+    # "Cotton" is unaffected: it is still a bare mention and keeps asking
+    # which kind, which is the behaviour this was built for.
+    assert _is_bare_product_mention("Cotton") is True
+
+
+def test_the_baseline_answer_is_the_true_intersection_of_all_17_checklists() -> None:
+    """Not a guess - verified against every supported product's own checklist."""
+    from app.services.assistant.regulatory_chat import _baseline_document_answer
+
+    answer = _baseline_document_answer()
+
+    assert "Commercial Invoice" in answer
+    assert "Packing List" in answer
+    assert "Form-E" in answer
+    # Certificate of Origin is not universal (it is destination/product
+    # conditional), so it must not be claimed as a flat requirement - only
+    # mentioned in the separate, hedged sentence after the bullet list.
+    bullets = answer.split("\n\n")[1]
+    assert "Certificate of Origin" not in bullets
+
+
+def test_generic_checklist_question_gets_the_baseline_answer(
+    isolated_database: Engine,
+) -> None:
+    """End-to-end: the exact question that was misanswered live."""
+    from tests.unit.test_regulatory_retrieval import build_corpus
+    from app.services.assistant.regulatory_chat import answer_regulatory_question
+
+    with Session(isolated_database) as db:
+        build_corpus(db)
+        response = answer_regulatory_question(
+            db, question="Can you recommend documents for Textile Export"
+        )
+
+    assert response.answer_mode == "clarification"
+    assert "That names a group of products" not in response.answer
+    assert "Commercial Invoice" in response.answer
+    assert "Name the specific product" in response.answer
