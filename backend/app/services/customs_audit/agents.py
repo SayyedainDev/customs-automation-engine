@@ -211,6 +211,27 @@ def _provenance(extraction_method: str | None) -> ProvenanceLabel:
     return ProvenanceLabel.MACHINE_EXTRACTED
 
 
+def _is_legal_check(check: dict[str, Any]) -> bool:
+    """Whether this check applies a rule from a legal instrument.
+
+    Any non-empty ``source_document`` used to qualify, which swept in CACE's
+    own internal checks. ``required_fields`` cites "Phase 1 shipment input
+    schema" - CACE's request schema, not a Pakistani legal instrument - and
+    was therefore audited as a government rule and reported as missing a
+    statutory page number and effective date. No official document can ever
+    supply those for CACE's own input schema, so a clean shipment was routed
+    to human review over a regulatory-provenance gap that did not exist.
+
+    A rule from a legal instrument names the authority that issued it, or the
+    SRO it comes from. Every configured regulatory rule carries both an
+    issuing authority and an official source URL; CACE's internal checks carry
+    neither. This is a stricter test than "has any source text", not a looser
+    one - every real rule is still audited for page/locator and effective
+    date exactly as before.
+    """
+    return bool(check.get("issuing_authority") or check.get("sro_number"))
+
+
 def _all_checks(extraction_result: dict[str, Any]) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = list(extraction_result.get("shipment_level_checks", []))
     for item in extraction_result.get("items", []):
@@ -476,7 +497,7 @@ class DeterministicAuditorAgent:
         for check in _all_checks(extraction_result):
             if check.get("status") not in {"failed", "manual_review"}:
                 continue
-            if not check.get("source_document") and not check.get("sro_number"):
+            if not _is_legal_check(check):
                 continue  # not a government/legal check with provenance
             check_id = str(check.get("check_id"))
             if check.get("source_page") is None and not check.get("source_locator"):
