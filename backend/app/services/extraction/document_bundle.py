@@ -302,14 +302,30 @@ def materialize_field(
     value = candidate.value
     validation_status = candidate.validation_status
     note = candidate.validation_note
+    # Provenance is an audit claim, so it has to name what actually read the
+    # value. Only the supporting-document hybrid was recognised here; the
+    # invoice/packing-list hybrid records notes of the form
+    # "hybrid extractor: regex_labeled", which matched nothing and fell
+    # through to the LLM default. Every deterministically-parsed invoice and
+    # packing-list field was therefore reported to the auditor - and in the
+    # audit trail - as having come from a language model that never ran.
+    note = candidate.validation_note or ""
     method = ExtractionMethod.PDF_TEXT_LLM_STRUCTURED_OUTPUT
-    if candidate.validation_note.startswith("supporting_hybrid:llm_gapfill"):
+    if note.startswith("supporting_hybrid:llm_gapfill") or note.startswith(
+        "hybrid extractor: llm_gapfill"
+    ):
         method = ExtractionMethod.LLM_GAPFILL
-    elif candidate.validation_note.startswith("supporting_hybrid:regex_label"):
+    elif note.startswith("supporting_hybrid:regex_label") or note.startswith(
+        "hybrid extractor: regex_"
+    ):
+        # regex_labeled, regex_bare, regex_table and regex_stacked_table are
+        # all deterministic reads of the document text.
         method = ExtractionMethod.REGEX_LABEL
-    elif candidate.validation_note.startswith("supporting_hybrid:ocr_regex"):
+    elif note.startswith("supporting_hybrid:ocr_regex"):
         method = ExtractionMethod.OCR_REGEX
-    elif candidate.validation_note.startswith("supporting_hybrid:unresolved"):
+    elif note.startswith("supporting_hybrid:unresolved") or note.startswith(
+        "hybrid extractor: unresolved"
+    ):
         method = ExtractionMethod.UNRESOLVED
     ocr_confidence: Decimal | None = None
     source_page = next(

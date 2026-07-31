@@ -7,7 +7,8 @@
       -> auditor_agent
       -> compare_agent_reports
            |-- (consensus, no critical anomaly) --> build_final_report
-           |-- (disagreement/uncertainty/anomaly) --> interrupt_for_human_review
+           |-- (disagreement/uncertainty/anomaly) --> prepare_human_review
+                  -> interrupt_for_human_review   (pauses; builds nothing)
                   -> human_decision_received
                   |-- reject / accept / note / provide-document / reprocess:
                   |     -> resume_workflow -> build_final_report
@@ -17,7 +18,7 @@
                              |-- applied --> freeze_corrected_revision
                                           -> auditor_recheck_revision
                                           -> recompute_consensus_after_correction
-                                               |-- still uncertain, rounds left --> interrupt_for_human_review (loop)
+                                               |-- still uncertain, rounds left --> prepare_human_review (loop)
                                                |-- resolved / rounds exhausted --> build_final_report
       -> generate_explanation           (one Groq call at most; template on failure)
       -> persist_audit_record
@@ -66,10 +67,11 @@ def build_customs_audit_graph(deps: WorkflowDeps, checkpointer: Any) -> Any:
         "compare_agent_reports",
         route_after_compare,
         {
-            "interrupt_for_human_review": "interrupt_for_human_review",
+            "prepare_human_review": "prepare_human_review",
             "build_final_report": "build_final_report",
         },
     )
+    graph.add_edge("prepare_human_review", "interrupt_for_human_review")
     graph.add_edge("interrupt_for_human_review", "human_decision_received")
     graph.add_conditional_edges(
         "human_decision_received",
@@ -94,7 +96,7 @@ def build_customs_audit_graph(deps: WorkflowDeps, checkpointer: Any) -> Any:
         "recompute_consensus_after_correction",
         route_after_correction_consensus,
         {
-            "interrupt_for_human_review": "interrupt_for_human_review",
+            "prepare_human_review": "prepare_human_review",
             "build_final_report": "build_final_report",
         },
     )
@@ -111,6 +113,7 @@ GRAPH_NODES = [
     "deterministic_compliance",
     "auditor_agent",
     "compare_agent_reports",
+    "prepare_human_review",
     "interrupt_for_human_review",
     "human_decision_received",
     "resume_workflow",

@@ -312,6 +312,13 @@ class CustomsAuditService:
         else:
             workflow.status = state.get("workflow_status") or workflow.status
             workflow.current_node = snapshot.next[0] if snapshot.next else "completed"
+            # The workflow is no longer waiting on anyone. This flag was only
+            # ever set, never cleared, so a completed workflow kept reporting
+            # requires_human_review=True and the UI kept showing a review
+            # prompt for a decision that had already been made. Whether a
+            # review *happened* is recorded in the audit events and the
+            # resolved task; this field means "is one outstanding now".
+            workflow.requires_human_review = False
             if state.get("final_report") is not None:
                 final_report = dict(state["final_report"])
                 final_report["review_revision_id"] = state.get("review_revision_id")

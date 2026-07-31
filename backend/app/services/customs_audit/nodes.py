@@ -246,7 +246,30 @@ def _review_title(reason_code: str) -> str:
     return _REVIEW_TITLE_BY_REASON.get(reason_code, "Human review required")
 
 
-def _plain_language_question(reason_code: str, details: list[dict[str, Any]]) -> str:
+#: Consensus reasons that are about CACE's own evidence rather than about the
+#: shipment. A reviewer cannot resolve these by confirming a value read off a
+#: document - there is no such value - so the question has to say what is
+#: actually missing and what decision is actually being asked for.
+_EVIDENCE_QUALITY_MARKERS = (
+    "evidence_partial",
+    "evidence_unavailable",
+    "no source page",
+    "no verified effective date",
+    "no locator",
+    "conflicting_evidence",
+)
+
+
+def _is_evidence_quality_issue(issue: str) -> bool:
+    lowered = str(issue or "").casefold()
+    return any(marker in lowered for marker in _EVIDENCE_QUALITY_MARKERS)
+
+
+def _plain_language_question(
+    reason_code: str,
+    details: list[dict[str, Any]],
+    unresolved_issues: list[str] | None = None,
+) -> str:
     if len(details) >= 2 and reason_code in _REVIEW_TITLE_BY_REASON:
         first, second = details[0], details[1]
         return (
@@ -254,7 +277,31 @@ def _plain_language_question(reason_code: str, details: list[dict[str, Any]]) ->
             f"while the {second['document_type'].replace('_', ' ')} says {second['value']}. "
             "Which value matches the physical shipment?"
         )
-    return "A value could not be safely confirmed automatically. Please review the flagged item."
+    if details:
+        first = details[0]
+        return (
+            f"CACE read {first['value']!r} for "
+            f"{first['field_path'].replace('_', ' ')} but could not confirm it "
+            "safely. Does that match the document?"
+        )
+
+    issues = [i for i in (unresolved_issues or []) if _is_evidence_quality_issue(i)]
+    if issues:
+        # The uploaded documents are not in question here. What is missing is
+        # the citation behind a rule CACE applied, which only a person can
+        # accept or refuse to rely on.
+        return (
+            "The documents were read successfully and the agents agree on what "
+            "they say. The rule CACE applied could not be traced to a fully "
+            "cited source - it is missing a page reference or a confirmed "
+            "effective date. Decide whether to accept the result on that basis, "
+            "or to reject it and verify the rule against the official document."
+        )
+    return (
+        "CACE could not complete this check on its own and no specific value is "
+        "in dispute. Review the findings below and either accept the result for "
+        "manual handling or reject the submission."
+    )
 
 
 def _review_task_id(state: dict[str, Any], revision_number: int) -> str:
@@ -266,6 +313,22 @@ def _review_task_id(state: dict[str, Any], revision_number: int) -> str:
     round_number = int(state.get("human_review_round", 0)) + 1
     seed = f"{state.get('workflow_id')}:{revision_number}:{round_number}"
     return "review-" + hashlib.sha256(seed.encode()).hexdigest()[:24]
+
+
+def _allowed_actions(has_disputed_values: bool) -> list[HumanAction]:
+    """The actions a reviewer can actually carry out on this task."""
+    actions = [
+        HumanAction.ACCEPT_MANUAL_REVIEW,
+        HumanAction.REJECT_SUBMISSION,
+        HumanAction.ADD_REVIEW_NOTE,
+    ]
+    if has_disputed_values:
+        return [
+            HumanAction.CONFIRM_EXTRACTED_VALUE,
+            HumanAction.CORRECT_EXTRACTED_VALUE,
+            *actions,
+        ]
+    return actions
 
 
 def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
@@ -321,20 +384,26 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
         # prototype, and workflow_service.submit_review() explicitly rejects
         # them if a client submits them anyway - never silently "completing"
         # as though a new document had actually been attached.
-        allowed_actions=[
-            HumanAction.CONFIRM_EXTRACTED_VALUE,
-            HumanAction.CORRECT_EXTRACTED_VALUE,
-            HumanAction.ACCEPT_MANUAL_REVIEW,
-            HumanAction.REJECT_SUBMISSION,
-            HumanAction.ADD_REVIEW_NOTE,
-        ],
+        #
+        # Confirm/correct are offered only when there is a value to confirm or
+        # correct. This list was fixed, so a review raised purely by
+        # evidence-provenance gaps - CACE's own curated rule text carrying no
+        # page number or effective date - still invited the reviewer to
+        # "confirm the extracted value" with no field attached. Taking the
+        # offered action produced correction_validation_failed and completed
+        # the workflow, so the human review resolved nothing.
+        allowed_actions=_allowed_actions(bool(disputed_details)),
         created_at=utcnow_iso(),
         review_status="open",
         review_task_id=_review_task_id(state, revision_number),
         revision_number=revision_number,
         reason_code=reason_code,
         title=_review_title(reason_code),
-        plain_language_question=_plain_language_question(reason_code, disputed_details),
+        plain_language_question=_plain_language_question(
+            reason_code,
+            disputed_details,
+            list(consensus.get("unresolved_issues") or []),
+        ),
         disputed_field_details=[DisputedFieldDetail(**d) for d in disputed_details],
         affected_check_ids=affected_check_ids,
     )
@@ -802,35 +871,61 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "updated_at": utcnow_iso(),
         }
 
-    def interrupt_for_human_review(state: dict[str, Any]) -> dict[str, Any]:
+    def prepare_human_review(state: dict[str, Any]) -> dict[str, Any]:
+        """Build and record the review task, before anything pauses.
+
+        ``interrupt()`` raises, so a node that calls it never reaches its own
+        ``return`` on the first pass and writes no state. Building the task
+        inside that node therefore left the audit trail with no record that a
+        review had been requested for exactly as long as the workflow was
+        paused waiting for a person - the one period where an auditor most
+        needs to see why. Both events were written only once someone resumed,
+        and timestamped then.
+
+        This node returns normally, so its events and the task itself are
+        checkpointed before the pause.
+        """
         request = _build_review_task(state)
         events = [
             _event(
                 event_type="human_review_task_created",
-                node_name="interrupt_for_human_review",
+                node_name="prepare_human_review",
                 actor=ActorType.SYSTEM,
                 payload={
                     "review_task_id": request.review_task_id,
                     "revision_number": request.revision_number,
                     "reason_code": request.reason_code,
                     "affected_check_ids": request.affected_check_ids,
+                    "allowed_actions": [a.value for a in request.allowed_actions],
                 },
             ),
             _event(
                 event_type="workflow_interrupted",
-                node_name="interrupt_for_human_review",
+                node_name="prepare_human_review",
                 actor=ActorType.SYSTEM,
                 payload={"review_task_id": request.review_task_id},
             ),
         ]
-        # Pause here. On resume, `decision` is the submitted human decision dict.
-        decision = interrupt(request.model_dump(mode="json"))
         return {
-            "workflow_status": WorkflowStatus.RESUMING.value,
+            "workflow_status": WorkflowStatus.AWAITING_HUMAN_REVIEW.value,
             "human_review_request": request.model_dump(mode="json"),
-            "human_review_decision": decision,
             "human_review_round": state.get("human_review_round", 0) + 1,
             "audit_events": _append(state, "audit_events", events),
+            "updated_at": utcnow_iso(),
+        }
+
+    def interrupt_for_human_review(state: dict[str, Any]) -> dict[str, Any]:
+        """Pause for a person. The task was already built and recorded.
+
+        Nothing is computed here, so re-running this node body on resume - which
+        LangGraph does, from the top, past the ``interrupt()`` call - cannot
+        produce anything different from what the reviewer was shown.
+        """
+        request = state.get("human_review_request") or {}
+        decision = interrupt(request)
+        return {
+            "workflow_status": WorkflowStatus.RESUMING.value,
+            "human_review_decision": decision,
             "updated_at": utcnow_iso(),
         }
 
@@ -1383,6 +1478,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         "deterministic_compliance": deterministic_compliance,
         "auditor_agent": auditor_agent,
         "compare_agent_reports": compare_agent_reports,
+        "prepare_human_review": prepare_human_review,
         "interrupt_for_human_review": interrupt_for_human_review,
         "human_decision_received": human_decision_received,
         "resume_workflow": resume_workflow,
@@ -1399,7 +1495,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
 def route_after_compare(state: dict[str, Any]) -> str:
     consensus = state.get("consensus_result") or {}
     if consensus.get("requires_human_review"):
-        return "interrupt_for_human_review"
+        return "prepare_human_review"
     return "build_final_report"
 
 
@@ -1434,5 +1530,5 @@ def route_after_correction_consensus(state: dict[str, Any]) -> str:
     consensus = state.get("consensus_result") or {}
     round_number = int(state.get("human_review_round", 0))
     if consensus.get("requires_human_review") and round_number < MAX_HUMAN_REVIEW_ROUNDS:
-        return "interrupt_for_human_review"
+        return "prepare_human_review"
     return "build_final_report"
