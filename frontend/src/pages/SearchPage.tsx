@@ -7,6 +7,7 @@ import {
   Search,
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type {
   EvidenceResult,
@@ -51,6 +52,15 @@ function EvidenceCard({
         <div>
           <p className="eyebrow">Evidence {rank}</p>
           <h3>{evidence.source_document}</h3>
+          {evidence.source_kind_label ? (
+            <span
+              className={`source-kind-chip source-kind-chip--${
+                evidence.is_official ? "official" : "curated"
+              }`}
+            >
+              {evidence.source_kind_label}
+            </span>
+          ) : null}
         </div>
         <StatusBadge status={evidence.validation_status} />
       </header>
@@ -493,6 +503,18 @@ function ShipmentHistoryPanel() {
                 <div className="shipment-result__reference">
                   <span>Workflow ID</span>
                   <code>{shipment.workflow_id}</code>
+                  <Link
+                    className="text-link"
+                    to={`/review?workflowId=${shipment.workflow_id}`}
+                  >
+                    Open audit report
+                  </Link>
+                  <Link
+                    className="text-link"
+                    to={`/ask?shipment_id=${shipment.workflow_id}`}
+                  >
+                    Ask assistant about this shipment
+                  </Link>
                 </div>
               </article>
             ))}

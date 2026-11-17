@@ -13,6 +13,7 @@ from app.schemas.validation import IssueSeverity, ValidationIssue, ValidationRep
 router = APIRouter(
     prefix="/shipments",
     tags=["Shipments"],
+    include_in_schema=False,
 )
 
 # Temporary in-memory store until a real database is added.

@@ -22,6 +22,7 @@ from app.schemas.multi_line_extraction import (
     MultiLineShipmentResponse,
 )
 from app.services.multi_line_shipment_service import (
+    cache_multi_line_response,
     extract_match_and_check_multi_line_shipment,
 )
 
@@ -36,14 +37,16 @@ router = APIRouter(
     "/check-documents/multi-line",
     response_model=MultiLineShipmentResponse,
 )
-async def check_multi_line_shipment_documents(
+def check_multi_line_shipment_documents(
     payload: MultiLineShipmentRequest,
     db: Session = Depends(get_db_session),
 ) -> MultiLineShipmentResponse:
     """Extract multi-line documents, match items, and check each separately."""
 
     try:
-        return extract_match_and_check_multi_line_shipment(db=db, request=payload)
+        response = extract_match_and_check_multi_line_shipment(db=db, request=payload)
+        cache_multi_line_response(payload, response)
+        return response
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -51,7 +54,7 @@ async def check_multi_line_shipment_documents(
         ) from exc
     except ShipmentExtractionInputError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     except UnsupportedDocumentTypeError as exc:
@@ -66,7 +69,7 @@ async def check_multi_line_shipment_documents(
         ) from exc
     except PdfExtractionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     except StructuredExtractionConfigurationError as exc:

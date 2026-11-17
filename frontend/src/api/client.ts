@@ -1,13 +1,21 @@
 import type {
   AuditEvent,
+  ChatCoverageResponse,
+  ChatConversationHistory,
+  ChatMessageRequest,
+  ChatMessageResponse,
+  ChatStreamEvent,
   DocumentExtractionResponse,
   DocumentMetadata,
   DocumentUploadResponse,
+  DutyCalculationRequest,
+  DutyCalculationResponse,
   EvidenceSearchResponse,
   MultiLineShipmentRequest,
   MultiLineShipmentResponse,
   ReviewTaskResponse,
   ShipmentSearchResponse,
+  WorkflowListResponse,
   WorkflowStatusResponse,
   GuidanceRequest,
   GuidanceResponse,
@@ -152,6 +160,86 @@ function uploadWithProgress(
   });
 }
 
+/**
+ * Reads the SSE stream from POST /api/v1/customs-chat/messages.
+ *
+ * `EventSource` cannot be used here - it only supports GET requests, and
+ * this endpoint needs a JSON body. This reads the response body as a raw
+ * byte stream and parses "event: ...\ndata: ...\n\n" frames by hand instead.
+ */
+async function streamCustomsChat(
+  payload: ChatMessageRequest,
+  onEvent: (event: ChatStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(apiUrl("/api/v1/customs-chat/messages"), {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ ...payload, stream: true }),
+  });
+
+  if (!response.ok || !response.body) {
+    let detail: unknown;
+    try {
+      detail = await response.json();
+    } catch {
+      detail = undefined;
+    }
+    throw new ApiError(
+      detailMessage(
+        detail && typeof detail === "object" && "detail" in detail
+          ? (detail as { detail: unknown }).detail
+          : detail,
+      ),
+      response.status,
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let frameEnd = buffer.indexOf("\n\n");
+    while (frameEnd !== -1) {
+      const frame = buffer.slice(0, frameEnd);
+      buffer = buffer.slice(frameEnd + 2);
+
+      let eventName = "message";
+      const dataParts: string[] = [];
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataParts.push(line.slice(5).trim());
+        }
+      }
+      const dataText = dataParts.join("\n");
+      if (dataText) {
+        try {
+          onEvent({
+            event: eventName as ChatStreamEvent["event"],
+            data: JSON.parse(dataText),
+          });
+        } catch {
+          // A malformed frame is dropped rather than aborting the whole
+          // stream - the "done" event still carries the full answer if an
+          // earlier "token" frame failed to parse for some reason.
+        }
+      }
+      frameEnd = buffer.indexOf("\n\n");
+    }
+  }
+}
+
 export const api = {
   health: () =>
     request<{ status: string; message: string }>("/health", {}, 20_000),
@@ -180,6 +268,12 @@ export const api = {
       { method: "POST", body: JSON.stringify(payload) },
     ),
 
+  calculateDuties: (payload: DutyCalculationRequest) =>
+    request<DutyCalculationResponse>(
+      "/api/v1/compliance/calculate-duties",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
   startWorkflow: (payload: MultiLineShipmentRequest) =>
     request<WorkflowStatusResponse>("/api/v1/customs-audit/workflows", {
       method: "POST",
@@ -192,6 +286,11 @@ export const api = {
   getWorkflow: (workflowId: string) =>
     request<WorkflowStatusResponse>(
       `/api/v1/customs-audit/workflows/${workflowId}`,
+    ),
+
+  listWorkflows: (limit = 10) =>
+    request<WorkflowListResponse>(
+      `/api/v1/customs-audit/workflows?limit=${limit}`,
     ),
 
   getReview: (workflowId: string) =>
@@ -251,4 +350,33 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  askCustomsChat: (payload: ChatMessageRequest) =>
+    request<ChatMessageResponse>(
+      "/api/v1/customs-chat/messages",
+      { method: "POST", body: JSON.stringify({ ...payload, stream: false }) },
+      120_000,
+    ),
+
+  streamCustomsChat,
+
+  getCustomsChatConversation: (conversationId: string) =>
+    request<ChatConversationHistory>(
+      `/api/v1/customs-chat/conversations/${conversationId}`,
+    ),
+
+  getCustomsChatSuggestions: () =>
+    request<{ suggestions: string[] }>("/api/v1/customs-chat/suggestions"),
+
+  postCustomsChatFeedback: (payload: {
+    message_id: string;
+    rating: "up" | "down";
+    comment?: string;
+  }) =>
+    request<void>("/api/v1/customs-chat/feedback", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getCustomsChatCoverage: () =>
+    request<ChatCoverageResponse>("/api/v1/customs-chat/coverage"),
 };

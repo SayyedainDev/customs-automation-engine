@@ -10,6 +10,7 @@ from app.schemas.customs_audit import (
     ReviewTaskResponse,
     StartWorkflowRequest,
     SubmitReviewRequest,
+    WorkflowListResponse,
     WorkflowStatusResponse,
 )
 from app.services.customs_audit.factory import get_app_customs_audit_service
@@ -61,6 +62,17 @@ def _decision_from_request(payload: SubmitReviewRequest) -> dict[str, Any]:
     }
 
 
+@router.get("/workflows", response_model=WorkflowListResponse)
+def list_workflows(
+    limit: int = 20,
+    db: Session = Depends(get_db_session),
+    service: CustomsAuditService = Depends(get_customs_audit_service),
+) -> WorkflowListResponse:
+    bounded_limit = max(1, min(limit, 100))
+    workflows = service.list_workflows(db, limit=bounded_limit)
+    return WorkflowListResponse.model_validate({"workflows": workflows})
+
+
 @router.post("/workflows", response_model=WorkflowStatusResponse)
 async def start_workflow(
     payload: StartWorkflowRequest,
@@ -98,7 +110,7 @@ async def start_workflow(
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowStatusResponse)
-async def get_workflow_status(
+def get_workflow_status(
     workflow_id: str,
     db: Session = Depends(get_db_session),
     service: CustomsAuditService = Depends(get_customs_audit_service),
@@ -111,7 +123,7 @@ async def get_workflow_status(
 
 
 @router.get("/workflows/{workflow_id}/review", response_model=ReviewTaskResponse)
-async def get_review_task(
+def get_review_task(
     workflow_id: str,
     db: Session = Depends(get_db_session),
     service: CustomsAuditService = Depends(get_customs_audit_service),
@@ -149,7 +161,7 @@ async def submit_review(
 
 
 @router.get("/workflows/{workflow_id}/events", response_model=AuditEventsResponse)
-async def get_audit_events(
+def get_audit_events(
     workflow_id: str,
     db: Session = Depends(get_db_session),
     service: CustomsAuditService = Depends(get_customs_audit_service),

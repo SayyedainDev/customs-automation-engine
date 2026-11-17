@@ -426,6 +426,16 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             top_k=2
         )
         evidence_resp = run_evidence_search(db, req)
+        if (evidence_resp.status != "ok" or not evidence_resp.results) and pct:
+            evidence_resp = run_evidence_search(
+                db,
+                EvidenceSearchRequest(
+                    query=search_query,
+                    pct_code=None,
+                    destination_country=dest,
+                    top_k=2,
+                ),
+            )
         if evidence_resp.status == "ok" and evidence_resp.results:
             answer = "Based on the regulatory documents:\n"
             for res in evidence_resp.results:
@@ -434,7 +444,7 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
                     SourceSchema(
                         source_kind="regulatory",
                         display_name=res.source_document,
-                        snippet=res.child_evidence_text,
+                        snippet=getattr(res, "parent_evidence_text", None) or res.child_evidence_text,
                         source_document=res.source_document,
                         evidence_status="accepted",
                         page_number=res.page_number
@@ -459,12 +469,23 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             top_k=1
         )
         evidence_resp = run_evidence_search(db, req)
+        if (evidence_resp.status != "ok" or not evidence_resp.results) and pct:
+            evidence_resp = run_evidence_search(
+                db,
+                EvidenceSearchRequest(
+                    query=search_query,
+                    pct_code=None,
+                    destination_country=dest,
+                    top_k=1,
+                ),
+            )
         if evidence_resp.status == "ok" and evidence_resp.results:
             res = evidence_resp.results[0]
             sources.append(
                 SourceSchema(
                     source_kind="regulatory",
                     display_name=res.source_document,
+                    snippet=getattr(res, "parent_evidence_text", None) or getattr(res, "child_evidence_text", None),
                     evidence_status="accepted",
                     page_number=res.page_number
                 )
@@ -538,8 +559,9 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             "Why is Form-E required?"
         ]
     else:
+        verb = "fail" if frozen_status == "failed" else "pass"
         suggested_questions = [
-            f"Why did this shipment {workflow.status}?",
+            f"Why did this shipment {verb}?",
             "Which checks failed?",
             "Which document is missing?",
             "Does the Certificate of Origin satisfy the requirement?",

@@ -6,7 +6,10 @@ import {
   FileStack,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../api/client";
+import type { WorkflowStatusResponse } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
@@ -15,6 +18,22 @@ import { useSession } from "../state/SessionContext";
 
 export function OverviewPage() {
   const { documents } = useSession();
+  const [recentWorkflows, setRecentWorkflows] = useState<
+    WorkflowStatusResponse[]
+  >([]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .listWorkflows(6)
+      .then((res) => {
+        if (active) setRecentWorkflows(res.workflows);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const processing = documents.filter(
     (document) =>
       !["extracted", "completed"].includes(document.status) &&
@@ -169,6 +188,71 @@ export function OverviewPage() {
           />
         )}
       </section>
+
+      {recentWorkflows.length > 0 ? (
+        <section className="panel" aria-labelledby="recent-workflows">
+          <div className="panel__header">
+            <div>
+              <h2 id="recent-workflows">Recent audit workflows</h2>
+              <p>Persisted customs-audit workflows from the database.</p>
+            </div>
+            <Link className="text-link" to="/search">
+              Search history <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Workflow</th>
+                  <th>Created</th>
+                  <th>Audit status</th>
+                  <th>Deterministic verdict</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentWorkflows.map((wf) => (
+                  <tr key={wf.workflow_id}>
+                    <td data-label="Workflow">
+                      <code>{wf.workflow_id.slice(0, 8)}…</code>
+                    </td>
+                    <td data-label="Created">
+                      {wf.created_at ? formatDate(wf.created_at) : "—"}
+                    </td>
+                    <td data-label="Audit status">
+                      <StatusBadge status={wf.status} />
+                    </td>
+                    <td data-label="Deterministic verdict">
+                      {wf.deterministic_status ? (
+                        <StatusBadge status={wf.deterministic_status} />
+                      ) : (
+                        <span className="muted">Pending</span>
+                      )}
+                    </td>
+                    <td data-label="Action">
+                      <div className="button-row">
+                        <Link
+                          className="text-link"
+                          to={`/review?workflowId=${wf.workflow_id}`}
+                        >
+                          Open audit <ArrowRight size={14} />
+                        </Link>
+                        <Link
+                          className="text-link"
+                          to={`/ask?shipment_id=${wf.workflow_id}`}
+                        >
+                          Ask assistant <ArrowRight size={14} />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

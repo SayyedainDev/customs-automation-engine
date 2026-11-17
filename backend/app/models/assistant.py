@@ -1,6 +1,6 @@
 """Persistence for CACE Assistant conversations and messages."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,17 +23,23 @@ class AssistantConversation(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     shipment_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("customs_audit_workflows.id"), nullable=True, index=True
+        Uuid, nullable=True, index=True
     )
     # pre_submission_guidance | shipment_assistant | regulatory_assistant
     mode: Mapped[str] = mapped_column(String(64))
     pct_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     destination: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        index=True,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
 
@@ -49,5 +55,8 @@ class AssistantMessage(Base):
     answer_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sources: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        index=True,
     )

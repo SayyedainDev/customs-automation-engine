@@ -12,7 +12,7 @@ router = APIRouter(
 
 
 @router.post("/search", response_model=ShipmentSearchResponse)
-async def search(
+def search(
     payload: ShipmentSearchRequest,
     db: Session = Depends(get_db_session),
 ) -> ShipmentSearchResponse:

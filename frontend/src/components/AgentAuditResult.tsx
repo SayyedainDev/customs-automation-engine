@@ -163,6 +163,9 @@ function CitationCard({ citation }: { citation: Record<string, unknown> }) {
       <div className="citation-card__head">
         <BookOpen aria-hidden="true" size={14} />
         <strong>{displayValue(citation.source_title)}</strong>
+        {citation.sro_number ? (
+          <span className="muted">SRO {displayValue(citation.sro_number)}</span>
+        ) : null}
         {citation.page_number ? (
           <span className="muted">page {displayValue(citation.page_number)}</span>
         ) : null}
@@ -537,6 +540,9 @@ function CorrectionPanel({
                 ? `${Math.round(detail.confidence * 100)}%`
                 : "n/a"}{" "}
               · {detail.extraction_method ?? "unknown method"}
+              {detail.correction_basis
+                ? ` · basis: ${labelize(detail.correction_basis)}`
+                : ""}
             </li>
           ))}
           <li>Affected check IDs: {reviewTask.affected_check_ids.join(", ")}</li>
@@ -579,6 +585,9 @@ function Report({
   const auditRevisionHistory = asList(report.audit_revision_history)
     .map(asRecord)
     .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const correctionValidationErrors = uniqueText(
+    asList(finalReport.correction_validation_errors),
+  );
   const uploadedResult = String(report.uploaded_document_result ?? "");
   const problems = asRecord(report.problems);
   const problemEntries = problems
@@ -805,6 +814,18 @@ function Report({
         </section>
       ) : null}
 
+      {correctionValidationErrors.length ? (
+        <div className="notice notice--danger">
+          <AlertTriangle aria-hidden="true" size={18} />
+          <div>
+            <strong>Correction could not be applied</strong>
+            {correctionValidationErrors.map((errText, idx) => (
+              <p key={idx}>{displayValue(errText)}</p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {humanReviewSummary.length ? (
         <section className="report-section">
           <h3>Human review</h3>
@@ -1019,6 +1040,12 @@ export function AgentAuditResult({
                     <p>
                       {labelize(event.actor_type)}
                       {event.node_name ? ` · ${labelize(event.node_name)}` : ""}
+                      {event.new_state_hash ? (
+                        <>
+                          {" · "}
+                          <code>{event.new_state_hash.slice(0, 15)}…</code>
+                        </>
+                      ) : null}
                     </p>
                   </div>
                 </li>

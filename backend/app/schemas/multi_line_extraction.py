@@ -162,6 +162,7 @@ class ItemMatchStatus(str, Enum):
 
 class ItemMatchStrategy(str, Enum):
     LINE_REFERENCE = "line_reference"
+    SKU_CODE = "sku_code"
     PCT_CODE = "pct_code"
     PRODUCT_NAME = "product_name"
 

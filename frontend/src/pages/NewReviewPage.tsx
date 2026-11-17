@@ -1,9 +1,12 @@
 import {
   FileCheck2,
   LoaderCircle,
+  MessageSquare,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { AgentAuditResult } from "../components/AgentAuditResult";
 import { ComplianceReviewResult } from "../components/ComplianceReviewResult";
 import { DocumentReviewForm } from "../components/DocumentReviewForm";
@@ -13,6 +16,23 @@ import { useDocumentReview } from "../hooks/useDocumentReview";
 
 export function NewReviewPage() {
   const review = useDocumentReview();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryWorkflowId =
+    searchParams.get("workflowId") ?? searchParams.get("workflow_id");
+
+  useEffect(() => {
+    if (
+      queryWorkflowId &&
+      review.workflow?.workflow_id !== queryWorkflowId &&
+      !review.agentBusy
+    ) {
+      void review.loadExistingWorkflow(queryWorkflowId);
+    }
+  }, [queryWorkflowId, review]);
+
+  const activeShipmentChatId =
+    review.workflow?.workflow_id ??
+    review.compliance?.commercial_invoice_document_id;
 
   return (
     <>
@@ -21,16 +41,30 @@ export function NewReviewPage() {
         title="Review export documents"
         description="Upload one commercial invoice and its packing list. The system extracts, matches, and checks the shipment before any optional agent audit."
         action={
-          review.compliance ? (
-            <button
-              className="button button--secondary"
-              type="button"
-              onClick={review.startOver}
-              disabled={review.agentBusy || review.decisionBusy}
-            >
-              <RefreshCw aria-hidden="true" size={16} />
-              Start another review
-            </button>
+          review.compliance || review.workflow ? (
+            <div className="button-row">
+              {activeShipmentChatId ? (
+                <Link
+                  className="button button--secondary"
+                  to={`/ask?shipment_id=${activeShipmentChatId}`}
+                >
+                  <MessageSquare aria-hidden="true" size={16} />
+                  Ask assistant about this shipment
+                </Link>
+              ) : null}
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => {
+                  setSearchParams({});
+                  review.startOver();
+                }}
+                disabled={review.agentBusy || review.decisionBusy}
+              >
+                <RefreshCw aria-hidden="true" size={16} />
+                Start another review
+              </button>
+            </div>
           ) : null
         }
       />
@@ -104,6 +138,23 @@ export function NewReviewPage() {
       ) : null}
 
       {review.compliance && review.workflow && review.workflowIsCurrent ? (
+        <AgentAuditResult
+          workflow={review.workflow}
+          reviewTask={review.reviewTask}
+          events={review.events}
+          busy={review.decisionBusy}
+          onDecision={(action) => void review.submitDecision(action)}
+          onCorrection={(action, fieldPath, originalValue, correctedValue, reason) =>
+            void review.submitCorrection(
+              action,
+              fieldPath,
+              originalValue,
+              correctedValue,
+              reason,
+            )
+          }
+        />
+      ) : !review.compliance && review.workflow ? (
         <AgentAuditResult
           workflow={review.workflow}
           reviewTask={review.reviewTask}

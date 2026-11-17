@@ -16,7 +16,7 @@ router = APIRouter(
 
 
 @router.post("/explain", response_model=ExplanationResponse)
-async def explain_compliance_decision(
+def explain_compliance_decision(
     payload: ExplanationRequest,
     db: Session = Depends(get_db_session),
 ) -> ExplanationResponse:

@@ -11,11 +11,17 @@ from app.services.regulatory.retrieval import (
     ScoredEvidence,
     search_regulatory_evidence,
 )
+from app.services.regulatory.source_kinds import (
+    is_official,
+    resolve_source_kind,
+    source_kind_label,
+)
 
 
 def _to_result(evidence: ScoredEvidence) -> EvidenceResult:
     child = evidence.chunk
     parent = evidence.parent
+    kind = resolve_source_kind(child)
     return EvidenceResult(
         child_evidence_text=child.text,
         parent_evidence_text=parent.text,
@@ -38,6 +44,10 @@ def _to_result(evidence: ScoredEvidence) -> EvidenceResult:
         legal_cutoff_date=child.legal_cutoff_date,
         validation_status=child.validation_status,
         rule_data_version=child.rule_data_version,
+        source_kind=kind,
+        source_kind_label=source_kind_label(kind),
+        is_official=is_official(kind),
+        currency_status=child.currency_status,
     )
 
 

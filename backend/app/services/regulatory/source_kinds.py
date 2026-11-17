@@ -81,6 +81,7 @@ _DOCUMENT_TYPE_KINDS = {
     "clearance_procedure": OFFICIAL_PROCEDURE,
     "procedure": OFFICIAL_PROCEDURE,
     "product_requirements_structured": CURATED_RULE_SUMMARY,
+    "curated_guidance_faq": CURATED_RULE_SUMMARY,
 }
 
 

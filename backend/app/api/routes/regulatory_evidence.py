@@ -16,7 +16,7 @@ router = APIRouter(
 
 
 @router.post("/search", response_model=EvidenceSearchResponse)
-async def search_evidence(
+def search_evidence(
     payload: EvidenceSearchRequest,
     db: Session = Depends(get_db_session),
 ) -> EvidenceSearchResponse:

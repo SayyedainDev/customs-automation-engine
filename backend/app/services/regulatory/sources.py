@@ -28,8 +28,9 @@ ALL_CODES = list(supported_pct_codes())
 NON_RAW_COTTON = list(non_raw_material_codes())
 
 # A base-order page is kept only if it mentions cotton/textiles or a covered code.
+_SUPPORTED_HEADINGS = "|".join(sorted({code[:4] for code in ALL_CODES}))
 _TEXTILE_RELEVANCE = re.compile(
-    r"cotton|textile|5201|5205|5209|6109|6302|Sr\.?\s*No\.?\s*9|Schedule[-\s]*II",
+    rf"cotton|textile|yarn|fabric|garment|apparel|{_SUPPORTED_HEADINGS}|Sr\.?\s*No\.?\s*9|Schedule[-\s]*II",
     re.IGNORECASE,
 )
 
@@ -60,6 +61,14 @@ class RegulatorySource:
     #: Inclusive 1-based page window. Used for the tariff, where only the
     #: textile chapters are indexed rather than all 327 pages.
     page_range: tuple[int, int] | None = None
+    #: "default" (blank-line paragraph blocks) | "section_aware" (numbered
+    #: statute sections - see chunking.split_by_sequential_numbered_headings).
+    #: Only "default" and "section_aware" exist yet; "clause"/"tariff_row"/
+    #: "faq" from docs/CUSTOMS_CHATBOT_ARCHITECTURE.md section 6.2 are not
+    #: implemented here (the tariff has its own separate structured path,
+    #: services/customs_chat/knowledge/tariff_parser.py, and curated FAQ
+    #: content is not yet ingested through this module).
+    chunk_strategy: str = "default"
 
 
 @dataclass(frozen=True)
@@ -123,6 +132,28 @@ def discover_sources() -> list[RegulatorySource]:
             default_pct_codes=ALL_CODES,
             source_kind="curated_rule_summary",
             currency_status="current",
+        ),
+        RegulatorySource(
+            key="customs_chat_curated_guidance",
+            kind="curated_guidance_dir",
+            path=REG / "curated/guidance",
+            source_document="CACE curated plain-English guidance (general customs concepts)",
+            issuing_authority="CACE (curated, not an official government source)",
+            document_type="curated_guidance_faq",
+            # "needs_review" is not a recognised value in VERIFIED_STATUSES
+            # (services/regulatory/retrieval.py) and would silently exclude
+            # every entry from retrieval's default verified_only gate.
+            # "partially_verified" matches the existing curated TIPP source's
+            # own status and passes that gate; the real "not yet reviewed by
+            # a subject-matter expert" caveat lives in each entry's own
+            # frontmatter (verification_status: needs_sme_review) instead.
+            validation_status="partially_verified",
+            source_url=None,
+            default_pct_codes=[],
+            source_kind="curated_rule_summary",
+            currency_status="current",
+            restrict_to_textile_pages=False,
+            chunk_strategy="faq",
         ),
         # --- Informational sources for the regulatory assistant --------------
         #
@@ -222,6 +253,14 @@ def discover_sources() -> list[RegulatorySource]:
             source_kind="official_regulation",
             currency_status="current",
             restrict_to_textile_pages=False,
+            # Cross-validated against this document's own table of contents
+            # during development (see chunking.py's module-level note): 248
+            # real numbered sections recovered correctly out of a
+            # similarly-sized total, with amendment-history citation
+            # markers correctly excluded. Not activated for
+            # customs_rules_2001 below - same heading shape, not
+            # independently re-validated there yet.
+            chunk_strategy="section_aware",
         ),
         RegulatorySource(
             key="customs_rules_2001",
@@ -264,8 +303,18 @@ def discover_sources() -> list[RegulatorySource]:
     ]
 
 
+_VALIDATION_HEADER_RE = re.compile(
+    r"^(?:VALIDATED TEXT DERIVATIVE|The original OCR text remains unchanged.*|"
+    r"Legal validation is limited.*|===\s*Page\s+\d+\s+of\s+\d+\s*===|"
+    r"Validation status:.*|Validation note:.*)\s*$",
+    re.MULTILINE,
+)
+
+
 def _iter_text_file(source: RegulatorySource) -> Iterator[SourceUnit]:
-    text = source.path.read_text(encoding="utf-8")
+    raw_text = source.path.read_text(encoding="utf-8")
+    cleaned = _VALIDATION_HEADER_RE.sub("", raw_text).strip()
+    text = cleaned or raw_text
     yield SourceUnit(
         text=text,
         page_number=1,
@@ -369,6 +418,49 @@ def _iter_product_requirements(source: RegulatorySource) -> Iterator[SourceUnit]
         )
 
 
+def _parse_curated_frontmatter(raw: str) -> tuple[dict, str]:
+    """Split a curated guidance markdown file into (frontmatter, body).
+
+    A file with no ``---``-delimited frontmatter is treated as body text
+    with empty metadata rather than raising, so a malformed file degrades to
+    an unlabelled entry instead of breaking ingestion for every other file.
+    """
+    if not raw.startswith("---"):
+        return {}, raw.strip()
+    _, _, rest = raw.partition("---")
+    frontmatter_text, separator, body = rest.partition("---")
+    if not separator:
+        return {}, raw.strip()
+    import yaml
+
+    metadata = yaml.safe_load(frontmatter_text) or {}
+    return (metadata if isinstance(metadata, dict) else {}), body.strip()
+
+
+def _iter_curated_guidance_dir(source: RegulatorySource) -> Iterator[SourceUnit]:
+    """docs/CUSTOMS_CHATBOT_ARCHITECTURE.md section 6.3: one plain-English
+    Q&A entry per file under ``regulatory_data/curated/guidance/``, each its
+    own retrieval unit so it matches a user's question almost word-for-word.
+    Every entry currently on disk carries ``verification_status:
+    needs_sme_review`` in its frontmatter - a first draft, not
+    subject-matter-expert-reviewed content, and it should keep saying so
+    until that review happens.
+    """
+    for path in sorted(source.path.glob("*.md")):
+        metadata, body = _parse_curated_frontmatter(path.read_text(encoding="utf-8"))
+        if not body:
+            continue
+        question = metadata.get("question") or path.stem.replace("-", " ")
+        entry_id = metadata.get("id") or path.stem
+        text = f"Q: {question}\n\nA: {body}"
+        yield SourceUnit(
+            text=text,
+            page_number=None,
+            section=entry_id,
+            pct_codes=[],
+        )
+
+
 def iter_units(source: RegulatorySource) -> Iterator[SourceUnit]:
     if source.kind == "text_file":
         yield from _iter_text_file(source)
@@ -376,5 +468,7 @@ def iter_units(source: RegulatorySource) -> Iterator[SourceUnit]:
         yield from _iter_pdf_pages(source)
     elif source.kind == "product_requirements_json":
         yield from _iter_product_requirements(source)
+    elif source.kind == "curated_guidance_dir":
+        yield from _iter_curated_guidance_dir(source)
     else:  # pragma: no cover - guarded by discover_sources
         raise ValueError(f"Unknown source kind: {source.kind}")

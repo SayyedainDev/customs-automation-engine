@@ -194,6 +194,87 @@ class Settings(BaseSettings):
         validation_alias="LANGGRAPH_OCR_REVIEW_THRESHOLD",
     )
 
+    # --- General Pakistan Customs Assistant (services/customs_chat) ---
+    # Replaces the textile-only Regulatory Chat. See
+    # docs/CUSTOMS_CHATBOT_ARCHITECTURE.md section 8 for the model-routing
+    # rationale (fast model for classify/rewrite/verify, strong model to
+    # write the answer the user reads).
+    customs_chat_fast_model: str = Field(
+        default="llama-3.1-8b-instant",
+        validation_alias="CUSTOMS_CHAT_FAST_MODEL",
+    )
+    customs_chat_strong_model: str = Field(
+        default="llama-3.3-70b-versatile",
+        validation_alias="CUSTOMS_CHAT_STRONG_MODEL",
+    )
+    customs_chat_max_completion_tokens: int = Field(
+        default=800,
+        ge=128,
+        le=4096,
+        validation_alias="CUSTOMS_CHAT_MAX_COMPLETION_TOKENS",
+    )
+    customs_chat_temperature: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        validation_alias="CUSTOMS_CHAT_TEMPERATURE",
+    )
+    # Evidence banding thresholds. Architecture doc section 7.1 proposed
+    # calibrating these against the cross-encoder score, but that score's
+    # scale is not stable across reranker backends (a real cross-encoder
+    # emits roughly [-11, 11] logits; the offline LexicalReranker fallback
+    # emits token-overlap in roughly [0, 1.5] - see
+    # services/regulatory/reranker.py). Banding is therefore done on
+    # ``ScoredEvidence.lexical_relevance_score`` instead: the existing,
+    # reranker-independent relevance metric retrieval.py already computes
+    # and gates on (``MIN_LEXICAL_RELEVANCE = 0.5``), which the comments
+    # there report as ~0.75-0.80 for a genuinely relevant chunk and
+    # ``MIN_BASE_LEXICAL_OVERLAP = 0.20`` as the noise floor. These defaults
+    # reuse those already-validated cuts; recalibrate against the golden set
+    # (docs section 14) once one exists, by env var, no code change needed.
+    customs_chat_tau_high: float = Field(
+        default=0.5,
+        ge=0.0,
+        validation_alias="CUSTOMS_CHAT_TAU_HIGH",
+    )
+    customs_chat_tau_low: float = Field(
+        default=0.20,
+        ge=0.0,
+        validation_alias="CUSTOMS_CHAT_TAU_LOW",
+    )
+    customs_chat_enable_verifier: bool = Field(
+        default=True,
+        validation_alias="CUSTOMS_CHAT_ENABLE_VERIFIER",
+    )
+    customs_chat_enable_ring2: bool = Field(
+        default=True,
+        validation_alias="CUSTOMS_CHAT_ENABLE_RING2",
+    )
+    customs_chat_enable_llm_scope_classifier: bool = Field(
+        default=True,
+        validation_alias="CUSTOMS_CHAT_ENABLE_LLM_SCOPE_CLASSIFIER",
+    )
+    customs_chat_enable_query_rewriter: bool = Field(
+        default=True,
+        validation_alias="CUSTOMS_CHAT_ENABLE_QUERY_REWRITER",
+    )
+    customs_chat_history_turns: int = Field(
+        default=6,
+        ge=0,
+        le=20,
+        validation_alias="CUSTOMS_CHAT_HISTORY_TURNS",
+    )
+    customs_chat_prompt_version: str = Field(
+        default="v1",
+        validation_alias="CUSTOMS_CHAT_PROMPT_VERSION",
+    )
+    customs_chat_top_k: int = Field(
+        default=6,
+        ge=1,
+        le=20,
+        validation_alias="CUSTOMS_CHAT_TOP_K",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="CUSTOMS_",

@@ -75,6 +75,7 @@ _FIELD_LABELS = {
 
 _MATCH_METHODS = {
     "line_reference": "line reference",
+    "sku_code": "SKU / style code",
     "pct_code": "PCT code",
     "product_name": "product name",
 }
@@ -621,7 +622,7 @@ def _correction_field_label(field_path: str) -> str:
     try:
         parsed = parse_field_path(field_path)
     except InvalidFieldPathError:
-        return field_path
+        return field_path.replace("_", " ").strip().capitalize() or "Supporting document"
     document_label = "Invoice" if parsed.document == "invoice" else "Packing list"
     field_label = _CORRECTION_FIELD_LABELS.get(parsed.field, parsed.field.replace("_", " "))
     return f"{document_label} {field_label}"

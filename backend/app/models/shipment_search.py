@@ -10,7 +10,7 @@ date, issuing authority), and conflating them would blur two unrelated
 concepts under one schema.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -41,5 +41,8 @@ class ShipmentSummaryVector(Base):
     index_version: Mapped[str] = mapped_column(String(64))
     meta: Mapped[dict[str, Any]] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        onupdate=lambda: datetime.now(timezone.utc),
     )

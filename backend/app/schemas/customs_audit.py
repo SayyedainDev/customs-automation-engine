@@ -36,6 +36,10 @@ class WorkflowStatusResponse(BaseModel):
     review_revision_id: str | None = None
 
 
+class WorkflowListResponse(BaseModel):
+    workflows: list[WorkflowStatusResponse]
+
+
 class ReviewTaskResponse(BaseModel):
     task_id: str
     workflow_id: str
@@ -73,6 +77,7 @@ class AuditEventResponse(BaseModel):
     node_name: str | None
     actor_type: str
     actor_reference: str | None
+    previous_state_hash: str | None = None
     new_state_hash: str | None
     event_payload: dict[str, Any] | None
     created_at: str | None

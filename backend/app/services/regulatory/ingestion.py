@@ -19,6 +19,7 @@ from app.models.regulatory import RegulatoryChunk
 from app.services.compliance.result_builder import LEGAL_CUTOFF_DATE
 from app.services.compliance.rule_loader import load_compliance_rules
 from app.services.regulatory.chunking import (
+    split_by_sequential_numbered_headings,
     split_child_chunks,
     split_parent_sections,
 )
@@ -63,11 +64,67 @@ class IngestionReport:
 
 
 def _checksum(source: RegulatorySource) -> str:
+    if source.path.is_dir():
+        # curated_guidance_dir: hash every file's bytes in a stable (sorted)
+        # order, so adding/editing/removing any entry changes the checksum
+        # and triggers a re-ingest, same as a single-file source changing.
+        digest = hashlib.sha256()
+        for file_path in sorted(source.path.glob("*.md")):
+            digest.update(file_path.name.encode("utf-8"))
+            digest.update(file_path.read_bytes())
+        return "sha256:" + digest.hexdigest()
     return "sha256:" + hashlib.sha256(source.path.read_bytes()).hexdigest()
 
 
 def _relative_path(source: RegulatorySource) -> str:
     return str(source.path.relative_to(PROJECT_ROOT))
+
+
+def _split_parents(
+    source: RegulatorySource, text: str, *, last_section_number: int
+) -> tuple[list[tuple[str, str | None]], int]:
+    """``(parent_text, section_label)`` pairs, dispatched on
+    ``source.chunk_strategy``, plus the running section-number counter to
+    pass into the next page's call.
+
+    ``section_label`` is ``None`` for the default strategy (the caller falls
+    back to the page-level section already carried on the source unit).
+    "section_aware" supplies one for every heading found; a page with no
+    heading at all - deep in a long section's body - falls back to the
+    default split (still with no label, so that page's chunks are
+    unlabelled rather than silently dropped) while the counter is carried
+    forward unchanged, so the *next* page's monotonic check still starts
+    from the right place. See ``chunking.split_by_sequential_numbered_headings``
+    for why the counter must cross this page boundary at all, and for the
+    known limitation this implies: a section whose body continues onto a
+    following page is not merged into one parent chunk across that page
+    break - each page is still chunked independently, so a labelled
+    section's parent chunk stops at the end of its starting page.
+    """
+    if source.chunk_strategy == "faq":
+        # One curated Q&A entry is already exactly one retrieval-sized unit
+        # (see sources._iter_curated_guidance_dir) - splitting it further
+        # would break a question and its answer across separate chunks and
+        # defeat the whole point of a curated entry retrieving as one
+        # coherent, directly-matching block.
+        return [(text, None)], last_section_number
+    if source.chunk_strategy == "section_aware":
+        split = split_by_sequential_numbered_headings(
+            text, label_prefix="Section", start_last_number=last_section_number
+        )
+        if split.sections:
+            return [(body, label) for label, body in split.sections], split.last_accepted_number
+        return [(body, None) for body in split_parent_sections(text)], split.last_accepted_number
+    return [(body, None) for body in split_parent_sections(text)], last_section_number
+
+
+def _split_children(source: RegulatorySource, parent_text: str) -> list[str]:
+    """"faq" parents are already one retrieval-sized Q&A entry - the single
+    child is the whole parent, not a further-split window (see
+    _split_parents)."""
+    if source.chunk_strategy == "faq":
+        return [parent_text]
+    return split_child_chunks(parent_text)
 
 
 def _pdf_page_stats(source: RegulatorySource) -> tuple[int, int]:
@@ -123,14 +180,21 @@ def ingest_source(
 
     slug = source.key
     unit_number = 0
+    # Carried across pages so "section_aware" sources keep the monotonic
+    # section-number sequence intact across the page boundary - see
+    # _split_parents.
+    last_section_number = 0
     for unit in iter_units(source):
         unit_number += 1
         if unit.page_number is not None:
             result.pages_processed += 1
         unit_key = f"pg{unit.page_number}" if unit.page_number else f"u{unit_number}"
-        parents = split_parent_sections(unit.text)
-        for parent_index, parent_text in enumerate(parents):
+        parents, last_section_number = _split_parents(
+            source, unit.text, last_section_number=last_section_number
+        )
+        for parent_index, (parent_text, section_label) in enumerate(parents):
             parent_chunk_id = f"{slug}:{unit_key}:p{parent_index}"
+            section_value = section_label or unit.section
             db.add(
                 _build_chunk(
                     source=source,
@@ -142,14 +206,14 @@ def ingest_source(
                     is_parent=True,
                     chunk_index=parent_index,
                     page_number=unit.page_number,
-                    section=unit.section,
+                    section=section_value,
                     pct_codes=unit.pct_codes,
                     text=parent_text,
                     rule_data_version=rule_data_version,
                 )
             )
             result.parent_chunks += 1
-            for child_index, child_text in enumerate(split_child_chunks(parent_text)):
+            for child_index, child_text in enumerate(_split_children(source, parent_text)):
                 db.add(
                     _build_chunk(
                         source=source,
@@ -161,7 +225,7 @@ def ingest_source(
                         is_parent=False,
                         chunk_index=child_index,
                         page_number=unit.page_number,
-                        section=unit.section,
+                        section=section_value,
                         pct_codes=unit.pct_codes,
                         text=child_text,
                         rule_data_version=rule_data_version,

@@ -1,3 +1,5 @@
+import math
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -8,8 +10,11 @@ from app.core.exceptions import (
     PdfExtractionError,
     ShipmentExtractionInputError,
     StoredDocumentNotFoundError,
+    StructuredExtractionAuthError,
     StructuredExtractionConfigurationError,
     StructuredExtractionProviderError,
+    StructuredExtractionProviderUnavailableError,
+    StructuredExtractionRateLimitedError,
     UnsupportedDocumentTypeError,
 )
 from app.schemas.shipment_extraction import (
@@ -31,7 +36,7 @@ router = APIRouter(
     "/check-documents",
     response_model=ShipmentExtractionResponse,
 )
-async def check_uploaded_shipment_documents(
+def check_uploaded_shipment_documents(
     payload: ShipmentExtractionRequest,
     db: Session = Depends(get_db_session),
 ) -> ShipmentExtractionResponse:
@@ -46,7 +51,7 @@ async def check_uploaded_shipment_documents(
         ) from exc
     except ShipmentExtractionInputError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     except UnsupportedDocumentTypeError as exc:
@@ -61,13 +66,42 @@ async def check_uploaded_shipment_documents(
         ) from exc
     except PdfExtractionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     except StructuredExtractionConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Structured extraction is not configured.",
+        ) from exc
+    except StructuredExtractionAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The extraction model provider rejected this deployment's "
+                "credentials; no extraction was performed."
+            ),
+        ) from exc
+    except StructuredExtractionRateLimitedError as exc:
+        headers = {}
+        if exc.retry_after_seconds is not None:
+            headers["Retry-After"] = str(int(math.ceil(exc.retry_after_seconds)))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "The extraction model provider is rate limited; no extraction "
+                "was performed. The uploaded documents were saved and can be "
+                "retried."
+            ),
+            headers=headers or None,
+        ) from exc
+    except StructuredExtractionProviderUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "The extraction model provider is unavailable or rate limited; "
+                "no extraction was performed. Retry once capacity is available."
+            ),
         ) from exc
     except StructuredExtractionProviderError as exc:
         raise HTTPException(

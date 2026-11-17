@@ -1056,6 +1056,87 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 "updated_at": utcnow_iso(),
             }
 
+        if decision.get("action") == HumanAction.PROVIDE_MISSING_DOCUMENT.value:
+            provided_ids = [str(x) for x in (decision.get("provided_document_ids") or []) if x]
+            if not provided_ids:
+                return _fail("no provided_document_ids were supplied with provide_missing_document")
+            doc_type_hint = str(decision.get("source") or "form_e_or_psw_export_declaration")
+            updated_supporting = list(state.get("supporting_documents") or [])
+            existing_ids = {str(s.get("document_id")) for s in updated_supporting if isinstance(s, dict)}
+            for pid in provided_ids:
+                if pid not in existing_ids:
+                    updated_supporting.append({"document_type": doc_type_hint, "document_id": pid})
+            updated_additional_types = list(state.get("additional_uploaded_document_types") or [])
+            if doc_type_hint not in updated_additional_types:
+                updated_additional_types.append(doc_type_hint)
+            request = MultiLineShipmentRequest(
+                review_revision_id=state.get("review_revision_id") or uuid4(),
+                commercial_invoice_document_id=UUID(state["commercial_invoice_document_id"]),
+                packing_list_document_id=(
+                    UUID(state["packing_list_document_id"])
+                    if state.get("packing_list_document_id")
+                    else None
+                ),
+                shipment_date=state.get("shipment_date"),
+                letter_of_credit_date=state.get("letter_of_credit_date"),
+                additional_uploaded_document_types=updated_additional_types,
+                supporting_documents=updated_supporting,
+            )
+            with deps.session_factory() as db:
+                new_extraction_result = deps.run_pipeline(db, request)
+            new_check_ids = _all_check_ids(new_extraction_result)
+            events = [
+                _event(
+                    event_type="human_document_provided",
+                    node_name="apply_human_correction",
+                    actor=ActorType.HUMAN,
+                    actor_reference=reviewer,
+                    payload={
+                        "provided_document_ids": provided_ids,
+                        "document_type": doc_type_hint,
+                    },
+                ),
+                _event(
+                    event_type="checks_recomputed",
+                    node_name="apply_human_correction",
+                    actor=ActorType.SYSTEM,
+                    payload={
+                        "new_overall_status": new_extraction_result.get("overall_status"),
+                        "affected_check_ids": new_check_ids,
+                    },
+                ),
+            ]
+            doc_correction_record = HumanCorrection(
+                field_path=doc_type_hint,
+                original_value="Not uploaded",
+                corrected_value=f"Uploaded ({len(provided_ids)} file(s))",
+                reviewer_reference=reviewer or "unknown",
+                reason=str(decision.get("reason") or decision.get("review_note") or "Provided missing supporting document"),
+                source=doc_type_hint,
+                timestamp=decision.get("timestamp") or utcnow_iso(),
+                correction_id=str(uuid4()),
+                review_task_id=review_task.get("review_task_id"),
+                revision_from=revision_from,
+                source_document_id=provided_ids[0],
+                source_page=1,
+                affected_check_ids=new_check_ids,
+            ).model_dump(mode="json")
+            return {
+                "supporting_documents": updated_supporting,
+                "additional_uploaded_document_types": updated_additional_types,
+                "additional_document_ids": _append(state, "additional_document_ids", provided_ids),
+                "extraction_result": new_extraction_result,
+                "matched_items": new_extraction_result.get("items", []),
+                "cross_document_checks": new_extraction_result.get("shipment_level_checks", []),
+                "human_correction_history": _append(
+                    state, "human_correction_history", [doc_correction_record]
+                ),
+                "affected_check_ids": new_check_ids,
+                "correction_applied": True,
+                "audit_events": _append(state, "audit_events", events),
+                "updated_at": utcnow_iso(),
+            }
+
         if not raw_corrections:
             return _fail("no corrections were submitted with a confirm/correct action")
 
@@ -1515,14 +1596,15 @@ def route_after_compare(state: dict[str, Any]) -> str:
 
 
 def route_human_action(state: dict[str, Any]) -> str:
-    """confirm/correct go through the targeted-correction chain; every other
-    action (reject, accept, note, provide-document, reprocess) keeps the
+    """confirm/correct and provide_missing_document go through the targeted
+    recompute chain; every other action (reject, accept, note) keeps the
     existing resume_workflow behaviour unchanged."""
     decision = state.get("human_review_decision") or {}
     action = decision.get("action")
     if action in (
         HumanAction.CORRECT_EXTRACTED_VALUE.value,
         HumanAction.CONFIRM_EXTRACTED_VALUE.value,
+        HumanAction.PROVIDE_MISSING_DOCUMENT.value,
     ):
         return "apply_human_correction"
     return "resume_workflow"

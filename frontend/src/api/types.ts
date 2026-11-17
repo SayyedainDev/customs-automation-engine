@@ -175,6 +175,10 @@ export interface WorkflowStatusResponse {
   review_revision_id?: string | null;
 }
 
+export interface WorkflowListResponse {
+  workflows: WorkflowStatusResponse[];
+}
+
 export interface DisputedFieldDetail {
   field_path: string;
   document_type: string;
@@ -183,6 +187,7 @@ export interface DisputedFieldDetail {
   value: unknown;
   confidence: number | null;
   extraction_method: string | null;
+  correction_basis?: string;
 }
 
 export interface ReviewTaskResponse {
@@ -219,9 +224,28 @@ export interface AuditEvent {
   node_name: string | null;
   actor_type: string;
   actor_reference: string | null;
+  previous_state_hash?: string | null;
   new_state_hash: string | null;
   event_payload: Record<string, unknown> | null;
   created_at: string | null;
+}
+
+export interface DutyCalculationRequest {
+  hs_code?: string | null;
+  assessed_value: string;
+  customs_duty_pct: string;
+  additional_customs_duty_pct?: string | null;
+  regulatory_duty_pct?: string;
+  federal_excise_duty_pct?: string;
+  sales_tax_pct?: string;
+  value_addition_tax_pct?: string;
+  advance_income_tax_pct?: string;
+}
+
+export interface DutyCalculationResponse {
+  hs_code?: string | null;
+  breakdown: Record<string, string>;
+  formula_steps: string[];
 }
 
 export interface EvidenceResult {
@@ -239,6 +263,10 @@ export interface EvidenceResult {
   validation_status: string;
   rule_data_version: string;
   cross_encoder_score: number;
+  source_kind?: string;
+  source_kind_label?: string;
+  is_official?: boolean;
+  currency_status?: string | null;
 }
 
 export interface EvidenceSearchResponse {
@@ -433,4 +461,105 @@ export interface GuidanceResponse {
   documents: DocumentGuidanceSchema[];
   limitations: string[];
   answer?: string | null;
+}
+
+// --- General Customs Assistant (services/customs_chat) -------------------
+//
+// Deliberately a smaller, separate contract from RegulatoryChatResponse
+// above (see backend/app/schemas/customs_chat.py) - this is the general
+// Pakistan customs chatbot, not the textile-only regulatory assistant.
+
+export type ChatRing = "GROUNDED" | "GENERAL" | "OUT_OF_SCOPE" | "REFUSAL";
+export type EvidenceBand = "STRONG" | "WEAK" | "NONE" | "not_applicable";
+export type ChatConfidence = "high" | "medium" | "low";
+
+export interface ChatSourceSchema {
+  document: string;
+  reference?: string | null;
+  source_kind: string;
+  kind_label: string;
+  is_official: boolean;
+  currency_status?: string | null;
+  excerpt: string;
+  url?: string | null;
+}
+
+export interface ChatChecklistDocument {
+  display_name: string;
+  requirement: string;
+  condition?: string | null;
+}
+
+export interface ChatChecklistTool {
+  pct_code: string;
+  product: string;
+  destination: string;
+  required_documents: ChatChecklistDocument[];
+  conditional_documents: ChatChecklistDocument[];
+}
+
+export interface ChatTariffLookup {
+  query_code: string;
+  matched: boolean;
+  exact: boolean;
+  hs_code?: string | null;
+  description?: string | null;
+  customs_duty_pct?: number | null;
+  source_page?: number | null;
+  tariff_year?: string | null;
+  needs_review: boolean;
+  candidates: string[];
+  cascading_tax_breakdown?: Record<string, string> | null;
+}
+
+export interface ChatMessageRequest {
+  message: string;
+  conversation_id?: string | null;
+  shipment_id?: string | null;
+  stream?: boolean;
+}
+
+export interface ChatMessageResponse {
+  conversation_id: string;
+  message_id: string;
+  answer: string;
+  mode: ChatRing;
+  evidence_band: EvidenceBand;
+  scope_intent: string;
+  sources: ChatSourceSchema[];
+  confidence: ChatConfidence;
+  follow_ups: string[];
+  disclaimer?: string | null;
+  latency_ms: number;
+  checklist_tool?: ChatChecklistTool | null;
+  tariff_lookup?: ChatTariffLookup | null;
+}
+
+export interface ChatConversationTurn {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  mode?: string | null;
+  evidence_band?: string | null;
+  sources: ChatSourceSchema[];
+}
+
+export interface ChatConversationHistory {
+  id: string;
+  shipment_id?: string | null;
+  turns: ChatConversationTurn[];
+}
+
+export interface ChatCoverageResponse {
+  indexed_documents: string[];
+  document_types: string[];
+  trade_directions_covered: string[];
+  known_gaps: string[];
+  corpus_snapshot_date?: string | null;
+}
+
+/** Parsed contents of one SSE frame from POST /api/v1/customs-chat/messages. */
+export interface ChatStreamEvent {
+  event: "stage" | "meta" | "token" | "sources" | "tool_result" | "done";
+  data: Record<string, unknown>;
 }

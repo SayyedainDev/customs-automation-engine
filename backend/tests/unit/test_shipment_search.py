@@ -249,3 +249,41 @@ def test_completing_a_workflow_produces_exactly_one_indexed_row(isolated_databas
         rows = list(db.execute(select(ShipmentSummaryVector)).scalars())
     assert len(rows) == 1
     assert rows[0].workflow_id == UUID(result["workflow_id"])
+
+
+def test_mixed_model_vectors_rank_compatible_rows_instead_of_poisoning_all(
+    isolated_database: Engine,
+) -> None:
+    stale_wf = _workflow(isolated_database, exporter="Stale Degraded Exporter")
+    active_wf = _workflow(
+        isolated_database,
+        exporter="Active Semantic Exporter",
+        document_mismatches=["The invoice and packing-list net weight do not match."],
+    )
+    active_text = build_shipment_summary_text(active_wf)
+    active_embedder = FakeEmbeddingProvider(
+        dimension=16,
+        model_name="real-model",
+        mapping={
+            active_text: [0.0, 1.0] + [0.0] * 14,
+            "weight discrepancy": [0.0, 1.0] + [0.0] * 14,
+        },
+    )
+    stale_embedder = FakeEmbeddingProvider(
+        dimension=8,
+        model_name="hashing-fallback",
+    )
+
+    with Session(isolated_database) as db:
+        index_shipment_summary(db, stale_wf, stale_embedder)
+        index_shipment_summary(db, active_wf, active_embedder)
+        output = search_shipments(
+            db,
+            "weight discrepancy",
+            embedder=active_embedder,
+        )
+
+    assert output.status == "ok"
+    assert output.retrieval_mode == "semantic"
+    assert len(output.results) == 1
+    assert output.results[0].workflow_id == str(active_wf.id)

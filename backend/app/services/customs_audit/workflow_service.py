@@ -9,6 +9,9 @@ into the project tables using the request-scoped session.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -61,10 +64,11 @@ class CustomsAuditService:
         return {"configurable": {"thread_id": thread_id}}
 
     async def _invoke(self, graph_input: Any, thread_id: str) -> dict[str, Any]:
-        # LangGraph's compiled graph is synchronous. Calling it directly avoids
-        # a cross-thread event-loop wake-up failure observed in the local demo
-        # runtime. The API method remains async for FastAPI compatibility.
-        return self._graph.invoke(graph_input, self._config(thread_id))
+        # Offload synchronous LangGraph execution to a worker thread so the
+        # main FastAPI asyncio event loop remains responsive under concurrent load.
+        return await asyncio.to_thread(
+            self._graph.invoke, graph_input, self._config(thread_id)
+        )
 
     def _snapshot(self, thread_id: str) -> Any:
         return self._graph.get_state(self._config(thread_id))
@@ -130,11 +134,31 @@ class CustomsAuditService:
         validated = HumanReviewDecision.model_validate(
             {**decision, "timestamp": decision.get("timestamp") or utcnow_iso()}
         )
-        if validated.action.value in _UNSUPPORTED_ACTIONS:
+        if validated.action.value == HumanAction.PROVIDE_MISSING_DOCUMENT.value:
+            from app.models.documents import DocumentUploadRecord
+
+            if not validated.provided_document_ids:
+                raise WorkflowStateError(
+                    "the 'provide_missing_document' action requires at least one uploaded document ID"
+                )
+            for raw_doc_id in validated.provided_document_ids:
+                try:
+                    doc_uuid = UUID(str(raw_doc_id))
+                except ValueError as exc:
+                    raise WorkflowStateError(
+                        f"invalid provided_document_id: {raw_doc_id}"
+                    ) from exc
+                if db.get(DocumentUploadRecord, doc_uuid) is None:
+                    raise WorkflowStateError(
+                        f"provided document {doc_uuid} was not found in uploaded documents; "
+                        "upload the document first before submitting provide_missing_document"
+                    )
+        elif validated.action.value in _UNSUPPORTED_ACTIONS:
             raise WorkflowStateError(
                 f"the '{validated.action.value}' action is not implemented in this "
                 "prototype (document replacement requires a real upload workflow); "
                 "use confirm_extracted_value, correct_extracted_value, "
+                "provide_missing_document (with an uploaded document ID), "
                 "accept_manual_review or reject_submission"
             )
         state = await self._invoke(
@@ -196,6 +220,18 @@ class CustomsAuditService:
         self._get_workflow(db, workflow_id)
         return self._status_dict(db, workflow_id)
 
+    def list_workflows(self, db: Session, limit: int = 20) -> list[dict[str, Any]]:
+        rows = (
+            db.execute(
+                select(CustomsAuditWorkflow)
+                .order_by(CustomsAuditWorkflow.created_at.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
+        return [self._workflow_to_dict(row) for row in rows]
+
     def get_review(self, db: Session, workflow_id: UUID) -> dict[str, Any] | None:
         task = self._open_task(db, workflow_id)
         if task is None:
@@ -241,6 +277,7 @@ class CustomsAuditService:
                 "node_name": e.node_name,
                 "actor_type": e.actor_type,
                 "actor_reference": e.actor_reference,
+                "previous_state_hash": e.previous_state_hash,
                 "new_state_hash": e.new_state_hash,
                 "event_payload": e.event_payload,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
@@ -338,6 +375,30 @@ class CustomsAuditService:
                         workflow.id,
                         exc_info=True,
                     )
+                if workflow.invoice_document_id is not None:
+                    try:
+                        from app.services.assistant.shipment_indexer import (
+                            index_shipment_documents,
+                        )
+
+                        docs_to_index: list[tuple[UUID, str]] = [
+                            (workflow.invoice_document_id, "commercial_invoice")
+                        ]
+                        if workflow.packing_list_document_id is not None:
+                            docs_to_index.append(
+                                (workflow.packing_list_document_id, "packing_list")
+                            )
+                        index_shipment_documents(
+                            db,
+                            shipment_id=workflow.invoice_document_id,
+                            documents=docs_to_index,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Shipment document chunk indexing failed for workflow %s",
+                            workflow.id,
+                            exc_info=True,
+                        )
 
         deterministic = state.get("deterministic_compliance_result") or {}
         workflow.deterministic_status = deterministic.get("overall_status")
@@ -364,21 +425,45 @@ class CustomsAuditService:
         db.commit()
 
     def _sync_events(self, db: Session, workflow_id: UUID, events: list[dict[str, Any]]) -> None:
-        existing = db.execute(
-            select(CustomsAuditEvent).where(CustomsAuditEvent.workflow_id == workflow_id)
-        ).scalars().all()
+        existing = (
+            db.execute(
+                select(CustomsAuditEvent)
+                .where(CustomsAuditEvent.workflow_id == workflow_id)
+                .order_by(CustomsAuditEvent.created_at, CustomsAuditEvent.id)
+            )
+            .scalars()
+            .all()
+        )
+        last_hash = existing[-1].new_state_hash if existing else "sha256:genesis"
         for event in events[len(existing):]:
             created_at = _parse_iso(event.get("created_at"))
+            event_type = event.get("event_type", "unknown")
+            node_name = event.get("node_name")
+            prev_hash = event.get("previous_state_hash") or last_hash
+            new_hash = event.get("new_state_hash")
+            if not new_hash:
+                chain_seed = json.dumps(
+                    {
+                        "prev": prev_hash,
+                        "event_type": event_type,
+                        "node_name": node_name,
+                        "payload": event.get("event_payload") or {},
+                    },
+                    sort_keys=True,
+                    default=str,
+                )
+                new_hash = "sha256:" + hashlib.sha256(chain_seed.encode("utf-8")).hexdigest()[:32]
+            last_hash = new_hash
             db.add(
                 CustomsAuditEvent(
                     id=uuid4(),
                     workflow_id=workflow_id,
-                    event_type=event.get("event_type", "unknown"),
-                    node_name=event.get("node_name"),
+                    event_type=event_type,
+                    node_name=node_name,
                     actor_type=event.get("actor_type", "system"),
                     actor_reference=event.get("actor_reference"),
-                    previous_state_hash=event.get("previous_state_hash"),
-                    new_state_hash=event.get("new_state_hash"),
+                    previous_state_hash=prev_hash,
+                    new_state_hash=new_hash,
                     event_payload=event.get("event_payload"),
                     **({"created_at": created_at} if created_at else {}),
                 )
@@ -386,6 +471,10 @@ class CustomsAuditService:
 
     def _status_dict(self, db: Session, workflow_id: UUID) -> dict[str, Any]:
         workflow = self._get_workflow(db, workflow_id)
+        return self._workflow_to_dict(workflow)
+
+    @staticmethod
+    def _workflow_to_dict(workflow: CustomsAuditWorkflow) -> dict[str, Any]:
         return {
             "workflow_id": str(workflow.id),
             "thread_id": workflow.thread_id,

@@ -1527,3 +1527,37 @@ def extract_match_and_check_multi_line_shipment(
         items=items,
         fields_requiring_manual_review=manual_fields,
     )
+
+
+_REVISION_PIPELINE_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
+_REVISION_PIPELINE_CACHE_MAX = 32
+
+
+def _revision_cache_key(request: MultiLineShipmentRequest) -> tuple[Any, ...]:
+    return (
+        str(request.review_revision_id),
+        str(request.commercial_invoice_document_id),
+        str(request.packing_list_document_id) if request.packing_list_document_id else None,
+        str(request.shipment_date) if request.shipment_date else None,
+        str(request.letter_of_credit_date) if request.letter_of_credit_date else None,
+        tuple(request.additional_uploaded_document_types),
+        tuple((s.document_type, str(s.document_id)) for s in request.supporting_documents),
+    )
+
+
+def cache_multi_line_response(
+    request: MultiLineShipmentRequest, response: MultiLineShipmentResponse
+) -> None:
+    key = _revision_cache_key(request)
+    if len(_REVISION_PIPELINE_CACHE) >= _REVISION_PIPELINE_CACHE_MAX:
+        _REVISION_PIPELINE_CACHE.pop(next(iter(_REVISION_PIPELINE_CACHE)))
+    _REVISION_PIPELINE_CACHE[key] = response.model_dump(mode="json")
+
+
+def get_cached_multi_line_response(
+    request: MultiLineShipmentRequest,
+) -> dict[str, Any] | None:
+    import copy
+
+    cached = _REVISION_PIPELINE_CACHE.get(_revision_cache_key(request))
+    return copy.deepcopy(cached) if cached is not None else None

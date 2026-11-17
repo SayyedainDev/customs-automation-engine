@@ -52,10 +52,16 @@ class WorkflowDeps:
 
 def default_run_pipeline(db: Session, request: MultiLineShipmentRequest) -> dict[str, Any]:
     from app.services.multi_line_shipment_service import (
+        cache_multi_line_response,
         extract_match_and_check_multi_line_shipment,
+        get_cached_multi_line_response,
     )
 
+    cached = get_cached_multi_line_response(request)
+    if cached is not None:
+        return cached
     response = extract_match_and_check_multi_line_shipment(db, request)
+    cache_multi_line_response(request, response)
     return response.model_dump(mode="json")
 
 

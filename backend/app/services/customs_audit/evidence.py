@@ -55,6 +55,13 @@ _ITEM_FIELD_MAP: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {
             ("invoice", "line_total"),
         ),
     ),
+    "weight_consistency": (
+        "net weight and gross weight",
+        (
+            ("invoice", "net_weight"),
+            ("invoice", "gross_weight"),
+        ),
+    ),
 }
 
 #: Same shape, for checks that compare a shipment/header-level field.
@@ -92,6 +99,13 @@ _SNIPPET_MAX_CHARS = 320
 #: Export Policy Order appendix, attached to a check that is just "is this
 #: number bigger than zero".
 _ARITHMETIC_SOURCE_LABEL = "Shipment invoice arithmetic"
+_INTERNAL_NON_REGULATORY_SOURCES = frozenset(
+    {
+        _ARITHMETIC_SOURCE_LABEL,
+        "Phase 1 shipment input schema",
+        "Shipment weight validation",
+    }
+)
 
 #: check_ids that mean "this prototype's configured rule data covers this
 #: input" - a statement about the software's own scope, not a government
@@ -111,7 +125,7 @@ def is_regulatory_check(check: dict[str, Any]) -> bool:
     if is_system_scope_check(check):
         return False
     source = check.get("source_document")
-    if source == _ARITHMETIC_SOURCE_LABEL:
+    if source in _INTERNAL_NON_REGULATORY_SOURCES:
         return False
     return bool(source or check.get("sro_number"))
 
@@ -232,7 +246,9 @@ def document_evidence_for_check(
 #: ingestion, which tags this one type this way. A curated record is
 #: reviewed against official sources but is not itself a government
 #: publication, so it must never be labelled as one.
-_CURATED_DOCUMENT_TYPES = frozenset({"product_requirements_structured"})
+_CURATED_DOCUMENT_TYPES = frozenset(
+    {"product_requirements_structured", "curated_guidance_faq"}
+)
 
 #: How many citations are shown expanded by default; the rest are still
 #: returned (never dropped) but flagged ``display_primary=False`` so the
@@ -244,7 +260,9 @@ _CURATED_DOCUMENT_TYPES = frozenset({"product_requirements_structured"})
 _MAX_DISPLAY_PRIMARY_CITATIONS = 2
 
 
-def _source_kind(document_type: Any) -> str:
+def _source_kind(document_type: Any, explicit_kind: Any = None) -> str:
+    if explicit_kind in ("curated", "curated_rule_summary"):
+        return "curated"
     if document_type in _CURATED_DOCUMENT_TYPES:
         return "curated"
     return "official"
@@ -265,11 +283,13 @@ def normalize_regulatory_evidence(raw_items: list[dict[str, Any]]) -> list[dict[
     two.
     """
     normalized: list[dict[str, Any]] = []
-    seen: set[tuple[Any, Any]] = set()
+    seen: set[tuple[Any, ...]] = set()
     for item in raw_items:
+        page_num = item.get("page_number")
         key = (
             item.get("source_document_id") or item.get("source_document"),
-            item.get("page_number"),
+            page_num,
+            item.get("section") if page_num is None else None,
         )
         if key in seen:
             continue
@@ -284,7 +304,7 @@ def normalize_regulatory_evidence(raw_items: list[dict[str, Any]]) -> list[dict[
                 "source_title": item.get("source_document"),
                 "source_document_id": item.get("source_document_id")
                 or item.get("document_checksum"),
-                "source_kind": _source_kind(document_type),
+                "source_kind": _source_kind(document_type, item.get("source_kind")),
                 "issuing_authority": item.get("issuing_authority"),
                 "sro_number": item.get("sro_number"),
                 "page_number": item.get("page_number"),

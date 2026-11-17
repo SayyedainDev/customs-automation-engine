@@ -37,7 +37,7 @@ adding more products or calling the result a legal compliance pass.**
 | `app/schemas/compliance.py` | Defines the request model, result statuses, individual check result and complete response. It also normalizes PCT codes during request validation. | 60 lines |
 | `app/services/compliance/rule_loader.py` | Finds and reads the two JSON rule sources, normalizes their PCT codes, checks that every configured product has metadata and requirements, and caches the resulting rule set. | 121 lines |
 | `app/services/compliance/rule_engine.py` | Orchestrates every check and also contains arithmetic rules, document aliases, general document checks, product checks, China certificate-of-origin logic, raw-cotton logic, result creation and final-status calculation. | 839 lines |
-| `app/tests/test_compliance_rules.py` | Creates sample shipment payloads and checks normal, failing, unsupported and edge-case behavior. | Expanded during this review |
+| `backend/tests/unit/test_compliance_rules.py` | Creates sample shipment payloads and checks normal, failing, unsupported and edge-case behavior. | Expanded during this review |
 | `app/main.py` | Registers the compliance router with the FastAPI application. | Existing application file |
 
 ### Runtime relationship

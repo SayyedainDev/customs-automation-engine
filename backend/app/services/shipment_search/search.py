@@ -66,18 +66,18 @@ def search_shipments(
         # recency-ordered list is still useful and needs no ranking model.
         return _recency_fallback(rows, top_k)
 
-    compatible = (
-        query_vector.ndim == 1
-        and query_vector.size == embedder.dimension
-        and all(
-            row.embedding_model == embedder.model_name
-            and row.embedding_dim == embedder.dimension
-            and np.asarray(row.embedding, dtype=np.float32).ndim == 1
-            and np.asarray(row.embedding, dtype=np.float32).size == query_vector.size
-            for row in rows
-        )
-    )
-    if not compatible:
+    if query_vector.ndim != 1 or query_vector.size != embedder.dimension:
+        return _recency_fallback(rows, top_k)
+
+    compatible_rows: list[tuple[np.ndarray, ShipmentSummaryVector]] = []
+    for row in rows:
+        if row.embedding_model != embedder.model_name or row.embedding_dim != embedder.dimension:
+            continue
+        vec = np.asarray(row.embedding, dtype=np.float32)
+        if vec.ndim == 1 and vec.size == query_vector.size:
+            compatible_rows.append((vec, row))
+
+    if not compatible_rows:
         # Comparing vectors from different models (or merely different
         # dimensions) is invalid. Keep this read path free and deterministic;
         # the next normal indexing pass can refresh stale rows.
@@ -85,8 +85,8 @@ def search_shipments(
 
     scored = sorted(
         (
-            (float(np.dot(query_vector, np.asarray(row.embedding, dtype=np.float32))), row)
-            for row in rows
+            (float(np.dot(query_vector, vec)), row)
+            for vec, row in compatible_rows
         ),
         key=lambda pair: pair[0],
         reverse=True,

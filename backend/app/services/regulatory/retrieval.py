@@ -58,6 +58,37 @@ from app.services.regulatory.vector_store import (
 
 logger = logging.getLogger(__name__)
 
+#: Latency optimisation from docs/CUSTOMS_CHATBOT_ARCHITECTURE.md section 8
+#: ("cache embeddings by query hash"). Keyed on ``id(embedder)``, not on
+#: ``embedder.model_name`` - a real embedding provider is a long-lived
+#: process-wide singleton (``get_embedding_provider()``), so its identity is
+#: stable for as long as the cache should stay valid, whereas the model_name
+#: string alone is not: tests inject a fresh ``FakeEmbeddingProvider()``
+#: (often sharing the default name "fake-deterministic") per test, and two
+#: such instances can be configured with different explicit vector mappings
+#: for the same query text. Keying on identity means a new provider - real
+#: reconfiguration or a fresh test fixture - always misses cleanly instead of
+#: silently serving another provider's vector.
+_QUERY_EMBEDDING_CACHE: dict[tuple[int, str], np.ndarray] = {}
+_QUERY_EMBEDDING_CACHE_MAX = 512
+
+
+def _cached_embed_query(embedder: "EmbeddingProvider", text: str) -> np.ndarray:
+    key = (id(embedder), text)
+    cached = _QUERY_EMBEDDING_CACHE.get(key)
+    if cached is not None:
+        return cached
+    vector = embedder.embed_query(text)
+    if len(_QUERY_EMBEDDING_CACHE) >= _QUERY_EMBEDDING_CACHE_MAX:
+        # Not a true LRU - just bound memory by dropping the oldest entry
+        # (dicts preserve insertion order). Good enough for a single-user
+        # prototype's query-repetition patterns; a real LRU is a targeted
+        # upgrade if usage ever shows this matters.
+        _QUERY_EMBEDDING_CACHE.pop(next(iter(_QUERY_EMBEDDING_CACHE)))
+    _QUERY_EMBEDDING_CACHE[key] = vector
+    return vector
+
+
 _WORD = re.compile(r"[a-z0-9]+")
 _PCT = re.compile(r"\b(\d{4})\.?(\d{4})\b")
 _SRO = re.compile(r"(\d{2,4})\s*\(?\s*i\s*\)?\s*[/\-]?\s*(\d{4})", re.IGNORECASE)
@@ -137,8 +168,12 @@ def _query_source_intent(query: str) -> str | None:
         return "customs_rules"
     if (
         "export policy order" in lowered
+        or bool(_SRO.search(query))
         or re.search(r"\bappendix[- ]?[a-j]\b", lowered)
-        or re.search(r"\b(raw cotton|cotton).{0,50}\b(schedule|restriction)\b", lowered)
+        or re.search(
+            r"\b(raw cotton|cotton).{0,80}\b(schedule|restriction|deposit|sbp|state bank|letter of credit|180\s*days|phytosanitary)\b",
+            lowered,
+        )
     ):
         return "export_policy"
     if re.search(r"\bsingle declarations?\b", lowered):
@@ -157,13 +192,27 @@ def _query_source_intent(query: str) -> str | None:
     return None
 
 
-def _source_compatibility(intent: str | None, chunk: RegulatoryChunk) -> int:
+def _source_compatibility(
+    intent: str | None,
+    chunk: RegulatoryChunk,
+    query_sro_tokens: set[str] | None = None,
+) -> int:
     """Compatibility score for an already-relevant passage."""
-    if intent is None:
-        return 0
     kind = resolve_source_kind(chunk)
     document_type = (chunk.document_type or "").casefold()
     title = (chunk.source_document or "").casefold()
+
+    if query_sro_tokens and chunk.sro_number:
+        chunk_sros = set(_special_tokens(chunk.sro_number))
+        if query_sro_tokens & chunk_sros and kind in (
+            OFFICIAL_REGULATION,
+            OFFICIAL_POLICY,
+            OFFICIAL_PROCEDURE,
+        ):
+            return 5
+
+    if intent is None:
+        return 0
 
     if intent == "tariff":
         return 4 if kind == OFFICIAL_TARIFF else (1 if kind == CURATED_RULE_SUMMARY else 0)
@@ -282,6 +331,15 @@ class ScoredEvidence:
     rrf_rank: int
     cross_encoder_score: float
     cross_encoder_rank: int
+    # The deterministic, reranker-independent relevance floor (see
+    # ``_lexical_relevance``) that this candidate actually measured. Exposed
+    # so a caller that widens ``min_relevance`` below ``MIN_LEXICAL_RELEVANCE``
+    # (customs_chat's evidence banding, which needs STRONG/WEAK/NONE rather
+    # than a single accept/reject cut) can still see how relevant a passage
+    # really was, on a scale that does not shift when the active reranker
+    # model changes.
+    lexical_relevance_score: float = 0.0
+
     # Backwards-compatible alias used by older callers/tests.
     @property
     def vector_rank(self) -> int:
@@ -529,6 +587,7 @@ def search_regulatory_evidence(
     rerank_top_n: int = RERANK_TOP_N_DEFAULT,
     embedder: EmbeddingProvider | None = None,
     reranker: Reranker | None = None,
+    min_relevance: float | None = None,
 ) -> RetrievalOutput:
     started = time.perf_counter()
     embedder = embedder or get_embedding_provider()
@@ -565,7 +624,7 @@ def search_regulatory_evidence(
             retrieval_ms=round((time.perf_counter() - started) * 1000, 2),
         )
 
-    query_vector = embedder.embed_query(augmented_query)
+    query_vector = _cached_embed_query(embedder, augmented_query)
     persistent = postgres_fts_available(db)
     if persistent:
         retrieval_mode = RETRIEVAL_MODE_PERSISTENT
@@ -679,17 +738,23 @@ def search_regulatory_evidence(
     source_intent = _query_source_intent(augmented_query)
     accepted: list[ScoredEvidence] = []
     seen_parents: set[str] = set()
+    gate = MIN_LEXICAL_RELEVANCE if min_relevance is None else min_relevance
     for pos in order:
         index = candidate_indexes[pos]
         child = children[index]
-        # Deterministic relevance gate (independent of reranker model).
-        if _lexical_relevance(
+        # Deterministic relevance gate (independent of reranker model). A
+        # caller may lower ``gate`` below the default floor to see ranked
+        # candidates that would normally be dropped as evidence_not_found -
+        # every accepted item still carries its true ``lexical_relevance_score``
+        # so the caller can band or re-gate them itself.
+        relevance = _lexical_relevance(
             query_token_set,
             child,
             normalized_pct,
             destination_country,
             source_intent,
-        ) < MIN_LEXICAL_RELEVANCE:
+        )
+        if relevance < gate:
             continue
         parent = parents.get(child.parent_chunk_id or "", child)
         if parent.chunk_id in seen_parents:
@@ -707,6 +772,7 @@ def search_regulatory_evidence(
                 rrf_rank=rrf_ranks[index],
                 cross_encoder_score=round(float(reranker_scores[pos]), 6),
                 cross_encoder_rank=cross_rank_by_index[index],
+                lexical_relevance_score=round(relevance, 6),
             )
         )
     if not accepted:
@@ -716,16 +782,23 @@ def search_regulatory_evidence(
     # after hybrid relevance, RRF, reranking and the evidence gate. Candidates
     # outside the comparable-relevance window keep pure reranker order.
     best_reranker = max(item.cross_encoder_score for item in accepted)
+    query_sro_tokens = {tok for tok in query_token_set if tok.startswith("sro")}
 
     def final_key(item: ScoredEvidence) -> tuple[float | int, ...]:
+        sro_exact = bool(
+            query_sro_tokens
+            and item.chunk.sro_number
+            and (query_sro_tokens & set(_special_tokens(item.chunk.sro_number)))
+        )
         comparable = (
             item.cross_encoder_score
             >= best_reranker - SOURCE_PRIORITY_RELEVANCE_WINDOW
+            or sro_exact
         )
         if comparable:
             return (
                 1,
-                _source_compatibility(source_intent, item.chunk),
+                _source_compatibility(source_intent, item.chunk, query_sro_tokens),
                 _currency_priority(augmented_query, item.chunk),
                 item.cross_encoder_score,
                 item.rrf_score,

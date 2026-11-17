@@ -17,6 +17,7 @@ items are never guessed; they are surfaced for manual review with a reason.
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
+import re
 
 from app.schemas.multi_line_extraction import (
     InvoiceLineItem,
@@ -49,10 +50,33 @@ class ItemMatch:
     note: str
 
 
+_SKU_PATTERN = re.compile(
+    r"\b(?:sku|style(?:\s*(?:no|code|#))?|art(?:icle)?(?:\s*(?:no|code|#))?)\s*[:#-]?\s*([a-z0-9][a-z0-9_-]{1,31})\b",
+    re.IGNORECASE,
+)
+
+
 def _line_key(
     item: InvoiceLineItem | PackingListItem,
 ) -> object | None:
     return item.line_number.value
+
+
+def _sku_key(
+    item: InvoiceLineItem | PackingListItem,
+) -> object | None:
+    explicit_sku = getattr(item, "sku", None)
+    if explicit_sku is not None:
+        raw_val = getattr(explicit_sku, "value", explicit_sku)
+        if raw_val:
+            return str(raw_val).strip().upper()
+    product_text = item.product_name.value
+    if not product_text:
+        return None
+    match = _SKU_PATTERN.search(product_text)
+    if match:
+        return match.group(1).upper()
+    return None
 
 
 def _pct_key(
@@ -79,6 +103,7 @@ def _product_key(
 
 _STRATEGIES = (
     (ItemMatchStrategy.LINE_REFERENCE, _line_key),
+    (ItemMatchStrategy.SKU_CODE, _sku_key),
     (ItemMatchStrategy.PCT_CODE, _pct_key),
     (ItemMatchStrategy.PRODUCT_NAME, _product_key),
 )

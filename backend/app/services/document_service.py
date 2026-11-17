@@ -14,10 +14,7 @@ from app.core.exceptions import (
 )
 from app.models.documents import DocumentUploadRecord
 from app.schemas.documents import DocumentExtractionResponse
-from app.services.extraction.pdf_extractor import (
-    extract_page_word_coordinates,
-    extract_text_from_pdf,
-)
+from app.services.extraction.pdf_extractor import extract_text_from_pdf
 
 
 settings = get_settings()
@@ -94,19 +91,15 @@ def extract_uploaded_pdf(
         db.commit()
 
         result = extract_text_from_pdf(stored_path)
-        page_words = extract_page_word_coordinates(stored_path)
 
         document.extracted_text = result.text
         document.extracted_pages = [
             {
                 "page_number": page.page_number,
                 "text": page.text,
-                "words": [
-                    list(word)
-                    for word in (page_words[index] if index < len(page_words) else [])
-                ],
+                "words": [list(word) for word in page.words],
             }
-            for index, page in enumerate(result.pages)
+            for page in result.pages
         ]
         document.page_count = result.page_count
         document.character_count = len(result.text)

@@ -678,6 +678,28 @@ export function useDocumentReview() {
       state: stageState(Boolean(compliance), false),
     },
   ];
+  const loadExistingWorkflow = useCallback(
+    async (targetWorkflowId: string) => {
+      setAgentBusy(true);
+      setAgentError(null);
+      try {
+        const next = await api.getWorkflow(targetWorkflowId);
+        const revId = next.review_revision_id ?? next.workflow_id;
+        activeReviewRevisionRef.current = revId;
+        setWorkflowRevisionId(revId);
+        setWorkflow(next);
+        if (!pollingStatuses.has(next.status)) {
+          await loadWorkflowAssets(next, revId);
+        }
+      } catch (loadError) {
+        setAgentError(readableError(loadError));
+      } finally {
+        setAgentBusy(false);
+      }
+    },
+    [loadWorkflowAssets],
+  );
+
   const workflowIsCurrent = Boolean(
     compliance &&
       workflow &&
@@ -715,6 +737,7 @@ export function useDocumentReview() {
     setLetterOfCreditDate,
     runCompliance,
     startAgentAudit,
+    loadExistingWorkflow,
     submitDecision,
     submitCorrection,
     startOver,

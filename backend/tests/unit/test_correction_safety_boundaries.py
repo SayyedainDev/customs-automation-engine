@@ -445,3 +445,4 @@ def test_human_confirmed_field_is_labelled_correctly_not_as_pdf_extracted() -> N
 
     assert _provenance("human_review") == ProvenanceLabel.HUMAN_CORRECTION
     assert _provenance("pdf_text_llm_structured_output") != ProvenanceLabel.HUMAN_CORRECTION
+

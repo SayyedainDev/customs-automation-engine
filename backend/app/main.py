@@ -1,8 +1,11 @@
 from pathlib import Path
+import time
+from uuid import uuid4
 
 from app.api.routes import compliance
 from app.api.routes import compliance_explain
 from app.api.routes import customs_audit
+from app.api.routes import customs_chat
 from app.api.routes import documents
 from app.api.routes import health
 from app.api.routes import multi_line_shipment
@@ -13,7 +16,7 @@ from app.api.routes import shipment_search
 from app.api.routes import structured_extraction
 from app.api.routes import assistant
 from app.core.config import get_settings
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -30,9 +33,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+@app.middleware("http")
+async def add_observability_headers(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time-Ms"] = str(elapsed_ms)
+    return response
+
 app.include_router(health.router)
 app.include_router(documents.router)
-app.include_router(shipments.router)
+app.include_router(shipments.router, include_in_schema=False)
 app.include_router(structured_extraction.router)
 app.include_router(compliance.router)
 app.include_router(shipment_extraction.router)
@@ -42,6 +57,7 @@ app.include_router(compliance_explain.router)
 app.include_router(customs_audit.router)
 app.include_router(shipment_search.router)
 app.include_router(assistant.router)
+app.include_router(customs_chat.router)
 
 
 @app.get("/")

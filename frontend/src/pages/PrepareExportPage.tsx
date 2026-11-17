@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type {
   SupportedProduct,
   DocumentGuidanceSchema,
+  DutyCalculationResponse,
   EvidenceClass,
   GuidanceCitation,
   GuidanceResponse,
@@ -185,6 +186,30 @@ export function PrepareExportPage() {
   // against the live form is what stops a Raw cotton result from being shown
   // under a Cotton yarn selection.
   const [checkedInputs, setCheckedInputs] = useState<FormInputs | null>(null);
+  const [assessedValue, setAssessedValue] = useState("1000.00");
+  const [cdPct, setCdPct] = useState("20.00");
+  const [rdPct, setRdPct] = useState("0.00");
+  const [dutyBusy, setDutyBusy] = useState(false);
+  const [dutyResult, setDutyResult] =
+    useState<DutyCalculationResponse | null>(null);
+
+  const handleCalculateDuties = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDutyBusy(true);
+    try {
+      const res = await api.calculateDuties({
+        hs_code: pctCode || null,
+        assessed_value: assessedValue,
+        customs_duty_pct: cdPct,
+        regulatory_duty_pct: rdPct,
+      });
+      setDutyResult(res);
+    } catch {
+      setDutyResult(null);
+    } finally {
+      setDutyBusy(false);
+    }
+  };
 
   const stale = isResultStale({ product, pctCode, destination }, checkedInputs);
 
@@ -398,6 +423,80 @@ export function PrepareExportPage() {
         </div>
 
         <aside className="layout-sidebar">
+          <div className="panel" style={{ marginBottom: "1rem" }}>
+            <div className="panel__header">
+              <h3>2026–27 Cascading Tax Calculator</h3>
+            </div>
+            <div className="panel__body">
+              <form onSubmit={handleCalculateDuties} className="form-layout">
+                <div className="form-group">
+                  <label htmlFor="assessedValue">Assessed Value (V)</label>
+                  <input
+                    id="assessedValue"
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    value={assessedValue}
+                    onChange={(e) => setAssessedValue(e.target.value)}
+                    className="text-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="cdPct">Customs Duty (%)</label>
+                  <input
+                    id="cdPct"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={cdPct}
+                    onChange={(e) => setCdPct(e.target.value)}
+                    className="text-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="rdPct">Regulatory Duty (%)</label>
+                  <input
+                    id="rdPct"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={rdPct}
+                    onChange={(e) => setRdPct(e.target.value)}
+                    className="text-input"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="button button--secondary"
+                  disabled={dutyBusy}
+                >
+                  {dutyBusy ? "Calculating…" : "Calculate statutory taxes"}
+                </button>
+              </form>
+              {dutyResult ? (
+                <div style={{ marginTop: "1rem" }}>
+                  <p>
+                    <strong>Total Taxes:</strong>{" "}
+                    {dutyResult.breakdown.total_duties_and_taxes} (Effective{" "}
+                    {dutyResult.breakdown.effective_rate_pct}%)
+                  </p>
+                  <p>
+                    <strong>Total Landed Cost:</strong>{" "}
+                    {dutyResult.breakdown.total_landed_cost}
+                  </p>
+                  <details className="citation-card__technical">
+                    <summary>12-step compounding formula</summary>
+                    <ul className="plain-list">
+                      {dutyResult.formula_steps.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ul>
+                  </details>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
           <div className="panel">
             <div className="panel__header">
               <h3>Limitations</h3>

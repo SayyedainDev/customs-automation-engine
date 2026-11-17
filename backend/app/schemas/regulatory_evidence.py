@@ -41,6 +41,10 @@ class EvidenceResult(BaseModel):
     legal_cutoff_date: date | None
     validation_status: str
     rule_data_version: str
+    source_kind: str = "unclassified_source"
+    source_kind_label: str = "Unclassified source"
+    is_official: bool = False
+    currency_status: str | None = None
 
 
 class EvidenceSearchResponse(BaseModel):

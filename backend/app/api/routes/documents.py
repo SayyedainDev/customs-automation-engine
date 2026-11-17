@@ -88,7 +88,7 @@ def extract_document(
         ) from exc
     except PdfExtractionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     except SQLAlchemyError as exc:
@@ -98,13 +98,18 @@ def extract_document(
         ) from exc
 
 
-@router.get("/", response_model=list[DocumentResponse])
+@router.get("/", response_model=list[DocumentResponse], include_in_schema=False)
 def list_documents(db: Session = Depends(get_db_session)) -> list[DocumentRecord]:
     statement = select(DocumentRecord).order_by(DocumentRecord.id)
     return list(db.scalars(statement).all())
 
 
-@router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 def create_document(
     payload: DocumentCreate,
     db: Session = Depends(get_db_session),
@@ -120,7 +125,7 @@ def create_document(
     return document
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{document_id}", response_model=DocumentResponse, include_in_schema=False)
 def get_document(
     document_id: int,
     db: Session = Depends(get_db_session),
@@ -134,7 +139,11 @@ def get_document(
     return document
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
 def delete_document(
     document_id: int,
     db: Session = Depends(get_db_session),

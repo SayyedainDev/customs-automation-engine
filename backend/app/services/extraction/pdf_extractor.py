@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import logging
 from pathlib import Path
 
-from langchain_community.document_loaders.pdf import PyMuPDFLoader
+import pymupdf
 
 from app.core.exceptions import PdfExtractionError
 
@@ -16,6 +16,7 @@ WordTuple = tuple[float, float, float, float, str, int, int, int]
 class ExtractedPdfPage:
     page_number: int
     text: str
+    words: tuple[WordTuple, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -27,62 +28,72 @@ class PdfExtractorResult:
     pages: tuple[ExtractedPdfPage, ...] = ()
 
 
-def extract_text_from_pdf(file_path: Path) -> PdfExtractorResult:
-    """Load a PDF with LangChain and combine its page documents into one string."""
+def _extract_page_words(page: pymupdf.Page, page_number: int) -> tuple[WordTuple, ...]:
+    """Best-effort word-coordinate extraction for a single already-open PyMuPDF page."""
     try:
-        pages = PyMuPDFLoader(str(file_path)).load()
+        raw_words = page.get_text("words")
+    except Exception:
+        logger.warning(
+            "Word-coordinate extraction failed for page %s", page_number, exc_info=True
+        )
+        return ()
+    return tuple(tuple(word) for word in raw_words)
+
+
+def extract_text_from_pdf(file_path: Path) -> PdfExtractorResult:
+    """Load a PDF with native PyMuPDF and extract text + word coordinates in one pass."""
+    try:
+        document = pymupdf.open(file_path)
     except Exception as exc:
-        # The loader can surface errors from PyMuPDF as well as LangChain. Keep
-        # those implementation details inside this layer and expose one stable
-        # application exception to callers.
         raise PdfExtractionError(
             "Text could not be extracted from the PDF."
         ) from exc
 
-    extracted_pages = tuple(
-        ExtractedPdfPage(
-            page_number=index,
-            text=page.page_content.strip(),
-        )
-        for index, page in enumerate(pages, start=1)
-    )
+    try:
+        extracted_pages: list[ExtractedPdfPage] = []
+        for index in range(document.page_count):
+            page_number = index + 1
+            try:
+                page = document[index]
+                page_text = page.get_text("text").strip()
+            except Exception as exc:
+                raise PdfExtractionError(
+                    "Text could not be extracted from the PDF."
+                ) from exc
+            extracted_pages.append(
+                ExtractedPdfPage(
+                    page_number=page_number,
+                    text=page_text,
+                    words=_extract_page_words(page, page_number),
+                )
+            )
+    finally:
+        document.close()
+
+    pages_tuple = tuple(extracted_pages)
     return PdfExtractorResult(
-        text="\n\n".join(page.text for page in extracted_pages),
-        page_count=len(extracted_pages),
-        pages=extracted_pages,
+        text="\n\n".join(page.text for page in pages_tuple),
+        page_count=len(pages_tuple),
+        pages=pages_tuple,
     )
 
 
 def extract_page_word_coordinates(file_path: Path) -> list[list[WordTuple]]:
     """Best-effort PyMuPDF word coordinates, one list per page.
 
-    This is a second, isolated PDF read alongside ``extract_text_from_pdf``
-    rather than a replacement for it: word coordinates are only needed to
-    reconstruct line-item tables for free in ``EXTRACTION_MODE=hybrid``
-    (``regex_extractor.reconstruct_line_items``), and that is a local,
-    zero-token capability that must never be able to break plain text
-    extraction. A rasterized/scanned page has no text layer to give
-    coordinates for, and any other failure is swallowed here - callers see an
-    empty word list per page, never an exception.
+    Preserved as a standalone helper for callers that only want word coordinates;
+    ``extract_text_from_pdf`` already populates ``ExtractedPdfPage.words`` in a
+    single pass so ``document_service.extract_uploaded_pdf`` does not re-open the PDF.
     """
-    import pymupdf  # local import, matches ocr_extractor.py's style
-
     try:
         document = pymupdf.open(file_path)
     except Exception:
         logger.warning("Word-coordinate extraction could not open the PDF", exc_info=True)
         return []
     try:
-        page_words: list[list[WordTuple]] = []
-        for index in range(document.page_count):
-            try:
-                words = document[index].get_text("words")
-            except Exception:
-                logger.warning(
-                    "Word-coordinate extraction failed for page %s", index + 1, exc_info=True
-                )
-                words = []
-            page_words.append([tuple(word) for word in words])
-        return page_words
+        return [
+            list(_extract_page_words(document[index], index + 1))
+            for index in range(document.page_count)
+        ]
     finally:
         document.close()
