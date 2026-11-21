@@ -1,0 +1,5 @@
+-r requirements.txt
+hypothesis>=6.100,<7
+ruff>=0.8,<1
+mypy>=1.11,<2
+types-PyYAML>=6.0,<7
