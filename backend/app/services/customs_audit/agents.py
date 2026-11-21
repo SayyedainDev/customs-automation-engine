@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Protocol
 
 from app.core.exceptions import StructuredExtractionProviderUnavailableError
@@ -448,14 +448,18 @@ class DeterministicAuditorAgent:
             else:
                 line_total_sum += line_total
             if quantity is not None and unit_price is not None and line_total is not None:
-                calculated = (quantity * unit_price).quantize(Decimal("0.01"))
-                if abs(calculated - line_total.quantize(Decimal("0.01"))) <= _MONEY_TOLERANCE:
+                calculated = (quantity * unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                if abs(calculated - line_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) <= _MONEY_TOLERANCE:
                     confirmed.append(f"line {index} quantity x unit price equals line total")
                 else:
                     newly.append(
                         f"line {index} arithmetic disagreement: {calculated} != {line_total}"
                     )
-            if net_weight is not None and gross_weight is not None and gross_weight < net_weight:
+            if (net_weight is not None and net_weight <= 0) or (
+                gross_weight is not None and gross_weight <= 0
+            ):
+                newly.append(f"line {index} has a non-positive weight")
+            elif net_weight is not None and gross_weight is not None and gross_weight < net_weight:
                 newly.append(f"line {index} gross weight is below net weight")
             if pct_value:
                 try:
@@ -467,7 +471,13 @@ class DeterministicAuditorAgent:
         # Invoice-total reconciliation (independent).
         invoice_total = _decimal(_field(invoice, "invoice_total"))
         if have_all_line_totals and invoice_total is not None:
-            if abs(line_total_sum.quantize(Decimal("0.01")) - invoice_total.quantize(Decimal("0.01"))) <= _MONEY_TOLERANCE:
+            if (
+                abs(
+                    line_total_sum.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    - invoice_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                )
+                <= _MONEY_TOLERANCE
+            ):
                 confirmed.append("sum of line totals matches invoice total")
             else:
                 newly.append(
@@ -531,7 +541,12 @@ class DeterministicAuditorAgent:
         critical.extend(broker_report.unsupported_products and ["unsupported product present"] or [])
         if conflicting:
             critical.append("conflicting regulatory evidence")
-        if any("arithmetic disagreement" in n or "gross weight is below" in n for n in newly):
+        if any(
+            "arithmetic disagreement" in n
+            or "gross weight is below" in n
+            or "non-positive weight" in n
+            for n in newly
+        ):
             critical.append("arithmetic or weight anomaly")
 
         supporting = audit_supporting_documents(extraction_result)

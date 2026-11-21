@@ -19,7 +19,7 @@ to guarantee exact statutory compounding:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
 from typing import Any
 
@@ -60,9 +60,20 @@ VERIFIED_TEXTILE_TARIFF_RATES: dict[str, tuple[Decimal, int]] = {
 def _to_decimal(value: Decimal | int | float | str | None, default: str = "0.00") -> Decimal:
     if value is None:
         return Decimal(default)
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
+    try:
+        dec = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid decimal value: {value!r}") from exc
+    if not dec.is_finite():
+        raise ValueError(f"decimal value must be finite: {value!r}")
+    return dec
+
+
+def _validated_rate(name: str, value: Decimal, *, max_rate: Decimal = Decimal("200")) -> Decimal:
+    quantized = quantize_money(value)
+    if quantized < Decimal("0") or quantized > max_rate:
+        raise ValueError(f"{name} must be between 0 and {max_rate} (got {quantized})")
+    return quantized
 
 
 def quantize_money(value: Decimal) -> Decimal:
@@ -284,26 +295,34 @@ def calculate_cascading_customs_taxes(
     if v <= Decimal("0"):
         raise ValueError("assessed_value must be greater than zero")
 
-    cd_pct = quantize_money(_to_decimal(customs_duty_pct, "0.00"))
-    acd_pct = (
-        quantize_money(_to_decimal(additional_customs_duty_pct))
+    cd_pct = _validated_rate("customs_duty_pct", _to_decimal(customs_duty_pct, "0.00"))
+    acd_pct = _validated_rate(
+        "additional_customs_duty_pct",
+        _to_decimal(additional_customs_duty_pct)
         if additional_customs_duty_pct is not None
-        else default_acd_rate_for_cd(cd_pct)
+        else default_acd_rate_for_cd(cd_pct),
+        max_rate=Decimal("100"),
     )
-    rd_pct = quantize_money(_to_decimal(regulatory_duty_pct, "0.00"))
-    fed_pct = quantize_money(_to_decimal(federal_excise_duty_pct, "0.00"))
-    st_pct = quantize_money(
-        _to_decimal(sales_tax_pct, "18.00") if sales_tax_pct is not None else Decimal("18.00")
+    rd_pct = _validated_rate("regulatory_duty_pct", _to_decimal(regulatory_duty_pct, "0.00"))
+    fed_pct = _validated_rate("federal_excise_duty_pct", _to_decimal(federal_excise_duty_pct, "0.00"))
+    st_pct = _validated_rate(
+        "sales_tax_pct",
+        _to_decimal(sales_tax_pct, "18.00") if sales_tax_pct is not None else Decimal("18.00"),
+        max_rate=Decimal("100"),
     )
-    vat_pct = quantize_money(
+    vat_pct = _validated_rate(
+        "value_addition_tax_pct",
         _to_decimal(value_addition_tax_pct, "3.00")
         if value_addition_tax_pct is not None
-        else Decimal("3.00")
+        else Decimal("3.00"),
+        max_rate=Decimal("100"),
     )
-    wht_pct = quantize_money(
+    wht_pct = _validated_rate(
+        "advance_income_tax_pct",
         _to_decimal(advance_income_tax_pct, "5.50")
         if advance_income_tax_pct is not None
-        else Decimal("5.50")
+        else Decimal("5.50"),
+        max_rate=Decimal("100"),
     )
 
     cd = quantize_money(v * (cd_pct / HUNDRED))

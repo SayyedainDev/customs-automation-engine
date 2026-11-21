@@ -80,6 +80,20 @@ def build_audit_dossier_payload(
     }
 
 
+def _money_str(value: Any, suffix: str) -> str:
+    if value is None or value == "":
+        return "—"
+    return f"{value}{suffix}"
+
+
+def _pair_str(left: Any, right: Any, suffix: str = "") -> str:
+    left_s = "—" if left is None or left == "" else str(left)
+    right_s = "—" if right is None or right == "" else str(right)
+    if left_s == "—" and right_s == "—":
+        return "—"
+    return f"{left_s} / {right_s}{suffix}"
+
+
 def _e(value: Any, fallback: str = "—") -> str:
     if value is None or value == "":
         return fallback
@@ -137,18 +151,25 @@ def render_audit_dossier_pdf(dossier: dict[str, Any]) -> bytes:
     if isinstance(duty_summary, dict):
         cur = str(duty_summary.get("currency") or "")
         suffix = f" {cur}" if cur else ""
+        total_duties_val = _money_str(duty_summary.get("total_duties_and_taxes"), suffix)
+        eff_rate = duty_summary.get("effective_rate_pct")
+        total_duties_display = (
+            f"{total_duties_val} ({eff_rate}%)"
+            if eff_rate is not None and eff_rate != "" and total_duties_val != "—"
+            else total_duties_val
+        )
         duty_section_html = (
             "<h2>4. Estimated Statutory Duties &amp; Landed Cost (2026–27)</h2>"
             + _render_kv_rows(
                 [
                     ("Lines Estimated", f"{duty_summary.get('lines_estimated', 0)} / {duty_summary.get('total_lines', 0)}"),
-                    ("Assessed Value (V)", f"{duty_summary.get('total_assessed_value')}{suffix}"),
-                    ("Customs Duty (CD)", f"{duty_summary.get('total_customs_duty')}{suffix}"),
-                    ("Additional CD (ACD)", f"{duty_summary.get('total_additional_customs_duty')}{suffix}"),
-                    ("Sales Tax + VAT", f"{duty_summary.get('total_sales_tax')} / {duty_summary.get('total_value_addition_tax')}{suffix}"),
-                    ("Advance Income Tax", f"{duty_summary.get('total_advance_income_tax')}{suffix}"),
-                    ("Total Duties &amp; Taxes", f"{duty_summary.get('total_duties_and_taxes')}{suffix} ({duty_summary.get('effective_rate_pct')}%)"),
-                    ("Total Landed Cost", f"{duty_summary.get('total_landed_cost')}{suffix}"),
+                    ("Assessed Value (V)", _money_str(duty_summary.get("total_assessed_value"), suffix)),
+                    ("Customs Duty (CD)", _money_str(duty_summary.get("total_customs_duty"), suffix)),
+                    ("Additional CD (ACD)", _money_str(duty_summary.get("total_additional_customs_duty"), suffix)),
+                    ("Sales Tax + VAT", _pair_str(duty_summary.get("total_sales_tax"), duty_summary.get("total_value_addition_tax"), suffix)),
+                    ("Advance Income Tax", _money_str(duty_summary.get("total_advance_income_tax"), suffix)),
+                    ("Total Duties & Taxes", total_duties_display),
+                    ("Total Landed Cost", _money_str(duty_summary.get("total_landed_cost"), suffix)),
                 ]
             )
             + f"<p class='note'>{_e(duty_summary.get('basis_note'))}</p>"
@@ -277,8 +298,8 @@ def render_audit_dossier_pdf(dossier: dict[str, Any]) -> bytes:
       ('Invoice Number', shipment.get('invoice_number')),
       ('Invoice Date', shipment.get('invoice_date')),
       ('Destination Country', shipment.get('destination')),
-      ('Total Invoice Value', f"{_e(shipment.get('total_invoice_value'))} {_e(shipment.get('currency'), '')}".strip()),
-      ('Net / Gross Weight', f"{_e(shipment.get('declared_net_weight'))} / {_e(shipment.get('declared_gross_weight'))}"),
+      ('Total Invoice Value', _money_str(shipment.get('total_invoice_value'), f" {shipment.get('currency')}" if shipment.get('currency') else '')),
+      ('Net / Gross Weight', _pair_str(shipment.get('declared_net_weight'), shipment.get('declared_gross_weight'))),
       ('Total Packages', shipment.get('total_packages')),
   ])}
 

@@ -13,8 +13,12 @@ Two protections:
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from app.services.customs_audit.state import AuditorReport, BrokerReport
+
+_ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 _INJECTION_PATTERNS = [
     re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
@@ -32,13 +36,20 @@ _INJECTION_PATTERNS = [
 _SRO_IN_TEXT = re.compile(r"\b\d{2,4}\s*\(\s*[IiVvXx]+\s*\)\s*/\s*\d{4}\b")
 
 
+def _normalize_for_injection_scan(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text)
+    normalized = _ZERO_WIDTH_RE.sub("", normalized)
+    return _WHITESPACE_RE.sub(" ", normalized).strip()
+
+
 def detect_injection(text: str | None) -> list[str]:
     """Return the injection phrases found in untrusted text (as data, not obeyed)."""
     if not text:
         return []
+    normalized = _normalize_for_injection_scan(text)
     found: list[str] = []
     for pattern in _INJECTION_PATTERNS:
-        match = pattern.search(text)
+        match = pattern.search(normalized)
         if match:
             found.append(match.group(0))
     return found

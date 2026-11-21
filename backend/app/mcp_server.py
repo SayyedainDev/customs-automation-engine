@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager
-from decimal import Decimal
 from typing import Any
 
 from app.core.database import get_db_session
@@ -103,18 +102,14 @@ def calculate_pakistan_customs_duties(
     advance_income_tax_pct: str = "5.50",
 ) -> dict[str, Any]:
     breakdown = calculate_cascading_customs_taxes(
-        assessed_value=Decimal(assessed_value),
-        customs_duty_pct=Decimal(customs_duty_pct),
-        additional_customs_duty_pct=(
-            Decimal(additional_customs_duty_pct)
-            if additional_customs_duty_pct is not None
-            else None
-        ),
-        regulatory_duty_pct=Decimal(regulatory_duty_pct),
-        federal_excise_duty_pct=Decimal(federal_excise_duty_pct),
-        sales_tax_pct=Decimal(sales_tax_pct),
-        value_addition_tax_pct=Decimal(value_addition_tax_pct),
-        advance_income_tax_pct=Decimal(advance_income_tax_pct),
+        assessed_value=assessed_value,
+        customs_duty_pct=customs_duty_pct,
+        additional_customs_duty_pct=additional_customs_duty_pct,
+        regulatory_duty_pct=regulatory_duty_pct,
+        federal_excise_duty_pct=federal_excise_duty_pct,
+        sales_tax_pct=sales_tax_pct,
+        value_addition_tax_pct=value_addition_tax_pct,
+        advance_income_tax_pct=advance_income_tax_pct,
     )
     return {
         "breakdown": breakdown.to_dict(),

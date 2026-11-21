@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import StructuredExtractionProviderUnavailableError
 from app.models.customs_audit import (
     CustomsAuditEvent,
     CustomsAuditWorkflow,
@@ -106,7 +107,24 @@ class CustomsAuditService:
         db.add(record)
         db.commit()
 
-        state = await self._invoke(initial_state, thread_id)
+        try:
+            state = await self._invoke(initial_state, thread_id)
+        except StructuredExtractionProviderUnavailableError:
+            db.delete(record)
+            db.commit()
+            raise
+        except Exception as exc:
+            record.status = WorkflowStatus.FAILED.value
+            record.errors = [
+                {
+                    "node": "workflow",
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                }
+            ]
+            record.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            raise
         self._sync(db, workflow_id, thread_id, state)
         return self._status_dict(db, workflow_id)
 
@@ -430,6 +448,8 @@ class CustomsAuditService:
                         "prev": prev_hash,
                         "event_type": event_type,
                         "node_name": node_name,
+                        "actor_type": event.get("actor_type", "system"),
+                        "actor_reference": event.get("actor_reference"),
                         "payload": event.get("event_payload") or {},
                     },
                     sort_keys=True,
