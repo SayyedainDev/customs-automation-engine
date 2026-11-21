@@ -26,7 +26,7 @@ FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 app = FastAPI(
     title=settings.app_name,
     description=(
-        "A bootcamp capstone API for hybrid export-document extraction, "
+        "An enterprise API for hybrid export-document extraction, "
         "deterministic textile compliance checks over a validated PCT catalog, regulatory evidence "
         "retrieval, and resumable human-reviewed customs-audit workflows."
     ),
