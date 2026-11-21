@@ -95,7 +95,7 @@ def describe_for_prompt(result: TariffLookupResult) -> str:
     if not result.matched:
         return f"No tariff entry was found for {result.query_code}."
     if result.exact:
-        if result.needs_review:
+        if result.needs_review or result.customs_duty_pct is None:
             return (
                 f"HS code {result.hs_code}: {result.description} "
                 f"(Pakistan Customs Tariff {result.tariff_year}, page {result.source_page}). "

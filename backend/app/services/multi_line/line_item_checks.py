@@ -59,8 +59,21 @@ def _item_comparison_check(
             invoice_source_page=invoice_field.source_page,
             packing_list_source_page=packing_field.source_page,
         )
-    left = normalizer(invoice_value) if normalizer else invoice_value
-    right = normalizer(packing_value) if normalizer else packing_value
+    try:
+        left = normalizer(invoice_value) if normalizer else invoice_value
+        right = normalizer(packing_value) if normalizer else packing_value
+    except ValueError:
+        return CrossDocumentCheck(
+            check_id=check_id,
+            check_name=check_name,
+            status=ComplianceCheckStatus.MANUAL_REVIEW,
+            message=(
+                f"{check_name} could not be normalized for comparison: "
+                f"invoice has '{invoice_value}' and packing list has '{packing_value}'."
+            ),
+            invoice_source_page=invoice_field.source_page,
+            packing_list_source_page=packing_field.source_page,
+        )
     matches = left == right
     return CrossDocumentCheck(
         check_id=check_id,

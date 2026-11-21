@@ -467,6 +467,9 @@ def answer_customs_question(
                 )
                 if low_grounded:
                     guard_violations.append("verifier: low groundedness")
+                    if not settings.customs_chat_enable_ring2:
+                        draft = None
+                        break
                     mode = "GENERAL"
                     working_evidence = _no_evidence(working_evidence)
                     downgraded_by_verifier = True
@@ -478,7 +481,7 @@ def answer_customs_question(
             break
 
         if out_verdict.action == "downgrade":
-            if mode == "GROUNDED":
+            if mode == "GROUNDED" and settings.customs_chat_enable_ring2:
                 mode = "GENERAL"
                 working_evidence = _no_evidence(working_evidence)
                 continue

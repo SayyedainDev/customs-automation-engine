@@ -1,5 +1,6 @@
 from io import BytesIO
 from pathlib import Path
+import re
 from uuid import uuid4
 from zipfile import BadZipFile, ZipFile, is_zipfile
 
@@ -57,6 +58,34 @@ def validate_file_content(file_extension: str, file_content: bytes) -> None:
         )
 
 
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+_UPLOAD_CHUNK_SIZE = 65_536
+
+
+def _sanitize_original_filename(raw_filename: str) -> str:
+    # Strip both POSIX and Windows directory components and control characters.
+    leaf = raw_filename.replace("\\", "/").rsplit("/", 1)[-1]
+    return _CONTROL_CHARS_RE.sub("", leaf).strip()
+
+
+async def _read_bounded_upload(file: UploadFile, max_bytes: int) -> bytes:
+    """Read upload stream in fixed chunks, failing closed as soon as max_bytes is exceeded."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK_SIZE)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"The uploaded file is larger than {settings.max_upload_size_mb} MB.",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 async def process_document_upload(
     file: UploadFile,
     db: Session,
@@ -69,7 +98,14 @@ async def process_document_upload(
                 detail="The uploaded file must have a filename.",
             )
 
-        file_extension = Path(file.filename).suffix.lower()
+        safe_filename = _sanitize_original_filename(file.filename)
+        if not safe_filename or safe_filename in {".", ".."}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The uploaded file must have a valid filename.",
+            )
+
+        file_extension = Path(safe_filename).suffix.lower()
         if file_extension not in ALLOWED_FILE_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -83,17 +119,11 @@ async def process_document_upload(
                 detail=f"The uploaded {file_extension} file has an unsupported MIME type.",
             )
 
-        file_content = await file.read()
+        file_content = await _read_bounded_upload(file, MAX_FILE_SIZE)
         if not file_content:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="The uploaded file is empty.",
-            )
-
-        if len(file_content) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"The uploaded file is larger than {settings.max_upload_size_mb} MB.",
             )
 
         validate_file_content(file_extension, file_content)
@@ -120,7 +150,7 @@ async def process_document_upload(
 
         upload_record = DocumentUploadRecord(
             id=document_id,
-            original_filename=file.filename,
+            original_filename=safe_filename,
             stored_filename=stored_filename,
             file_extension=file_extension,
             mime_type=expected_content_type,
@@ -144,7 +174,7 @@ async def process_document_upload(
 
         return DocumentUploadResponse(
             document_id=document_id,
-            original_filename=file.filename,
+            original_filename=safe_filename,
             stored_filename=stored_filename,
             size_bytes=len(file_content),
             status="uploaded",

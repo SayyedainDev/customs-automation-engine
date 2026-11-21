@@ -116,27 +116,43 @@ def _digits_only(text: str) -> str:
     return re.sub(r"\D", "", text)
 
 
+def _claim_in_evidence(claim: str, evidence_norm: str) -> bool:
+    claim_norm = " ".join(claim.split())
+    if not claim_norm:
+        return False
+    escaped = re.sub(r"\\ ", r"\\s+", re.escape(claim_norm))
+    prefix = r"(?<![a-z0-9.])" if claim_norm[0].isalnum() else ""
+    if claim_norm[-1].isdigit():
+        suffix = r"(?![a-z0-9]|[.,]\d)"
+    elif claim_norm[-1].isalpha():
+        suffix = r"(?![a-z0-9])"
+    else:
+        suffix = ""
+    return re.search(f"{prefix}{escaped}{suffix}", evidence_norm) is not None
+
+
 def ungrounded_numbers(answer: str, evidence_text: str) -> list[str]:
     """Numeric claims in ``answer`` that do not appear anywhere in the
     evidence actually shown to the model. Used only for GROUNDED-mode
     answers; GENERAL-mode answers are checked with ``general_mode_numbers``
     instead, which is stricter (zero tolerance, no evidence to check against).
 
-    A tariff-code-shaped claim is also matched on digits alone: the
-    structured tariff-lookup tool's evidence always renders a code as eight
-    plain digits ("62034200"), but a model writes it in the tariff's own
-    display form ("6203.4200") at least as often, and a plain substring
-    check would wrongly flag a correctly-cited code as ungrounded just
-    because of the dot.
+    A tariff-code-shaped claim is also matched on digits alone against actual
+    8-digit tariff tokens in the evidence: the structured tariff-lookup tool's
+    evidence always renders a code as eight plain digits ("62034200"), while a
+    model often writes it in display form ("6203.4200").
     """
-    evidence_lower = evidence_text.lower()
-    evidence_digits = _digits_only(evidence_text)
+    evidence_norm = " ".join(evidence_text.lower().split())
+    evidence_tariff_codes = {
+        _digits_only(match.group(0))
+        for match in _TARIFF_CODE.finditer(evidence_text)
+    }
     ungrounded: list[str] = []
     for claim in extract_numeric_claims(answer):
-        if claim in evidence_lower:
+        if _claim_in_evidence(claim, evidence_norm):
             continue
         claim_digits = _digits_only(claim)
-        if _TARIFF_CODE.match(claim) and len(claim_digits) == 8 and claim_digits in evidence_digits:
+        if _TARIFF_CODE.fullmatch(claim) and len(claim_digits) == 8 and claim_digits in evidence_tariff_codes:
             continue
         ungrounded.append(claim)
     return ungrounded

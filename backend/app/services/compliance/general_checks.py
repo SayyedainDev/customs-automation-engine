@@ -161,6 +161,17 @@ def check_weights(
             validation_status="input_missing",
         )
 
+    if shipment.net_weight <= 0 or shipment.gross_weight <= 0:
+        return build_result(
+            check_id="weight_consistency",
+            check_name="Gross weight is at least net weight",
+            status=ComplianceCheckStatus.FAILED,
+            message="Net weight and gross weight must both be greater than zero.",
+            pct_code=pct_code,
+            source_document="Shipment weight validation",
+            validation_status="calculated_from_shipment_input",
+        )
+
     passed = shipment.gross_weight >= shipment.net_weight
     return build_result(
         check_id="weight_consistency",

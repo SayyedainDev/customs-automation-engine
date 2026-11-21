@@ -61,7 +61,11 @@ def compute_consensus(
     arithmetic_issues = [
         issue
         for issue in auditor.newly_detected_issues
-        if "arithmetic disagreement" in issue or "gross weight is below" in issue
+        if (
+            "arithmetic disagreement" in issue
+            or "gross weight is below" in issue
+            or "non-positive weight" in issue
+        )
     ]
     if arithmetic_issues:
         disagreed.append("arithmetic_and_weights")
@@ -126,7 +130,7 @@ def compute_consensus(
         critical.append("conflicting_evidence")
     if escalate:
         critical.append(f"auditor_{auditor.recommended_workflow_action.value}")
-    critical.extend(a for a in auditor.critical_anomalies if "conflict" in a or "anomaly" in a)
+    critical.extend(anomaly for anomaly in auditor.critical_anomalies if anomaly)
 
     # Uncertainty triggers review only when human review is enabled. A definite,
     # agreed failure is already a deterministic terminal answer; routing every
