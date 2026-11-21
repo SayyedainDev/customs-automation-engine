@@ -20,6 +20,7 @@ forces escalation to Stage B instead of a silent accept.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from groq import Groq
 
@@ -40,8 +41,13 @@ from app.services.customs_chat.guards.scope_vocab import (
 from app.services.customs_chat.telemetry import log_stage
 
 
+_ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
+
+
 def _normalize(question: str) -> str:
-    return re.sub(r"\s+", " ", question or "").strip().casefold()
+    text = unicodedata.normalize("NFKC", question or "")
+    text = _ZERO_WIDTH_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 
 def _stem_hits(haystack: str, vocabulary: tuple[str, ...]) -> list[str]:

@@ -241,21 +241,21 @@ def _evaluate_requirement_status(
     # is honoured now because the Export Policy Order Schedule-III negative list
     # is scoped to exports to Afghanistan under the duty drawback scheme, and
     # reporting it against a shipment to China would be simply wrong.
-    if rule.destination_country:
-        declared = rule.destination_country.casefold().strip()
-        actual = (shipment.destination_country or "").casefold().strip()
-        if declared != actual:
-            return _result(
-                rule,
-                pct_code=pct_code,
-                status=ComplianceCheckStatus.NOT_APPLICABLE,
-                message=(
-                    f"{rule.rule_name}: applies only to exports to "
-                    f"{rule.destination_country}; this shipment is destined for "
-                    f"{shipment.destination_country or 'an unspecified country'}."
-                ),
-                rule_data_version=rule_data_version,
-            )
+    if rule.destination_country and not _destination_matches(
+        shipment.destination_country, rule.destination_country
+    ):
+        return _result(
+            rule,
+            pct_code=pct_code,
+            status=ComplianceCheckStatus.NOT_APPLICABLE,
+            message=(
+                f"{rule.rule_name}: applies only to exports to "
+                f"{rule.destination_country}; this shipment is destined for "
+                f"{shipment.destination_country or 'an unspecified country'}."
+            ),
+            rule_data_version=rule_data_version,
+            government_rule=False,
+        )
     value = (rule.numeric_value or "").casefold().strip()
     if value in _ABSENT_VALUES:
         return _result(

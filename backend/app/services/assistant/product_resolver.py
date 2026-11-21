@@ -159,7 +159,7 @@ def _edit_distance_within_one(a: str, b: str) -> bool:
     if abs(la - lb) > 1:
         return False
     if la == lb:
-        return sum(1 for x, y in zip(a, b) if x != y) == 1
+        return sum(1 for x, y in zip(a, b, strict=True) if x != y) == 1
     shorter, longer = (a, b) if la < lb else (b, a)
     i = j = 0
     skipped = False

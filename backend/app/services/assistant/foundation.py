@@ -1,5 +1,4 @@
 import re
-from typing import Literal
 
 from app.services.compliance.pct_catalog import supported_pct_products
 

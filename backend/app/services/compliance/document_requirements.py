@@ -110,7 +110,8 @@ def collect_outstanding_documents(checks: Iterable[Any]) -> list[OutstandingDocu
         if not is_outstanding_document_check(check):
             continue
         document_type = required_document_type(check)
-        assert document_type is not None  # guarded by is_outstanding_document_check
+        if document_type is None:
+            continue
         status = _attr(check, "status")
         status_value = getattr(status, "value", status)
         entry = entries.setdefault(

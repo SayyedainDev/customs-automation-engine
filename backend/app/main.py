@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import time
 from uuid import uuid4
 
@@ -34,9 +35,17 @@ app = FastAPI(
 )
 
 
+_SAFE_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
 @app.middleware("http")
 async def add_observability_headers(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    raw_request_id = (request.headers.get("X-Request-ID") or "").strip()
+    request_id = (
+        raw_request_id
+        if _SAFE_REQUEST_ID_RE.fullmatch(raw_request_id)
+        else str(uuid4())
+    )
     request.state.request_id = request_id
     started = time.perf_counter()
     response = await call_next(request)

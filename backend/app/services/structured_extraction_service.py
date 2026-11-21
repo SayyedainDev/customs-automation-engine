@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -202,6 +203,38 @@ _LIMIT_KIND = re.compile(
 _MAX_SANE_RETRY_AFTER_SECONDS = 300.0
 
 
+_DURATION_PART = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m|h)(?=\s|\d|$)", re.IGNORECASE)
+
+
+def _parse_duration_header(raw: object) -> float | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        plain = float(text)
+    except (TypeError, ValueError):
+        plain = None
+    if plain is not None:
+        return plain if math.isfinite(plain) else None
+
+    matches = list(_DURATION_PART.finditer(text))
+    if not matches or "".join(m.group(0) for m in matches).replace(" ", "") != text.replace(" ", ""):
+        return None
+    total = 0.0
+    for part in matches:
+        amount = float(part.group(1))
+        unit = part.group(2).lower()
+        if unit == "ms":
+            total += amount / 1000.0
+        elif unit == "s":
+            total += amount
+        elif unit == "m":
+            total += amount * 60.0
+        elif unit == "h":
+            total += amount * 3600.0
+    return total if math.isfinite(total) else None
+
+
 def _retry_after_seconds(exc: Exception, message: str) -> float | None:
     """Seconds the provider asked us to wait, or None if it did not say."""
     response = getattr(exc, "response", None)
@@ -214,16 +247,8 @@ def _retry_after_seconds(exc: Exception, message: str) -> float | None:
                 raw = None
             if not raw:
                 continue
-            match = _RETRY_AFTER_IN_MESSAGE.fullmatch(f"try again in {raw}") or None
-            try:
-                value = float(str(raw).rstrip("smh"))
-            except (TypeError, ValueError):
-                continue
-            if str(raw).endswith("ms"):
-                value = value / 1000.0
-            elif str(raw).endswith("m"):
-                value = value * 60.0
-            if 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
+            value = _parse_duration_header(raw)
+            if value is not None and 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
                 return round(value, 2)
     match = _RETRY_AFTER_IN_MESSAGE.search(message or "")
     if not match:
@@ -234,7 +259,7 @@ def _retry_after_seconds(exc: Exception, message: str) -> float | None:
         value = value / 1000.0
     elif unit == "m":
         value = value * 60.0
-    if 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
+    if math.isfinite(value) and 0 < value <= _MAX_SANE_RETRY_AFTER_SECONDS:
         return round(value, 2)
     return None
 

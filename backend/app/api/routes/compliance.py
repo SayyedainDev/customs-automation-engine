@@ -73,16 +73,22 @@ def calculate_shipment_duties(
         tariff_year = resolved.tariff_year
         source_page = resolved.source_page
 
-    breakdown = calculate_cascading_customs_taxes(
-        assessed_value=payload.assessed_value,
-        customs_duty_pct=cd_pct,
-        additional_customs_duty_pct=acd_pct,
-        regulatory_duty_pct=rd_pct,
-        federal_excise_duty_pct=payload.federal_excise_duty_pct,
-        sales_tax_pct=st_pct,
-        value_addition_tax_pct=payload.value_addition_tax_pct,
-        advance_income_tax_pct=wht_pct,
-    )
+    try:
+        breakdown = calculate_cascading_customs_taxes(
+            assessed_value=payload.assessed_value,
+            customs_duty_pct=cd_pct,
+            additional_customs_duty_pct=acd_pct,
+            regulatory_duty_pct=rd_pct,
+            federal_excise_duty_pct=payload.federal_excise_duty_pct,
+            sales_tax_pct=st_pct,
+            value_addition_tax_pct=payload.value_addition_tax_pct,
+            advance_income_tax_pct=wht_pct,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
     return DutyCalculationResponse(
         hs_code=payload.hs_code,
         breakdown=breakdown.to_dict(),

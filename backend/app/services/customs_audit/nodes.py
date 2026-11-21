@@ -844,6 +844,15 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             )
             retrieved_sros = {e.get("sro_number") for e in all_evidence if e.get("sro_number")}
             violations = validate_auditor_report(report, deterministic_status, retrieved_sros)  # type: ignore[arg-type]
+            if violations and "auditor_output_violation" not in report.critical_anomalies:
+                report = report.model_copy(
+                    update={
+                        "critical_anomalies": [
+                            *report.critical_anomalies,
+                            "auditor_output_violation",
+                        ]
+                    }
+                )
         except StructuredExtractionProviderUnavailableError:
             raise
         except Exception as exc:  # agent output schema/validation failure
@@ -953,9 +962,17 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         broker = BrokerReport.model_validate(state.get("broker_report") or {})
         auditor = AuditorReport.model_validate(state.get("auditor_report") or {})
         deterministic_status = str(extraction_result.get("overall_status"))
+        safety_violations = [
+            anomaly
+            for anomaly in (state.get("critical_anomalies") or [])
+            if anomaly in {"broker_output_violation", "auditor_output_violation"}
+        ]
         consensus_obj = compute_consensus(
-            broker, auditor, deterministic_status,
+            broker,
+            auditor,
+            deterministic_status,
             human_review_required=deps.human_review_required,
+            extra_critical_anomalies=safety_violations,
         )
         reasons = list(consensus_obj.unresolved_issues)
         if deterministic_status == "manual_review":
@@ -1225,15 +1242,15 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 record.structured_extraction_model = None
                 record.structured_extracted_at = None
                 record.ocr_pages = None
-                # Only clear extracted PDF text when the source file exists on disk so
-                # synthetic DB-only records remain readable during reprocessing.
-                if (
-                    record.stored_filename
-                    and (Path(document_service.UPLOAD_DIRECTORY) / record.stored_filename).is_file()
-                ):
-                    record.status = "uploaded"
-                    record.extracted_text = None
-                    record.extracted_pages = None
+                # Only clear extracted PDF text when the source file exists safely inside
+                # UPLOAD_DIRECTORY so synthetic DB-only records remain readable during reprocessing.
+                upload_root = Path(document_service.UPLOAD_DIRECTORY).resolve()
+                if record.stored_filename:
+                    candidate_path = (upload_root / record.stored_filename).resolve()
+                    if candidate_path.is_relative_to(upload_root) and candidate_path.is_file():
+                        record.status = "uploaded"
+                        record.extracted_text = None
+                        record.extracted_pages = None
                 cleared.append(str(doc_uuid))
             if cleared:
                 db.commit()
@@ -1493,7 +1510,8 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             additional_uploaded_document_types=state.get("additional_uploaded_document_types", []),
             supporting_documents=state.get("supporting_documents", []),
         )
-        assert deps.recheck_pipeline is not None, "recheck_pipeline dependency is required"
+        if deps.recheck_pipeline is None:
+            raise RuntimeError("recheck_pipeline dependency is required")
         try:
             new_extraction_result = deps.recheck_pipeline(
                 extraction_result, request, field_corrections
@@ -1507,9 +1525,10 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         # interrupt_for_human_review - which is the only way a correction
         # decision reaches this node at all. It is never created here.
         audit_revisions = list(state.get("audit_revisions") or [])
-        assert audit_revisions and audit_revisions[0].get("revision_number") == 1, (
-            "revision 1 must already be frozen before a human correction can be applied"
-        )
+        if not (audit_revisions and audit_revisions[0].get("revision_number") == 1):
+            raise RuntimeError(
+                "revision 1 must already be frozen before a human correction can be applied"
+            )
 
         events = [
             _event(
@@ -1621,6 +1640,20 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             regulatory_checks_to_requery=affected,
         )
         auditor_report = result["auditor_report"]
+        revision_safety_anomalies: list[str] = []
+        if broker_violations:
+            revision_safety_anomalies.append("broker_output_violation")
+            if "broker_output_violation" not in auditor_report.critical_anomalies:
+                auditor_report = auditor_report.model_copy(
+                    update={
+                        "critical_anomalies": [
+                            *auditor_report.critical_anomalies,
+                            "broker_output_violation",
+                        ]
+                    }
+                )
+        if result["violations"]:
+            revision_safety_anomalies.append("auditor_output_violation")
 
         events = [
             _event(
@@ -1649,7 +1682,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "critical_anomalies": _append(
                 state,
                 "critical_anomalies",
-                ["auditor_output_violation"] if result["violations"] else [],
+                revision_safety_anomalies,
             ),
             "audit_events": _append(state, "audit_events", events),
             "updated_at": utcnow_iso(),
@@ -1661,7 +1694,9 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         auditor = AuditorReport.model_validate(state.get("auditor_report") or {})
         deterministic_status = str(extraction_result.get("overall_status"))
         consensus_obj = compute_consensus(
-            broker, auditor, deterministic_status,
+            broker,
+            auditor,
+            deterministic_status,
             human_review_required=deps.human_review_required,
         )
         reasons = list(consensus_obj.unresolved_issues)

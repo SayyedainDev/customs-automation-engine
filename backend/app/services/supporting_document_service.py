@@ -606,8 +606,32 @@ def _compare(
             missing_message,
             page,
         )
-    left = normalizer(document_value) if normalizer else document_value
-    right = normalizer(shipment_value) if normalizer else shipment_value
+    try:
+        left = normalizer(document_value) if normalizer else document_value
+        right = normalizer(shipment_value) if normalizer else shipment_value
+    except ValueError:
+        return _check(
+            check_id,
+            name,
+            ComplianceCheckStatus.MANUAL_REVIEW,
+            f"{name} could not be normalized for comparison "
+            f"('{document_value}' vs '{shipment_value}').",
+            page,
+        )
+    if (
+        left is None
+        or right is None
+        or (isinstance(left, str) and not left.strip())
+        or (isinstance(right, str) and not right.strip())
+    ):
+        return _check(
+            check_id,
+            name,
+            ComplianceCheckStatus.MANUAL_REVIEW,
+            f"{name} could not be compared because one or both values contain "
+            "no usable characters after normalization.",
+            page,
+        )
     if left == right:
         return _check(
             check_id,
@@ -641,7 +665,8 @@ def _text(value: object | None) -> str | None:
     if value is None:
         return None
     normalized = " ".join(str(value).split()).casefold()
-    return normalized[:-1] if normalized.endswith(".") else normalized
+    trimmed = normalized[:-1] if normalized.endswith(".") else normalized
+    return trimmed.strip() or None
 
 
 _OCR_SPACED_COMPANY_WORD = re.compile(
@@ -666,7 +691,8 @@ def _company_name(value: object | None) -> str | None:
 def _digits(value: object | None) -> str | None:
     if value is None:
         return None
-    return "".join(character for character in str(value) if character.isdigit())
+    digits = "".join(character for character in str(value) if character.isdigit())
+    return digits or None
 
 
 def _soften_for_low_confidence(

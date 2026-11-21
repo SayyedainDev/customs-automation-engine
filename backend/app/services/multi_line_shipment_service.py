@@ -1023,6 +1023,15 @@ def _item_manual_fields(
     return fields
 
 
+def _safe_normalize_pct(value: str | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return normalize_pct_code(value)
+    except ValueError:
+        return None
+
+
 def _item_identity(
     invoice_item: InvoiceLineItem | None,
     packing_item: PackingListItem | None,
@@ -1032,7 +1041,7 @@ def _item_identity(
     if invoice_item is not None:
         product = invoice_item.product_name.value
         if invoice_item.pct_code.value is not None:
-            pct = normalize_pct_code(invoice_item.pct_code.value)
+            pct = _safe_normalize_pct(invoice_item.pct_code.value)
     if product is None and packing_item is not None:
         product = packing_item.product_name.value
     if (
@@ -1040,7 +1049,7 @@ def _item_identity(
         and packing_item is not None
         and (packing_item.pct_code.value is not None)
     ):
-        pct = normalize_pct_code(packing_item.pct_code.value)
+        pct = _safe_normalize_pct(packing_item.pct_code.value)
     return product, pct
 
 
@@ -1057,7 +1066,8 @@ def _build_item_result(
     product, pct = _item_identity(invoice_item, packing_item)
 
     if match.status == ItemMatchStatus.MATCHED:
-        assert invoice_item is not None and packing_item is not None
+        if invoice_item is None or packing_item is None:
+            raise RuntimeError("Matched item must contain both invoice and packing items.")
         item_checks = per_item_checks(invoice_item, packing_item)
         shipment_input = _build_item_shipment_input(
             request=request,
@@ -1236,17 +1246,31 @@ def _typed_value(field_name: str, raw_value: Any) -> Any:
     target_type = _CORRECTABLE_FIELD_TYPES.get(field_name)
     if target_type is None:
         raise CorrectionValidationError(f"field is not correctable: {field_name!r}")
+    if raw_value is None:
+        raise CorrectionValidationError(f"{field_name} requires a non-null value")
     if target_type is Decimal:
         try:
-            return Decimal(str(raw_value))
+            dec = Decimal(str(raw_value))
         except (InvalidOperation, ValueError, TypeError) as exc:
             raise CorrectionValidationError(
                 f"{field_name} requires a numeric value, got {raw_value!r}"
             ) from exc
+        if not dec.is_finite():
+            raise CorrectionValidationError(
+                f"{field_name} requires a finite numeric value, got {raw_value!r}"
+            )
+        return dec
     if target_type is str:
         text = str(raw_value).strip()
         if not text:
             raise CorrectionValidationError(f"{field_name} requires a non-empty value")
+        if field_name == "pct_code":
+            try:
+                return normalize_pct_code(text)
+            except ValueError as exc:
+                raise CorrectionValidationError(
+                    f"pct_code must be an eight-digit PCT code, got {raw_value!r}"
+                ) from exc
         return text
     raise CorrectionValidationError(f"unsupported field type for {field_name!r}")  # pragma: no cover
 

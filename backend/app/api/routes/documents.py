@@ -28,7 +28,7 @@ from app.services.document_service import (
     get_uploaded_pdf_page_preview,
     render_uploaded_pdf_page_image,
 )
-from app.services.document_upload_service import UPLOAD_DIRECTORY, process_document_upload
+from app.services.document_upload_service import process_document_upload
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])

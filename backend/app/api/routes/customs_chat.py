@@ -293,11 +293,17 @@ def _stream_result(
 def post_message(payload: ChatMessageRequest, db: Session = Depends(get_db_session)):
     if payload.conversation_id:
         conv = db.get(ChatConversation, payload.conversation_id)
-        if conv and conv.shipment_id and payload.shipment_id and conv.shipment_id != payload.shipment_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Conversation is bound to a different shipment.",
-            )
+        if conv is not None and payload.shipment_id is not None:
+            if conv.shipment_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="General conversation cannot be rebound to a shipment.",
+                )
+            if conv.shipment_id != payload.shipment_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Conversation is bound to a different shipment.",
+                )
 
     if not payload.stream:
         result = answer_customs_question(

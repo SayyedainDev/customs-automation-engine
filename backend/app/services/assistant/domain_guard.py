@@ -28,7 +28,10 @@ answer may not make are the mirror image of the scope it is allowed to cover.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
+
+_ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
 
 OFF_TOPIC_MESSAGE = (
     "I can only answer questions about customs, trade, export documentation, "
@@ -275,12 +278,16 @@ class AnswerValidation:
 
 
 def _normalize(question: str) -> str:
-    return re.sub(r"\s+", " ", question or "").strip().casefold()
+    text = unicodedata.normalize("NFKC", question or "")
+    text = _ZERO_WIDTH_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 
 def contains_injection(text: str | None) -> bool:
     """Whether text carries an instruction aimed at the assistant itself."""
-    return bool(text) and bool(_INJECTION_RE.search(text or ""))
+    if not text:
+        return False
+    return bool(_INJECTION_RE.search(_normalize(text)))
 
 
 def _stem_hits(haystack: str, vocabulary: tuple[str, ...]) -> list[str]:
@@ -350,7 +357,7 @@ def check_domain(question: str) -> DomainVerdict:
 def validate_answer(answer: str, *, has_accepted_evidence: bool) -> AnswerValidation:
     """Layer 4: reject claims a grounded regulatory answer may not make."""
     violations: list[str] = []
-    lowered = answer.casefold()
+    lowered = _normalize(answer)
     for pattern, label in _FORBIDDEN_CLAIM_PATTERNS:
         if re.search(pattern, lowered):
             violations.append(label)
