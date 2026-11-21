@@ -41,7 +41,7 @@ backend/tests/fixtures/live_demo/
 
 # Evaluation JSON and raw provider output can contain machine-specific paths,
 # provider metadata, and large reproducible payloads. Keep the curated Markdown
-# reports, which are the human-readable capstone evidence.
+# reports, which are the human-readable evaluation evidence.
 backend/reports/**/*.json
 backend/reports/synthetic_factory_raw/
 backend/reports/_verify_*
@@ -53,3 +53,21 @@ backend/reports/*_run.*
 # Canonical regulatory sources live under config/, processed/, and raw/.
 # Loose root-level PDFs are acquisition/research copies, not runtime inputs.
 regulatory_data/*.pdf
+
+# Local AI agent skill packs and tool mirrors
+.agents/
+.aider-desk/
+.claude/
+agent/
+skills-lock.json
+
+# Keep only the 7 active runtime PDFs tracked under regulatory_data/raw/;
+# historical/superseded reference PDFs stay out of Git.
+regulatory_data/raw/**/*.pdf
+!regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf
+!regulatory_data/raw/psw/single_declaration_export/psw_user_manual_single_declaration_exports.pdf
+!regulatory_data/raw/psw/user_manuals/tdap/psw_tdap_electronic_certificate_of_origin_form_issuance_traders_process_user_manual.pdf
+!regulatory_data/raw/tdap/export_document_guides/tdap_new_exporters_guide_part_a_export_procedures_2020.pdf
+!regulatory_data/raw/fbr/customs_act/customs_act_1969_updated_2025.pdf
+!regulatory_data/raw/fbr/customs_rules/customs_rules_2001_sro_450_i_2001_updated_2025_08_31.pdf
+!regulatory_data/raw/fbr/pct/pakistan_customs_tariff_fy_2025_26.pdf

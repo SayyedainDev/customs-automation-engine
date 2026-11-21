@@ -800,7 +800,7 @@ export function ComplianceReviewResult({
                 <strong>Configured regulatory requirements</strong>
                 <p>
                   PCT classification, destination rules, and required
-                  supporting documents were evaluated for this capstone’s 17
+                  supporting documents were evaluated across CACE’s 17
                   validated textile PCT codes.
                 </p>
               </div>

@@ -149,7 +149,7 @@ def build_default_deps(session_factory: SessionFactory) -> WorkflowDeps:
             model=settings.langgraph_auditor_model or settings.groq_model,
         )
 
-    # The final-report explanation is a core capstone feature, not an
+    # The final-report explanation is a core workflow feature, not an
     # opt-in extra: it runs whenever Groq is configured at all, independent
     # of LANGGRAPH_ENABLE_LIVE_AGENTS.
     explanation_narrator = None

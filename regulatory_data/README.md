@@ -1,8 +1,8 @@
 # Regulatory data
 
-This directory contains the cutoff-dated regulatory inputs used by the
-five-PCT textile prototype. It is an engineering research snapshot, not a
-complete or continuously updated statement of Pakistan customs law.
+This directory contains the cutoff-dated regulatory inputs used across CACE's
+17 validated textile PCT codes. It is a scoped compliance snapshot, not a
+complete or continuously updated feed of Pakistan customs law.
 
 ## Runtime inputs
 
@@ -72,11 +72,13 @@ against the published tariff.
 - `official_source_acquisition_manifest.json` — later acquisition and
   provenance audit.
 
-Loose PDF downloads at the root are intentionally excluded from Git. Canonical
-repository copies belong under `raw/`.
+Loose PDF downloads at the root and archival/superseded reference PDFs under
+`raw/` are excluded from Git so the repository tracks only the 7 active runtime
+PDFs (plus parsed JSON/curated assets). Active export SROs can be fetched via
+`backend/scripts/download_active_export_sros.py`.
 
-## Scope warning
+## Scope boundary
 
 The compliance result builder uses a legal cutoff date of **2026-07-22**.
-Automated daily FBR/TDAP ingestion, full tariff/tax computation, and complete
-Pakistan Customs coverage are outside this capstone.
+Automated daily FBR/TDAP ingestion and full non-textile statutory clearance
+coverage remain outside this release's runtime rule scope.

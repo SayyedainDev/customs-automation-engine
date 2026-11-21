@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     )
     # Unlike broker/auditor narration (LANGGRAPH_ENABLE_LIVE_AGENTS, optional
     # flavor text, off by default), the final-report explanation is a core
-    # capstone feature: it is attempted whenever GROQ_API_KEY is configured,
+    # workflow feature: it is attempted whenever GROQ_API_KEY is configured,
     # with a deterministic template fallback otherwise.
     langgraph_explanation_model: str = Field(
         default="",
