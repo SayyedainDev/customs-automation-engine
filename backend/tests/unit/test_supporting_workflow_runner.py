@@ -396,6 +396,7 @@ def test_preflight_requires_server_proven_postgres_workflow_profile(monkeypatch:
     from pydantic import SecretStr
     monkeypatch.setattr(get_settings(), "database_url", "postgresql://fake")
     monkeypatch.setattr(get_settings(), "groq_api_key", SecretStr("fake"))
+    monkeypatch.setattr(get_settings(), "regulatory_enable_real_models", True)
     report = runner.preflight(
         _PreflightApi(),  # type: ignore[arg-type]
         need_ocr=False,

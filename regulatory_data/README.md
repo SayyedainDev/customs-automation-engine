@@ -74,7 +74,8 @@ against the published tariff.
 
 Loose PDF downloads at the root and archival/superseded reference PDFs under
 `raw/` are excluded from Git so the repository tracks only the 7 active runtime
-PDFs (plus parsed JSON/curated assets). Active export SROs can be fetched via
+PDFs and 7 checksum-verified EPO amendment PDFs (plus parsed JSON/curated
+assets). Active export SROs can be fetched via
 `backend/scripts/download_active_export_sros.py`.
 
 ## Scope boundary
