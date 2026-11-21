@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Typecheck and build bundle
+        run: npm --prefix frontend run build
+
+  spec-tree:
+    name: Outcome Engineering Spec Tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate spx configuration
+        run: npx --yes @outcomeeng/spx@0.9.0 config validate
+
+      - name: Validate Spec Tree markdown structure
+        run: npx --yes @outcomeeng/spx@0.9.0 validation markdown spx/
+
+  backend-and-spec-tests:
+    name: Backend Lint, Typecheck & Test Suite
+    runs-on: ubuntu-latest
+    env:
+      REGULATORY_ENABLE_REAL_MODELS: "false"
+      LANGGRAPH_CHECKPOINT_BACKEND: memory
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OCR system dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies for L2 build verification
+        run: npm --prefix frontend ci
+
+      - name: Install Python dependencies (CPU PyTorch + dev tools)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -r backend/requirements-dev.txt
+
+      - name: Lint test infrastructure and Spec Tree suites
+        run: ruff check --config pyproject.toml backend/cace_testing spx
+
+      - name: Typecheck application and Spec Tree suites
+        run: |
+          mypy --config-file pyproject.toml backend/app
+          mypy --config-file pyproject.toml backend/cace_testing spx
+
+      - name: Run full pytest suite (backend + spx)
+        run: pytest -c pyproject.toml
