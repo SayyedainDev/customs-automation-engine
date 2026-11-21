@@ -155,6 +155,37 @@ def _frozen_document_evidence_value(
     return None
 
 
+def _retrieve_shipment_chunks(
+    db: Session,
+    workflow: CustomsAuditWorkflow | None,
+    shipment_id: UUID,
+    query: str,
+    *,
+    top_k: int = 5,
+):
+    """Retrieve indexed shipment chunks across all valid shipment key aliases.
+
+    Chunks may be indexed under ``workflow.invoice_document_id`` (production
+    pipeline & workflow sync) or under ``workflow.id`` (legacy/test callers).
+    """
+    from app.services.assistant.shipment_retriever import ShipmentDocumentRetriever
+
+    candidate_keys: list[UUID] = []
+    if workflow is not None and workflow.invoice_document_id is not None:
+        candidate_keys.append(workflow.invoice_document_id)
+    if shipment_id not in candidate_keys:
+        candidate_keys.append(shipment_id)
+    if workflow is not None and workflow.id not in candidate_keys:
+        candidate_keys.append(workflow.id)
+
+    retriever = ShipmentDocumentRetriever(db)
+    for key in candidate_keys:
+        chunks = retriever.retrieve(key, query, top_k=top_k)
+        if chunks:
+            return chunks
+    return []
+
+
 def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conversation_id: UUID | None = None) -> ChatResponse:
     conv_id = conversation_id or uuid4()
     msg_id = uuid4()
@@ -310,17 +341,8 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
                 )
             if val is not None:
                 answer = f"The packing list states a gross weight of {val} KG."
-                shipment_key = (
-                    workflow.invoice_document_id
-                    if workflow is not None and workflow.invoice_document_id is not None
-                    else shipment_id
-                )
-                from app.services.assistant.shipment_retriever import (
-                    ShipmentDocumentRetriever,
-                )
-
-                chunks = ShipmentDocumentRetriever(db).retrieve(
-                    shipment_key, question, top_k=1
+                chunks = _retrieve_shipment_chunks(
+                    db, workflow, shipment_id, question, top_k=1
                 )
                 if chunks:
                     chunk = chunks[0]
@@ -401,10 +423,10 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
                     )
                 )
         else:
-            from app.services.assistant.shipment_retriever import ShipmentDocumentRetriever
-            retriever = ShipmentDocumentRetriever(db)
             try:
-                chunks = retriever.retrieve(shipment_id, search_query)
+                chunks = _retrieve_shipment_chunks(
+                    db, workflow, shipment_id, search_query
+                )
                 if chunks:
                     answer = "Based on retrieved documents:\n"
                     for c in chunks:

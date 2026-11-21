@@ -147,9 +147,10 @@ def _citations_from_grounded(grounded: list[ScoredEvidence]) -> list[Citation]:
     seen: set[str] = set()
     for item in grounded:
         chunk = item.chunk
-        if chunk.parent_chunk_id in seen:
+        key = chunk.parent_chunk_id or chunk.chunk_id
+        if key in seen:
             continue
-        seen.add(chunk.parent_chunk_id or chunk.chunk_id)
+        seen.add(key)
         citations.append(
             Citation(
                 source_document=chunk.source_document,

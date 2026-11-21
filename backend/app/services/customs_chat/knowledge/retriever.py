@@ -118,9 +118,12 @@ def retrieve_evidence(
             for item in output.results:
                 key = item.parent.chunk_id
                 existing = fused.get(key)
-                if (
-                    existing is None
-                    or item.lexical_relevance_score > existing.evidence.lexical_relevance_score
+                if existing is None or (
+                    item.lexical_relevance_score,
+                    item.cross_encoder_score,
+                ) > (
+                    existing.evidence.lexical_relevance_score,
+                    existing.evidence.cross_encoder_score,
                 ):
                     fused[key] = _Fused(evidence=item, key=key)
 
@@ -142,7 +145,13 @@ def retrieve_evidence(
         # accidentally cites something that does not actually support it.
         return Evidence(passages=(), band="NONE", top_relevance=top_relevance, citations=(), degraded_mode=degraded)
 
-    citations = tuple(_to_citation(f.evidence) for f in ordered)
+    # Filter out trailing near-zero noise passages that slipped in because
+    # search_regulatory_evidence was called with min_relevance=0.0.
+    relevant = [
+        f for f in ordered if f.evidence.lexical_relevance_score >= resolved_tau_low
+    ] or ordered[:1]
+
+    citations = tuple(_to_citation(f.evidence) for f in relevant)
     passages = tuple(c.excerpt for c in citations)
     return Evidence(
         passages=passages,

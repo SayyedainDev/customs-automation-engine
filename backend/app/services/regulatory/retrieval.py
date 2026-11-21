@@ -364,8 +364,29 @@ class RetrievalOutput:
 
 
 def _rank_map(scores: list[float]) -> dict[int, int]:
+    """Assign 1-based competition ranks so tied scores share the same rank."""
     order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-    return {index: rank + 1 for rank, index in enumerate(order)}
+    ranks: dict[int, int] = {}
+    prev_score: float | None = None
+    current_rank = 0
+    for position, index in enumerate(order, start=1):
+        score = scores[index]
+        if prev_score is None or score != prev_score:
+            current_rank = position
+            prev_score = score
+        ranks[index] = current_rank
+    return ranks
+
+
+_PCT_IN_TEXT = re.compile(r"(?<!\d)(\d{4})[.\s-]?(\d{4})(?!\d)")
+
+
+def _contains_exact_pct_code(text: str, pct_code: str) -> bool:
+    """True when ``text`` contains an exact 8-digit tariff token for ``pct_code``."""
+    return any(
+        match.group(1) + match.group(2) == pct_code
+        for match in _PCT_IN_TEXT.finditer(text or "")
+    )
 
 
 def _lexical_relevance(
@@ -403,7 +424,7 @@ def _lexical_relevance(
     overlap = len(query_tokens & doc_tokens) / len(query_tokens)
     exact_pct_in_text = False
     if pct_code:
-        exact_pct_in_text = pct_code in re.sub(r"\D", "", chunk.text or "")
+        exact_pct_in_text = _contains_exact_pct_code(chunk.text or "", pct_code)
         if exact_pct_in_text:
             # Exact text evidence for the requested code is relevance, not a
             # coarse document-level PCT tag. This is essential for tariff rows
@@ -444,6 +465,7 @@ def _apply_metadata_filters(
     document_type: str | None,
     legal_cutoff_date: date | None,
     verified_only: bool,
+    exclude_superseded: bool = True,
 ) -> list[RegulatoryChunk]:
     result = children
     # A filter is applied only when the caller supplied it.
@@ -451,6 +473,12 @@ def _apply_metadata_filters(
         result = [c for c in result if c.validation_status == validation_status]
     elif verified_only:
         result = [c for c in result if c.validation_status in VERIFIED_STATUSES]
+    if exclude_superseded:
+        result = [
+            c
+            for c in result
+            if (c.currency_status or "current") != "superseded"
+        ]
     if pct_code:
         result = [c for c in result if c.pct_codes and pct_code in c.pct_codes]
     if sro_number:
@@ -536,6 +564,7 @@ def _persistent_candidates(
     document_type: str | None,
     legal_cutoff_date: date | None,
     verified_only: bool,
+    exclude_superseded: bool = True,
 ) -> tuple[list[str], dict[str, float], dict[str, float]]:
     """Candidate chunk ids from the stored FTS index and the cached matrix.
 
@@ -555,6 +584,7 @@ def _persistent_candidates(
         validation_status=validation_status,
         verified_statuses=tuple(sorted(VERIFIED_STATUSES)) if verified_only else None,
         legal_cutoff_date=legal_cutoff_date,
+        exclude_superseded=exclude_superseded,
     )
     lexical_scores = {hit.chunk_id: hit.rank for hit in lexical}
 
@@ -566,6 +596,13 @@ def _persistent_candidates(
         similarities = matrix.similarities(query_vector)
         top = np.argsort(similarities)[::-1][:DENSE_CANDIDATE_LIMIT]
         dense_scores = {matrix.chunk_ids[i]: float(similarities[i]) for i in top}
+        # Populate true dense cosine scores for lexical-only candidates that are
+        # already in the matrix so RRF does not assign them a synthetic 0.0.
+        if lexical_scores:
+            index_by_id = matrix.index_by_chunk_id
+            for cid in lexical_scores:
+                if cid not in dense_scores and cid in index_by_id:
+                    dense_scores[cid] = float(similarities[index_by_id[cid]])
 
     ordered = list(lexical_scores) + [c for c in dense_scores if c not in lexical_scores]
     return ordered, lexical_scores, dense_scores
@@ -625,6 +662,7 @@ def search_regulatory_evidence(
         )
 
     query_vector = _cached_embed_query(embedder, augmented_query)
+    exclude_superseded = not bool(_HISTORICAL_QUERY.search(augmented_query))
     persistent = postgres_fts_available(db)
     if persistent:
         retrieval_mode = RETRIEVAL_MODE_PERSISTENT
@@ -645,6 +683,7 @@ def search_regulatory_evidence(
             document_type=document_type,
             legal_cutoff_date=legal_cutoff_date,
             verified_only=verified_only,
+            exclude_superseded=exclude_superseded,
         )
         if not candidate_ids:
             return output("evidence_not_found", [])
@@ -668,6 +707,7 @@ def search_regulatory_evidence(
             document_type=document_type,
             legal_cutoff_date=legal_cutoff_date,
             verified_only=verified_only,
+            exclude_superseded=exclude_superseded,
         )
         if not children:
             return output("evidence_not_found", [])
@@ -702,6 +742,7 @@ def search_regulatory_evidence(
             document_type=document_type,
             legal_cutoff_date=legal_cutoff_date,
             verified_only=verified_only,
+            exclude_superseded=exclude_superseded,
         )
         if not children:
             return output("evidence_not_found", [])

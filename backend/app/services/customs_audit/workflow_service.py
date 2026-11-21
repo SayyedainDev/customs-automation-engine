@@ -391,10 +391,47 @@ class CustomsAuditService:
                         docs_to_index: list[tuple[UUID, str]] = [
                             (workflow.invoice_document_id, "commercial_invoice")
                         ]
-                        if workflow.packing_list_document_id is not None:
+                        seen_doc_ids: set[UUID] = {workflow.invoice_document_id}
+                        if (
+                            workflow.packing_list_document_id is not None
+                            and workflow.packing_list_document_id not in seen_doc_ids
+                        ):
                             docs_to_index.append(
                                 (workflow.packing_list_document_id, "packing_list")
                             )
+                            seen_doc_ids.add(workflow.packing_list_document_id)
+                        extraction_payload = report_state.get("extraction_result") or {}
+                        for supp in extraction_payload.get("supporting_documents") or []:
+                            if not isinstance(supp, dict):
+                                continue
+                            if not supp.get("uploaded"):
+                                continue
+                            if supp.get("state") not in {
+                                "type_verified",
+                                "fields_verified",
+                                "shipment_matched",
+                            }:
+                                continue
+                            raw_doc_id = supp.get("document_id")
+                            if not raw_doc_id:
+                                continue
+                            try:
+                                supp_uuid = (
+                                    raw_doc_id
+                                    if isinstance(raw_doc_id, UUID)
+                                    else UUID(str(raw_doc_id))
+                                )
+                            except (ValueError, TypeError):
+                                continue
+                            if supp_uuid in seen_doc_ids:
+                                continue
+                            seen_doc_ids.add(supp_uuid)
+                            doc_type = str(
+                                supp.get("canonical_document_type")
+                                or supp.get("claimed_document_type")
+                                or "supporting_document"
+                            )
+                            docs_to_index.append((supp_uuid, doc_type))
                         index_shipment_documents(
                             db,
                             shipment_id=workflow.invoice_document_id,
@@ -407,14 +444,14 @@ class CustomsAuditService:
                             exc_info=True,
                         )
 
-        deterministic = state.get("deterministic_compliance_result") or {}
+        deterministic = report_state.get("deterministic_compliance_result") or {}
         workflow.deterministic_status = deterministic.get("overall_status")
-        workflow.rule_data_version = state.get("rule_data_version")
-        workflow.vector_index_version = state.get("vector_index_version")
-        workflow.errors = state.get("errors") or None
+        workflow.rule_data_version = report_state.get("rule_data_version")
+        workflow.vector_index_version = report_state.get("vector_index_version")
+        workflow.errors = report_state.get("errors") or None
         workflow.updated_at = datetime.now(timezone.utc)
 
-        self._sync_events(db, workflow_id, state.get("audit_events", []))
+        self._sync_events(db, workflow_id, report_state.get("audit_events", []))
 
         if interrupt_payload is not None and self._open_task(db, workflow_id) is None:
             db.add(

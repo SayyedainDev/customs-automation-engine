@@ -241,6 +241,8 @@ def _all_checks(extraction_result: dict[str, Any]) -> list[dict[str, Any]]:
         compliance = item.get("compliance") or {}
         for check in compliance.get("checks", []):
             checks.append({**check, "item_reference": item.get("item_reference")})
+        for check in compliance.get("executable_rule_checks", []):
+            checks.append({**check, "item_reference": item.get("item_reference")})
     return checks
 
 

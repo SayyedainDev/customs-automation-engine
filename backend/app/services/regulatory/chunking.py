@@ -111,6 +111,11 @@ class SequentialHeadingSplit:
     #: monotonic-sequence check working across the page boundary - see
     #: ``start_last_number`` below.
     last_accepted_number: int
+    #: Leading text appearing before the first accepted heading on this page
+    #: (e.g., continuation of the previous page's section). Exposed separately
+    #: so callers can retain substantive continuation text without polluting
+    #: the heading-labelled ``sections`` list.
+    preamble: str = ""
 
 
 def split_by_sequential_numbered_headings(
@@ -170,13 +175,18 @@ def split_by_sequential_numbered_headings(
     if not accepted:
         return SequentialHeadingSplit(sections=[], last_accepted_number=start_last_number)
 
+    preamble = text[: accepted[0][0]].strip()
     sections: list[tuple[str, str]] = []
     for index, (start, label, _num) in enumerate(accepted):
         end = accepted[index + 1][0] if index + 1 < len(accepted) else len(text)
         body = text[start:end].strip()
         if body:
             sections.append((label, body))
-    return SequentialHeadingSplit(sections=sections, last_accepted_number=last_num)
+    return SequentialHeadingSplit(
+        sections=sections,
+        last_accepted_number=last_num,
+        preamble=preamble,
+    )
 
 
 def split_child_chunks(parent_text: str) -> list[str]:

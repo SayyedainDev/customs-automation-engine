@@ -142,8 +142,16 @@ _HEADER_DEPENDENCIES: dict[tuple[str, str], FieldDependency] = {
 }
 
 #: check_id prefixes/exact ids that make up "the regulatory family" - expanded
-#: against a shipment's own check list, never hardcoded per rule.
-_REGULATORY_FAMILY_PREFIXES = ("xr_",)
+#: against a shipment's own check list, never hardcoded per rule. Covers both
+#: executable rules (``xr_*``) and legacy regulatory checks so PCT/destination/
+#: date corrections never reuse stale Revision 1 regulatory citations.
+_REGULATORY_FAMILY_PREFIXES = (
+    "xr_",
+    "product_",
+    "raw_cotton_",
+    "certificate_of_origin",
+    "required_document_",
+)
 _REGULATORY_FAMILY_EXACT_IDS = ("mvp_pct_support",)
 
 

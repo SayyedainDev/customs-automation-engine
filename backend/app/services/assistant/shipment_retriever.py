@@ -91,7 +91,11 @@ class ShipmentDocumentRetriever:
             return "shipment_evidence_conflicting"
         if "packing list" in query_lower and chunk.document_type != "packing_list":
             return "shipment_evidence_conflicting"
-        if "form e" in query_lower and chunk.document_type not in ("form_e", "psw_declaration"):
+        if ("form e" in query_lower or "form-e" in query_lower) and chunk.document_type not in (
+            "form_e",
+            "psw_declaration",
+            "form_e_or_psw_export_declaration",
+        ):
             return "shipment_evidence_conflicting"
         if "certificate of origin" in query_lower and chunk.document_type != "certificate_of_origin":
             return "shipment_evidence_conflicting"
@@ -103,6 +107,8 @@ class ShipmentDocumentRetriever:
         return "shipment_evidence_verified"
 
     def retrieve(self, shipment_id: UUID, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        if top_k <= 0:
+            return []
         # 1. Mandatory filters: shipment_id AND active=True
         # Only retrieve child chunks for ranking
         all_active = list(
@@ -110,7 +116,7 @@ class ShipmentDocumentRetriever:
                 select(ShipmentDocumentChunk)
                 .where(
                     ShipmentDocumentChunk.shipment_id == shipment_id,
-                    ShipmentDocumentChunk.active == True
+                    ShipmentDocumentChunk.active.is_(True),
                 )
             ).scalars()
         )
@@ -129,20 +135,65 @@ class ShipmentDocumentRetriever:
         bm25 = BM25([tokenize(c.search_text or c.text) for c in chunks])
         bm25_scores = bm25.scores(query_tokens)
 
-        # 3. Dense Embeddings
-        query_vector = self.embedder.embed_query(query)
-        query_norm = query_vector / (np.linalg.norm(query_vector) or 1.0)
-        dense_scores = []
-        for c in chunks:
-            if not c.embedding:
-                dense_scores.append(0.0)
-                continue
-            doc = np.array(c.embedding)
-            if doc.size == 0 or doc.size != query_norm.size:
-                dense_scores.append(0.0)
-                continue
-            doc_norm = doc / (np.linalg.norm(doc) or 1.0)
-            dense_scores.append(float(np.dot(query_norm, doc_norm)))
+        # 3. Dense Embeddings (only compare stored vectors from the active model;
+        # embed incompatible/missing rows on the fly in memory so model changes
+        # never silently degrade dense retrieval or dot-product mismatched spaces)
+        query_vector = np.asarray(self.embedder.embed_query(query), dtype=np.float32)
+        q_norm = float(np.linalg.norm(query_vector))
+        if (
+            query_vector.ndim != 1
+            or query_vector.size == 0
+            or not np.all(np.isfinite(query_vector))
+            or q_norm == 0.0
+            or not np.isfinite(q_norm)
+        ):
+            dense_scores = [0.0] * len(chunks)
+        else:
+            query_norm = query_vector / q_norm
+            vectors_by_index: dict[int, np.ndarray] = {}
+            missing_indices: list[int] = []
+            for idx, c in enumerate(chunks):
+                if (
+                    c.embedding
+                    and (
+                        c.embedding_model is None
+                        or c.embedding_model == self.embedder.model_name
+                    )
+                ):
+                    arr = np.asarray(c.embedding, dtype=np.float32)
+                    if (
+                        arr.ndim == 1
+                        and arr.size == query_norm.size
+                        and np.all(np.isfinite(arr))
+                    ):
+                        vectors_by_index[idx] = arr
+                        continue
+                missing_indices.append(idx)
+
+            if missing_indices:
+                reembedded = self.embedder.embed(
+                    [chunks[idx].search_text or chunks[idx].text for idx in missing_indices]
+                )
+                for idx, vec in zip(missing_indices, reembedded):
+                    arr = np.asarray(vec, dtype=np.float32)
+                    if (
+                        arr.ndim == 1
+                        and arr.size == query_norm.size
+                        and np.all(np.isfinite(arr))
+                    ):
+                        vectors_by_index[idx] = arr
+
+            dense_scores = []
+            for idx in range(len(chunks)):
+                doc = vectors_by_index.get(idx)
+                if doc is None:
+                    dense_scores.append(0.0)
+                    continue
+                d_norm = float(np.linalg.norm(doc))
+                if d_norm == 0.0 or not np.isfinite(d_norm):
+                    dense_scores.append(0.0)
+                    continue
+                dense_scores.append(float(np.dot(query_norm, doc / d_norm)))
 
         # 4. Reciprocal Rank Fusion (RRF)
         bm25_ranks = _rank_map(bm25_scores)
@@ -173,8 +224,11 @@ class ShipmentDocumentRetriever:
             reverse=True,
         )
 
-        results = []
-        for pos in order[:top_k]:
+        # Evaluate the evidence gate across the full reranked pool before
+        # applying top_k so rejected chunks do not starve valid passages below them.
+        results: list[RetrievedChunk] = []
+        seen_parents: set[UUID] = set()
+        for pos in order:
             index = candidate_indexes[pos]
             chunk = chunks[index]
             score = float(reranker_scores[pos])
@@ -183,7 +237,12 @@ class ShipmentDocumentRetriever:
             
             if evidence_status in ("shipment_evidence_unavailable", "shipment_evidence_conflicting"):
                 continue
-                
+
+            parent_key = chunk.parent_chunk_id or chunk.id
+            if parent_key in seen_parents:
+                continue
+            seen_parents.add(parent_key)
+
             parent_text = chunk.text
             if chunk.parent_chunk_id and chunk.parent_chunk_id in parents:
                 parent_text = parents[chunk.parent_chunk_id].text
@@ -201,5 +260,7 @@ class ShipmentDocumentRetriever:
                     evidence_status=evidence_status
                 )
             )
+            if len(results) >= top_k:
+                break
 
         return results
