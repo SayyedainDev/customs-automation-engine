@@ -96,13 +96,23 @@ def _groq_strict_schema(
             # `confidence: "unknown"`, which local validation then rejected.
             options = node.get("anyOf")
             if isinstance(options, list):
+                has_numeric = any(
+                    isinstance(option, dict)
+                    and option.get("type") in {"number", "integer"}
+                    for option in options
+                )
                 kept = [
                     option
                     for option in options
                     if not (
                         isinstance(option, dict)
-                        and isinstance(option.get("pattern"), str)
-                        and _UNSUPPORTED_SCHEMA_REGEX.search(option["pattern"])
+                        and (
+                            (has_numeric and option.get("type") == "string")
+                            or (
+                                isinstance(option.get("pattern"), str)
+                                and _UNSUPPORTED_SCHEMA_REGEX.search(option["pattern"])
+                            )
+                        )
                     )
                 ]
                 if kept and len(kept) != len(options):

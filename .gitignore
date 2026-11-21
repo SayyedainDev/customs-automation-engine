@@ -61,10 +61,17 @@ regulatory_data/*.pdf
 agent/
 skills-lock.json
 
-# Keep only the 7 active runtime PDFs tracked under regulatory_data/raw/;
-# historical/superseded reference PDFs stay out of Git.
+# Keep only the 7 active runtime PDFs and 7 checksum-verified EPO amendment PDFs
+# tracked under regulatory_data/raw/; archival/superseded reference PDFs stay out of Git.
 regulatory_data/raw/**/*.pdf
 !regulatory_data/raw/commerce/export_policy/base_order/export_policy_order_2022_sro_544_i_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_561_i_2023_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_1087_i_2023_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_629_i_2024_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_1021_i_2024_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_705_i_2025_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_1727_i_2025_amendment_to_export_policy_order_2022.pdf
+!regulatory_data/raw/commerce/export_policy/amendments/sro_1902_i_2025_amendment_to_export_policy_order_2022.pdf
 !regulatory_data/raw/psw/single_declaration_export/psw_user_manual_single_declaration_exports.pdf
 !regulatory_data/raw/psw/user_manuals/tdap/psw_tdap_electronic_certificate_of_origin_form_issuance_traders_process_user_manual.pdf
 !regulatory_data/raw/tdap/export_document_guides/tdap_new_exporters_guide_part_a_export_procedures_2020.pdf

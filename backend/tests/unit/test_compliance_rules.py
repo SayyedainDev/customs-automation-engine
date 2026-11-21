@@ -8,8 +8,6 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from fastapi.routing import APIRoute
-
 from app.main import app
 from app.schemas.compliance import ShipmentComplianceInput
 from app.services.compliance.rule_engine import DeterministicComplianceRuleEngine
@@ -89,14 +87,9 @@ def test_complete_cotton_tshirt_passes_with_full_provenance() -> None:
     # recorded in the rule data, a complete, arithmetically sound T-shirt
     # shipment to China with every required document present is a genuine pass.
     body = run_check(valid_tshirt_payload())
-    route = next(
-        route
-        for route in app.routes
-        if isinstance(route, APIRoute)
-        and route.path == "/api/v1/compliance/check"
-    )
-
-    assert "POST" in route.methods
+    schema_paths = app.openapi()["paths"]
+    assert "/api/v1/compliance/check" in schema_paths
+    assert "post" in schema_paths["/api/v1/compliance/check"]
     assert body["pct_code"] == "61091000"
     assert body["supported_product"] is True
     assert body["overall_status"] == "passed"

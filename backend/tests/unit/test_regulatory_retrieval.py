@@ -336,6 +336,7 @@ def test_model_unavailable_degraded_mode(
         unavailable,
     )
     monkeypatch.setattr(reranker_module, "CrossEncoderReranker", unavailable)
+    monkeypatch.setattr(get_settings(), "regulatory_enable_real_models", True)
 
     assert get_embedding_provider().degraded is True
     initialization_error = next(

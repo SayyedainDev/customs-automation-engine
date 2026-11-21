@@ -217,7 +217,7 @@ enterprise_customs_engine/
 │   ├── requirements.txt         # Runtime dependencies
 │   └── requirements-dev.txt     # Test, Hypothesis, ruff & mypy tooling
 ├── frontend/                    # cace-operations-console (React 18 / Vite 6 / TS 5.7)
-├── regulatory_data/             # Active textile PCT rules, curated guidance & 7 runtime PDFs
+├── regulatory_data/             # Active textile PCT rules, curated guidance, 7 runtime & 7 amendment PDFs
 ├── spx/                         # Outcome Engineering specs (21 nodes, 2 decisions, 16 suites)
 ├── docs/                        # Architecture, benchmark, project map & archived milestone docs
 ├── docker-compose.yml           # Local PostgreSQL 16 + CACE stack
