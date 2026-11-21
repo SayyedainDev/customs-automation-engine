@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import threading
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -157,6 +158,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
 
 
 _provider: EmbeddingProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_embedding_provider() -> EmbeddingProvider:
@@ -164,33 +166,37 @@ def get_embedding_provider() -> EmbeddingProvider:
     global _provider
     if _provider is not None:
         return _provider
-    settings = get_settings()
-    if settings.regulatory_enable_real_models:
-        try:
-            _provider = SentenceTransformerEmbeddingProvider(
-                settings.regulatory_embedding_model,
-                settings.regulatory_embedding_device,
-                settings.regulatory_embedding_batch_size,
-            )
+    with _provider_lock:
+        if _provider is not None:
             return _provider
-        except Exception:
-            logger.exception(
-                "Failed to initialize regulatory embedding model %r on device "
-                "%r; using the degraded offline hashing provider.",
-                settings.regulatory_embedding_model,
-                settings.regulatory_embedding_device,
-            )
-            # Library/model unavailable -> explicit degraded fallback.
-            _provider = HashingEmbeddingProvider()
-            return _provider
-    _provider = HashingEmbeddingProvider()
-    return _provider
+        settings = get_settings()
+        if settings.regulatory_enable_real_models:
+            try:
+                _provider = SentenceTransformerEmbeddingProvider(
+                    settings.regulatory_embedding_model,
+                    settings.regulatory_embedding_device,
+                    settings.regulatory_embedding_batch_size,
+                )
+                return _provider
+            except Exception:
+                logger.exception(
+                    "Failed to initialize regulatory embedding model %r on device "
+                    "%r; using the degraded offline hashing provider.",
+                    settings.regulatory_embedding_model,
+                    settings.regulatory_embedding_device,
+                )
+                # Library/model unavailable -> explicit degraded fallback.
+                _provider = HashingEmbeddingProvider()
+                return _provider
+        _provider = HashingEmbeddingProvider()
+        return _provider
 
 
 def set_embedding_provider(provider: EmbeddingProvider | None) -> None:
     """Inject a provider (tests) or clear the cache when passed None."""
     global _provider
-    _provider = provider
+    with _provider_lock:
+        _provider = provider
 
 
 def reset_embedding_provider() -> None:

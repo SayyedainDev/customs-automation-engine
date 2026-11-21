@@ -12,10 +12,16 @@ Selected once and cached; tests inject a fake via ``set_reranker``.
 
 from __future__ import annotations
 
+import logging
 import re
+import threading
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 _WORD = re.compile(r"[a-z0-9]+")
 _PCT = re.compile(r"\b(\d{4})\.?(\d{4})\b")
@@ -112,10 +118,11 @@ class CrossEncoderReranker(Reranker):
             return []
         pairs = [[query, document] for document in documents]
         predictions = self._model.predict(pairs, convert_to_numpy=True)
-        return [float(value) for value in predictions]
+        return [float(value) for value in np.atleast_1d(predictions).tolist()]
 
 
 _reranker: Reranker | None = None
+_reranker_lock = threading.Lock()
 
 
 def get_reranker() -> Reranker:
@@ -123,24 +130,34 @@ def get_reranker() -> Reranker:
     global _reranker
     if _reranker is not None:
         return _reranker
-    settings = get_settings()
-    if settings.regulatory_enable_real_models:
-        try:
-            _reranker = CrossEncoderReranker(
-                settings.regulatory_reranker_model,
-                settings.regulatory_rerank_device,
-            )
+    with _reranker_lock:
+        if _reranker is not None:
             return _reranker
-        except Exception:
-            _reranker = LexicalReranker()
-            return _reranker
-    _reranker = LexicalReranker()
-    return _reranker
+        settings = get_settings()
+        if settings.regulatory_enable_real_models:
+            try:
+                _reranker = CrossEncoderReranker(
+                    settings.regulatory_reranker_model,
+                    settings.regulatory_rerank_device,
+                )
+                return _reranker
+            except Exception:
+                logger.exception(
+                    "Failed to initialize regulatory reranker model %r on device "
+                    "%r; using the degraded lexical overlap reranker.",
+                    settings.regulatory_reranker_model,
+                    settings.regulatory_rerank_device,
+                )
+                _reranker = LexicalReranker()
+                return _reranker
+        _reranker = LexicalReranker()
+        return _reranker
 
 
 def set_reranker(reranker: Reranker | None) -> None:
     global _reranker
-    _reranker = reranker
+    with _reranker_lock:
+        _reranker = reranker
 
 
 def reset_reranker() -> None:

@@ -53,6 +53,8 @@ def search_shipments(
     top_k: int = 5,
     embedder: EmbeddingProvider | None = None,
 ) -> ShipmentSearchOutput:
+    if top_k <= 0:
+        return ShipmentSearchOutput(status="ok", retrieval_mode="semantic", results=[])
     rows = list(db.execute(select(ShipmentSummaryVector)).scalars())
     if not rows:
         return ShipmentSearchOutput(status="no_shipments_indexed", retrieval_mode="semantic", results=[])
@@ -66,16 +68,30 @@ def search_shipments(
         # recency-ordered list is still useful and needs no ranking model.
         return _recency_fallback(rows, top_k)
 
-    if query_vector.ndim != 1 or query_vector.size != embedder.dimension:
+    q_norm = float(np.linalg.norm(query_vector)) if query_vector.size else 0.0
+    if (
+        query_vector.ndim != 1
+        or query_vector.size != embedder.dimension
+        or not np.all(np.isfinite(query_vector))
+        or q_norm == 0.0
+        or not np.isfinite(q_norm)
+    ):
         return _recency_fallback(rows, top_k)
+    query_unit = query_vector / q_norm
 
     compatible_rows: list[tuple[np.ndarray, ShipmentSummaryVector]] = []
     for row in rows:
         if row.embedding_model != embedder.model_name or row.embedding_dim != embedder.dimension:
             continue
         vec = np.asarray(row.embedding, dtype=np.float32)
-        if vec.ndim == 1 and vec.size == query_vector.size:
-            compatible_rows.append((vec, row))
+        if (
+            vec.ndim == 1
+            and vec.size == query_unit.size
+            and np.all(np.isfinite(vec))
+        ):
+            v_norm = float(np.linalg.norm(vec))
+            if v_norm > 0.0 and np.isfinite(v_norm):
+                compatible_rows.append((vec / v_norm, row))
 
     if not compatible_rows:
         # Comparing vectors from different models (or merely different
@@ -85,7 +101,7 @@ def search_shipments(
 
     scored = sorted(
         (
-            (float(np.dot(query_vector, vec)), row)
+            (float(np.dot(query_unit, vec)), row)
             for vec, row in compatible_rows
         ),
         key=lambda pair: pair[0],

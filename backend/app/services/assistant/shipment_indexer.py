@@ -1,16 +1,55 @@
 import hashlib
 import logging
+import re
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Session
 from sqlalchemy import select, update
+from sqlalchemy.orm import Session
 
 from app.models.documents import DocumentUploadRecord
 from app.models.shipment_chunks import ShipmentDocumentChunk
 from app.services.regulatory.embeddings import get_embedding_provider
 
 logger = logging.getLogger(__name__)
+
+
+def _document_pages(document: DocumentUploadRecord) -> list[dict[str, Any]]:
+    """Return per-page text records, falling back to ``ocr_pages`` for scanned PDFs."""
+    extracted = document.extracted_pages or []
+    ocr = document.ocr_pages or []
+    ocr_by_page = {
+        int(page.get("page_number", idx + 1)): page
+        for idx, page in enumerate(ocr)
+        if isinstance(page, dict) and str(page.get("text") or "").strip()
+    }
+    pages: list[dict[str, Any]] = []
+    seen_pages: set[int] = set()
+    for idx, page in enumerate(extracted):
+        if not isinstance(page, dict):
+            continue
+        page_num = int(page.get("page_number", idx + 1))
+        seen_pages.add(page_num)
+        text = str(page.get("text") or "")
+        if text.strip():
+            pages.append({"page_number": page_num, "text": text})
+        elif page_num in ocr_by_page:
+            pages.append(
+                {
+                    "page_number": page_num,
+                    "text": str(ocr_by_page[page_num].get("text") or ""),
+                }
+            )
+    for page_num in sorted(ocr_by_page):
+        if page_num not in seen_pages:
+            pages.append(
+                {
+                    "page_number": page_num,
+                    "text": str(ocr_by_page[page_num].get("text") or ""),
+                }
+            )
+    return pages
+
 
 def _generate_content_hash(
     document_id: UUID,
@@ -26,6 +65,7 @@ def _generate_content_hash(
     hasher.update(text.encode("utf-8"))
     return hasher.hexdigest()
 
+
 def build_semantic_chunks_for_document(
     document: DocumentUploadRecord,
     shipment_id: UUID,
@@ -33,7 +73,8 @@ def build_semantic_chunks_for_document(
     document_type: str = "unknown"
 ) -> list[ShipmentDocumentChunk]:
     """Create parent and child chunks for an extracted document."""
-    if not document.extracted_pages:
+    pages = _document_pages(document)
+    if not pages:
         return []
 
     structured_data = document.structured_data or {}
@@ -47,7 +88,7 @@ def build_semantic_chunks_for_document(
     chunks = []
     
     # Simple typed parent-child chunking for the prototype.
-    for page in document.extracted_pages:
+    for page in pages:
         page_num = page.get("page_number", 1)
         text = page.get("text", "")
         if not text.strip():
@@ -58,7 +99,7 @@ def build_semantic_chunks_for_document(
         if not paragraphs:
             paragraphs = [text.strip()]
             
-        for p_idx, paragraph in enumerate(paragraphs):
+        for _p_idx, paragraph in enumerate(paragraphs):
             section_name = "general_content"
             p_lower = paragraph.lower()
             
@@ -81,8 +122,12 @@ def build_semantic_chunks_for_document(
                     section_name = "package_information"
                 else:
                     section_name = "product_line"
-            elif document_type in ("form_e", "psw_declaration"):
-                if "declaration" in p_lower or "form e" in p_lower:
+            elif document_type in (
+                "form_e",
+                "psw_declaration",
+                "form_e_or_psw_export_declaration",
+            ):
+                if "declaration" in p_lower or "form e" in p_lower or "form-e" in p_lower:
                     section_name = "declaration_identity"
                 elif "exporter" in p_lower or "invoice" in p_lower:
                     section_name = "exporter_and_invoice"
@@ -128,7 +173,6 @@ def build_semantic_chunks_for_document(
             lines = [line.strip() for line in paragraph.split("\n") if line.strip()]
             if len(lines) == 1:
                 # Fallback to sentences if only one line
-                import re
                 lines = [s.strip() for s in re.split(r'(?<=[.!?]) +', paragraph) if s.strip()]
                 
             for c_idx, child_text in enumerate(lines):
@@ -176,6 +220,7 @@ def build_semantic_chunks_for_document(
 
     return chunks
 
+
 def index_shipment_documents(
     db: Session,
     shipment_id: UUID,
@@ -183,44 +228,55 @@ def index_shipment_documents(
 ) -> None:
     """Index all documents attached to a shipment.
     
-    Only indexes documents that are successfully extracted.
-    Invalidates old versions automatically.
+    Only indexes documents that are successfully extracted (or OCR-extracted).
+    Invalidates old versions and refreshes stale embeddings automatically.
     """
+    embedder = get_embedding_provider()
     for doc_id, doc_type in documents:
         doc = db.get(DocumentUploadRecord, doc_id)
-        if not doc or not doc.extracted_pages:
+        if not doc or not _document_pages(doc):
             if doc:
                 doc.indexing_status = "skipped_unchanged"
                 db.add(doc)
             continue
             
-        # Check if already indexed with same content
+        # Check if already indexed with the active embedding model and dimension
         existing = db.execute(
             select(ShipmentDocumentChunk)
             .where(
                 ShipmentDocumentChunk.document_id == doc_id,
                 ShipmentDocumentChunk.shipment_id == shipment_id,
-                ShipmentDocumentChunk.active == True
+                ShipmentDocumentChunk.active.is_(True),
             )
         ).scalars().first()
         
-        if existing:
+        if (
+            existing is not None
+            and existing.embedding_model == embedder.model_name
+            and existing.embedding_dim == embedder.dimension
+            and existing.document_type == doc_type
+        ):
             doc.indexing_status = "skipped_unchanged"
             db.add(doc)
             continue
-            
-        # Deactivate old versions of this document type for this shipment
-        stmt = (
+
+        # Deactivate stale chunks for this document (e.g. after model switch)
+        # as well as any old versions of this document type for this shipment.
+        db.execute(
             update(ShipmentDocumentChunk)
             .where(
                 ShipmentDocumentChunk.shipment_id == shipment_id,
-                ShipmentDocumentChunk.document_type == doc_type,
-                ShipmentDocumentChunk.active == True,
-                ShipmentDocumentChunk.document_id != doc_id
+                ShipmentDocumentChunk.active.is_(True),
+                (
+                    (ShipmentDocumentChunk.document_id == doc_id)
+                    | (
+                        (ShipmentDocumentChunk.document_type == doc_type)
+                        & (ShipmentDocumentChunk.document_id != doc_id)
+                    )
+                ),
             )
             .values(active=False)
         )
-        db.execute(stmt)
         
         try:
             chunks = build_semantic_chunks_for_document(

@@ -9,6 +9,7 @@ government document is modified.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -79,6 +80,33 @@ def _relative_path(source: RegulatorySource) -> str:
     return str(source.path.relative_to(PROJECT_ROOT))
 
 
+def _substantive_preamble(preamble: str) -> str:
+    """Return non-trivial continuation prose before a page's first heading.
+
+    Strips running headers, bare page numbers, and footnote-verb lines so
+    substantive carried-over statutory clauses are preserved while noise-only
+    headers/footnotes are not turned into standalone chunks.
+    """
+    kept: list[str] = []
+    for raw_line in preamble.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.isdigit():
+            continue
+        if line.isupper() and len(line) <= 60:
+            continue
+        if re.match(
+            r"^\d+\.\s+(?:Inserted|Omitted|Substituted|Added|Renumbered|Deleted|Amended|Renamed)\b",
+            line,
+            re.IGNORECASE,
+        ):
+            continue
+        kept.append(line)
+    cleaned = "\n".join(kept).strip()
+    return cleaned if len(cleaned) >= 40 else ""
+
+
 def _split_parents(
     source: RegulatorySource, text: str, *, last_section_number: int
 ) -> tuple[list[tuple[str, str | None]], int]:
@@ -88,17 +116,11 @@ def _split_parents(
 
     ``section_label`` is ``None`` for the default strategy (the caller falls
     back to the page-level section already carried on the source unit).
-    "section_aware" supplies one for every heading found; a page with no
-    heading at all - deep in a long section's body - falls back to the
-    default split (still with no label, so that page's chunks are
-    unlabelled rather than silently dropped) while the counter is carried
-    forward unchanged, so the *next* page's monotonic check still starts
-    from the right place. See ``chunking.split_by_sequential_numbered_headings``
-    for why the counter must cross this page boundary at all, and for the
-    known limitation this implies: a section whose body continues onto a
-    following page is not merged into one parent chunk across that page
-    break - each page is still chunked independently, so a labelled
-    section's parent chunk stops at the end of its starting page.
+    "section_aware" supplies one for every heading found; substantive
+    continuation text before the first heading on a page is preserved under the
+    preceding section label instead of being silently dropped. A page with no
+    heading at all - deep in a long section's body - falls back to the default
+    split while carrying the counter forward unchanged.
     """
     if source.chunk_strategy == "faq":
         # One curated Q&A entry is already exactly one retrieval-sized unit
@@ -112,7 +134,17 @@ def _split_parents(
             text, label_prefix="Section", start_last_number=last_section_number
         )
         if split.sections:
-            return [(body, label) for label, body in split.sections], split.last_accepted_number
+            parents: list[tuple[str, str | None]] = []
+            continuation = _substantive_preamble(split.preamble)
+            if continuation:
+                label = (
+                    f"Section {last_section_number} (continued)"
+                    if last_section_number > 0
+                    else None
+                )
+                parents.append((continuation, label))
+            parents.extend((body, label) for label, body in split.sections)
+            return parents, split.last_accepted_number
         return [(body, None) for body in split_parent_sections(text)], split.last_accepted_number
     return [(body, None) for body in split_parent_sections(text)], last_section_number
 
@@ -291,9 +323,9 @@ def ingest_all(db: Session, rule_data_version: str | None = None) -> IngestionRe
 
     for source in sources:
         try:
-            result = ingest_source(db, source, rule_data_version)
+            with db.begin_nested():
+                result = ingest_source(db, source, rule_data_version)
         except Exception as exc:  # keep other sources ingesting
-            db.rollback()
             report.documents_errored += 1
             report.sources.append(
                 SourceResult(
@@ -317,4 +349,8 @@ def ingest_all(db: Session, rule_data_version: str | None = None) -> IngestionRe
             report.documents_skipped_idempotent += 1
 
     db.commit()
+    if report.documents_ingested or report.documents_updated:
+        from app.services.regulatory.vector_cache import reset_vector_matrix_cache
+
+        reset_vector_matrix_cache()
     return report

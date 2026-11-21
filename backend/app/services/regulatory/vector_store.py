@@ -113,6 +113,7 @@ def build_vector_index(
             and not rebuild
             and vector.document_checksum == child.document_checksum
             and vector.embedding_model == embedder.model_name
+            and vector.embedding_dim == embedder.dimension
             and vector.index_version == VECTOR_INDEX_VERSION
         )
         if fresh:
@@ -161,6 +162,10 @@ def build_vector_index(
             report.stale_removed += 1
 
     db.commit()
+    if report.chunks_embedded or report.chunks_updated or report.stale_removed:
+        from app.services.regulatory.vector_cache import reset_vector_matrix_cache
+
+        reset_vector_matrix_cache()
     report.execution_seconds = round(time.perf_counter() - started, 4)
     return report
 

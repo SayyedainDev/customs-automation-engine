@@ -41,6 +41,7 @@ def index_shipment_summary(
         existing is not None
         and existing.summary_checksum == checksum
         and existing.embedding_model == embedder.model_name
+        and existing.embedding_dim == embedder.dimension
         and existing.index_version == SHIPMENT_VECTOR_INDEX_VERSION
     )
     if fresh:

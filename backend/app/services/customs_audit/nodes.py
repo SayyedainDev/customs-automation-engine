@@ -767,12 +767,38 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         # by the extracted values themselves - never a retrieval, because
         # there is nothing to retrieve for a fact already read off the
         # uploaded documents.
+        def _reconstruct_raw_evidence(
+            normalized_entries: list[dict[str, Any]],
+        ) -> list[dict[str, Any]]:
+            reconstructed: list[dict[str, Any]] = []
+            for entry in normalized_entries:
+                if not isinstance(entry, dict):
+                    continue
+                reconstructed.append(
+                    {
+                        "source_document": entry.get("source_title"),
+                        "source_document_id": entry.get("source_document_id"),
+                        "sro_number": entry.get("sro_number"),
+                        "page_number": entry.get("page_number"),
+                        "section": entry.get("section"),
+                        "issuing_authority": entry.get("issuing_authority"),
+                        "validation_status": entry.get("validation_status"),
+                        "evidence_text": entry.get("snippet") or "",
+                        "retrieval_score": entry.get("retrieval_score"),
+                        "rerank_score": entry.get("rerank_score"),
+                    }
+                )
+            return reconstructed
+
         checks_with_context: list[tuple[dict[str, Any], str | None]] = [
             (check, None) for check in extraction_result.get("shipment_level_checks", [])
         ]
         for item in extraction_result.get("items", []):
             reference = item.get("item_reference")
-            for check in (item.get("compliance") or {}).get("checks", []):
+            compliance = item.get("compliance") or {}
+            for check in compliance.get("checks", []):
+                checks_with_context.append((check, reference))
+            for check in compliance.get("executable_rule_checks", []):
                 checks_with_context.append((check, reference))
             for check in item.get("item_checks", []):
                 checks_with_context.append((check, reference))
@@ -805,7 +831,10 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                             check
                         )
                 elif is_regulatory_check(check):
-                    if check_id in evidence_by_check:
+                    if (
+                        check_id in evidence_by_check
+                        or check_id in regulatory_evidence_by_check
+                    ):
                         continue
                     if (
                         regulatory_checks_to_requery is not None
@@ -813,14 +842,16 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                         and reuse_regulatory_evidence_by_check is not None
                         and check_id in reuse_regulatory_evidence_by_check
                     ):
-                        regulatory_evidence_by_check[check_id] = (
-                            reuse_regulatory_evidence_by_check[check_id]
-                        )
+                        reused_normalized = reuse_regulatory_evidence_by_check[check_id]
+                        reused_raw = _reconstruct_raw_evidence(reused_normalized)
+                        evidence_by_check[check_id] = reused_raw
+                        regulatory_evidence_by_check[check_id] = reused_normalized
                         regulatory_evidence_status_by_check[check_id] = (
                             (reuse_regulatory_evidence_status_by_check or {}).get(
                                 check_id, "evidence_unavailable"
                             )
                         )
+                        all_evidence.extend(reused_raw)
                         reused_check_ids.append(check_id)
                         continue
                     query = query_for_check(check, extraction_result)

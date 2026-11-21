@@ -8,11 +8,14 @@ In-memory checkpointing is only used for tests.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 from app.core.config import get_settings
+
+_PG_DRIVER_PREFIX = re.compile(r"^postgresql\+[a-z0-9_]+://", re.IGNORECASE)
 
 
 def _sqlite_saver(path: str) -> Any:
@@ -20,9 +23,13 @@ def _sqlite_saver(path: str) -> Any:
 
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, check_same_thread=False)
-    saver = SqliteSaver(connection)
-    saver.setup()
-    return saver
+    try:
+        saver = SqliteSaver(connection)
+        saver.setup()
+        return saver
+    except Exception:
+        connection.close()
+        raise
 
 
 def build_checkpointer() -> Any:
@@ -42,15 +49,20 @@ def build_checkpointer() -> Any:
         # The saver owns this connection through the cached graph/service
         # lifetime. A temporary ``from_conn_string`` context would close as
         # soon as the factory returned and make the first graph call fail.
+        dsn = _PG_DRIVER_PREFIX.sub("postgresql://", settings.database_url)
         connection = psycopg.connect(
-            settings.database_url.replace("+psycopg", ""),
+            dsn,
             autocommit=True,
             prepare_threshold=0,
             row_factory=dict_row,
         )
-        saver = PostgresSaver(connection)
-        saver.setup()
-        return saver
+        try:
+            saver = PostgresSaver(connection)
+            saver.setup()
+            return saver
+        except Exception:
+            connection.close()
+            raise
 
     if backend == "memory":
         # Explicitly requested (e.g. ephemeral dev); production should not use this.

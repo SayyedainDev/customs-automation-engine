@@ -365,6 +365,9 @@ def broader_category_notice(pct_code: str) -> str:
     )
 
 
+_PCT_EXACT_TOKEN = re.compile(r"(?<!\d)(\d{4})[.\s-]?(\d{4})(?!\d)")
+
+
 def _mentions_pct_in_text(chunk, pct_code: str) -> bool:  # type: ignore[no-untyped-def]
     """Whether the passage text itself names this PCT code.
 
@@ -377,8 +380,10 @@ def _mentions_pct_in_text(chunk, pct_code: str) -> bool:  # type: ignore[no-unty
     digits = re.sub(r"\D", "", pct_code or "")
     if len(digits) != 8:
         return False
-    body = re.sub(r"[.\s-]", "", chunk.text or "")
-    return digits in body
+    return any(
+        match.group(1) + match.group(2) == digits
+        for match in _PCT_EXACT_TOKEN.finditer(chunk.text or "")
+    )
 
 
 def _staged_retrieve(
@@ -1038,8 +1043,8 @@ def _checklist_explanation_is_acceptable(
         if match.group(0).casefold() not in allowed:
             return False
     if re.search(
-        r"\b(only|all（?)?\s+(the\s+)?documents?\s+(you\s+)?(need|required)\b"
-        r"|\bthese are the only\b|\bnothing else is (needed|required)\b"
+        r"\b(?:only|all)\s+(?:the\s+)?documents?\s+(?:you\s+)?(?:need|required)\b"
+        r"|\bthese are the only\b|\bnothing else is (?:needed|required)\b"
         r"|\bcomplete list\b|\bexhaustive\b",
         answer,
         re.IGNORECASE,
@@ -1421,7 +1426,7 @@ def answer_regulatory_question(
             question=question,
             pct_code=None,
             supported=False,
-            destination=destination,
+            destination=destination_used,
             source_document=source_document,
             top_k=top_k,
         )
@@ -1498,7 +1503,7 @@ def answer_regulatory_question(
             question=question,
             pct_code=effective_pct,
             supported=True,
-            destination=destination,
+            destination=destination_used,
             source_document=source_document,
             top_k=top_k,
         )
@@ -1542,7 +1547,7 @@ def answer_regulatory_question(
         question=question,
         pct_code=effective_pct,
         supported=supported,
-        destination=destination,
+        destination=destination_used,
         source_document=source_document,
         top_k=top_k,
     )

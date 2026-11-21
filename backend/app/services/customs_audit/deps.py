@@ -132,14 +132,18 @@ def build_default_deps(session_factory: SessionFactory) -> WorkflowDeps:
     from app.core.config import get_settings
 
     settings = get_settings()
+    api_key = (
+        settings.groq_api_key.get_secret_value().strip()
+        if settings.groq_api_key is not None
+        else ""
+    )
     broker_narrator = None
     auditor_narrator = None
     if settings.langgraph_enable_live_agents:
-        if settings.groq_api_key is None:
+        if not api_key:
             raise RuntimeError(
                 "GROQ_API_KEY is required when LANGGRAPH_ENABLE_LIVE_AGENTS=true"
             )
-        api_key = settings.groq_api_key.get_secret_value()
         broker_narrator = GroqNarrator(
             api_key=api_key,
             model=settings.langgraph_broker_model or settings.groq_model,
@@ -154,10 +158,10 @@ def build_default_deps(session_factory: SessionFactory) -> WorkflowDeps:
     # of LANGGRAPH_ENABLE_LIVE_AGENTS.
     explanation_narrator = None
     explanation_model_label = ""
-    if settings.groq_api_key is not None:
+    if api_key:
         explanation_model_label = settings.langgraph_explanation_model or settings.groq_model
         explanation_narrator = GroqNarrator(
-            api_key=settings.groq_api_key.get_secret_value(),
+            api_key=api_key,
             model=explanation_model_label,
         )
 
