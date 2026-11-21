@@ -11,11 +11,20 @@ decision.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from app.services.customs_chat.contracts import OutputVerdict, Ring
 from app.services.customs_chat.guards import claims
 from app.services.customs_chat.guards.input_guard import contains_injection
 from app.services.customs_chat.guards.scope_vocab import OUT_OF_DOMAIN_RE
+
+_ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
+
+
+def _normalize_output(answer: str) -> str:
+    text = unicodedata.normalize("NFKC", answer or "")
+    text = _ZERO_WIDTH_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 #: A short, distinctive fragment from each section of the system prompt.
 #: Matching any of these in an answer means the model echoed its own
@@ -40,7 +49,7 @@ _BANNED_LEGALESE = re.compile(
 
 
 def _prompt_leak(answer: str) -> bool:
-    lowered = answer.casefold()
+    lowered = _normalize_output(answer)
     return any(marker in lowered for marker in _PROMPT_LEAK_MARKERS)
 
 
@@ -49,7 +58,7 @@ def _scope_drift(answer: str) -> bool:
     subject mid-answer - not a full scope re-classification (too slow, and
     every legitimate answer legitimately uses ordinary English), just the
     same out-of-domain intent patterns Layer 2 uses on input."""
-    return bool(OUT_OF_DOMAIN_RE.search(answer.casefold()))
+    return bool(OUT_OF_DOMAIN_RE.search(_normalize_output(answer)))
 
 
 def check_output(
@@ -85,7 +94,7 @@ def check_output(
     if _scope_drift(answer):
         violations.append("answer drifted onto an out-of-domain subject")
 
-    if _BANNED_LEGALESE.search(answer):
+    if _BANNED_LEGALESE.search(_normalize_output(answer)):
         violations.append("answer uses banned legalese")
 
     if not violations:

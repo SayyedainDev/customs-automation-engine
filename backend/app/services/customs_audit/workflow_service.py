@@ -183,8 +183,14 @@ class CustomsAuditService:
             raise WorkflowStateError(f"only a technically-failed workflow can be retried (status={workflow.status})")
 
         # Re-drive from the start on a fresh thread, carrying prior audit history.
-        old = self._snapshot(workflow.thread_id).values
+        old = getattr(self._snapshot(workflow.thread_id), "values", None) or {}
         new_thread = f"{workflow.thread_id}-retry-{uuid4().hex[:6]}"
+        invoice_doc_id = old.get("commercial_invoice_document_id") or (
+            str(workflow.invoice_document_id) if workflow.invoice_document_id else None
+        )
+        packing_doc_id = old.get("packing_list_document_id") or (
+            str(workflow.packing_list_document_id) if workflow.packing_list_document_id else None
+        )
         initial_state = {
             "workflow_id": str(workflow_id),
             "review_revision_id": old.get("review_revision_id") or str(uuid4()),
@@ -192,8 +198,8 @@ class CustomsAuditService:
             "workflow_status": WorkflowStatus.RESUMING.value,
             "created_at": old.get("created_at") or utcnow_iso(),
             "updated_at": utcnow_iso(),
-            "commercial_invoice_document_id": old.get("commercial_invoice_document_id"),
-            "packing_list_document_id": old.get("packing_list_document_id"),
+            "commercial_invoice_document_id": invoice_doc_id,
+            "packing_list_document_id": packing_doc_id,
             "additional_document_ids": old.get("additional_document_ids", []),
             "shipment_date": old.get("shipment_date"),
             "letter_of_credit_date": old.get("letter_of_credit_date"),
@@ -210,9 +216,9 @@ class CustomsAuditService:
             # again on retry.
             "explanation_results": old.get("explanation_results", []),
         }
+        state = await self._invoke(initial_state, new_thread)
         workflow.thread_id = new_thread
         db.commit()
-        state = await self._invoke(initial_state, new_thread)
         self._sync(db, workflow_id, new_thread, state)
         return self._status_dict(db, workflow_id)
 

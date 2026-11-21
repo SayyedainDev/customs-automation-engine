@@ -736,7 +736,7 @@ def _stacked_rows(
             continue
         cells = {
             column.field_name: value
-            for column, value in zip(columns, group)
+            for column, value in zip(columns, group, strict=False)
             if column.field_name is not None
         }
         if not cells.get("description") or not any(

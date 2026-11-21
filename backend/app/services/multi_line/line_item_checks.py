@@ -74,6 +74,23 @@ def _item_comparison_check(
             invoice_source_page=invoice_field.source_page,
             packing_list_source_page=packing_field.source_page,
         )
+    if (
+        left is None
+        or right is None
+        or (isinstance(left, str) and not left.strip())
+        or (isinstance(right, str) and not right.strip())
+    ):
+        return CrossDocumentCheck(
+            check_id=check_id,
+            check_name=check_name,
+            status=ComplianceCheckStatus.MANUAL_REVIEW,
+            message=(
+                f"{check_name} could not be verified because one or both values "
+                "have no usable content after normalization."
+            ),
+            invoice_source_page=invoice_field.source_page,
+            packing_list_source_page=packing_field.source_page,
+        )
     matches = left == right
     return CrossDocumentCheck(
         check_id=check_id,

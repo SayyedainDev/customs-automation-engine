@@ -4,14 +4,11 @@ from sqlalchemy import select
 
 from app.models.customs_audit import CustomsAuditWorkflow, CustomsAuditEvent
 from app.models.documents import DocumentUploadRecord
-from app.models.shipment_chunks import ShipmentDocumentChunk
 from app.models.assistant import AssistantConversation, AssistantMessage
 from app.schemas.assistant import ChatResponse, SourceSchema
 from app.services.assistant.routing import classify_question
 from app.services.regulatory.evidence_api import run_evidence_search
 from app.schemas.regulatory_evidence import EvidenceSearchRequest
-from app.services.compliance.rule_engine import get_compliance_rule_engine
-from app.schemas.compliance import ShipmentComplianceInput
 
 
 def _field_value(value):
@@ -196,6 +193,7 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         workflow = db.execute(
             select(CustomsAuditWorkflow)
             .where(CustomsAuditWorkflow.invoice_document_id == shipment_id)
+            .order_by(CustomsAuditWorkflow.created_at.desc())
         ).scalars().first()
     
     # Do not fail if workflow does not exist yet. Assistant should still answer document questions.
@@ -288,9 +286,10 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
         q = question.lower()
         if "invoice total" in q:
             val = structured_data.get("invoice_total")
-            currency = structured_data.get("invoice_currency", "")
-            if val:
-                answer = f"The invoice total is {val} {currency}."
+            currency = (structured_data.get("invoice_currency") or "").strip()
+            if val is not None:
+                suffix = f" {currency}" if currency else ""
+                answer = f"The invoice total is {val}{suffix}."
                 sources.append(SourceSchema(source_kind="structured_extraction", display_name="Commercial Invoice Data"))
             else:
                 answer = "The invoice total was not found in the structured data."
@@ -520,7 +519,7 @@ def answer_shipment_question(db: Session, shipment_id: UUID, question: str, conv
             sources.append(
                 SourceSchema(
                     source_kind="frozen_audit",
-                    display_name=f"Audit History",
+                    display_name="Audit History",
                     audit_revision_number=len(revisions)
                 )
             )

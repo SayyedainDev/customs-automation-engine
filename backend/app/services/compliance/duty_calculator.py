@@ -21,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
-from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select

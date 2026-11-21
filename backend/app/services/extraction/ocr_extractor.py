@@ -1,5 +1,5 @@
 import csv
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import StringIO
 from pathlib import Path
 import shutil
@@ -64,7 +64,7 @@ def _parse_tesseract_tsv(tsv_output: str) -> tuple[str, Decimal]:
             continue
         try:
             confidence = Decimal(row.get("conf") or "-1")
-        except Exception:
+        except (InvalidOperation, ValueError, TypeError):
             continue
         if confidence < 0:
             continue

@@ -190,9 +190,10 @@ def _decimal(field: dict[str, Any]) -> Decimal | None:
     if value in (None, ""):
         return None
     try:
-        return Decimal(str(value))
+        dec = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
+    return dec if dec.is_finite() else None
 
 
 def _provenance(extraction_method: str | None) -> ProvenanceLabel:
@@ -543,6 +544,7 @@ class DeterministicAuditorAgent:
             critical.append("conflicting regulatory evidence")
         if any(
             "arithmetic disagreement" in n
+            or "invoice-total reconciliation disagreement" in n
             or "gross weight is below" in n
             or "non-positive weight" in n
             for n in newly

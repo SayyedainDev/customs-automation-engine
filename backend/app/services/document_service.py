@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.exceptions import (
     DocumentNotFoundError,
-    DocumentPageNotFoundError,
     PdfExtractionError,
     StoredDocumentNotFoundError,
     UnsupportedDocumentTypeError,
@@ -65,6 +64,21 @@ def _mark_extraction_failed(
     db.commit()
 
 
+def resolve_stored_document_path(
+    stored_filename: str | None, *, require_exists: bool = True
+) -> Path:
+    """Resolve a stored filename strictly inside UPLOAD_DIRECTORY."""
+    if not stored_filename:
+        raise StoredDocumentNotFoundError("The stored PDF could not be found.")
+    upload_root = Path(UPLOAD_DIRECTORY).resolve()
+    stored_path = (upload_root / stored_filename).resolve()
+    if not stored_path.is_relative_to(upload_root) or (
+        require_exists and not stored_path.is_file()
+    ):
+        raise StoredDocumentNotFoundError("The stored PDF could not be found.")
+    return stored_path
+
+
 def extract_uploaded_pdf(
     db: Session,
     document_id: UUID,
@@ -78,11 +92,7 @@ def extract_uploaded_pdf(
                 "Text extraction currently supports PDF files only."
             )
 
-        stored_path = Path(UPLOAD_DIRECTORY) / document.stored_filename
-        if not stored_path.is_file():
-            raise StoredDocumentNotFoundError(
-                "The stored PDF could not be found."
-            )
+        stored_path = resolve_stored_document_path(document.stored_filename)
 
         # Commit before invoking the loader so other requests can observe that
         # this document is actively being processed.
@@ -146,11 +156,7 @@ def _resolve_stored_pdf(
         raise UnsupportedDocumentTypeError(
             "Page preview currently supports PDF files only."
         )
-    upload_root = Path(UPLOAD_DIRECTORY).resolve()
-    stored_path = (upload_root / document.stored_filename).resolve()
-    if not stored_path.is_relative_to(upload_root) or not stored_path.is_file():
-        raise StoredDocumentNotFoundError("The stored PDF could not be found.")
-    return document, stored_path
+    return document, resolve_stored_document_path(document.stored_filename)
 
 
 def get_uploaded_pdf_page_preview(

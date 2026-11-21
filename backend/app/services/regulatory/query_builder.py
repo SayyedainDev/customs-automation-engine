@@ -12,12 +12,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.services.compliance.pct_catalog import product_search_hints
+
 _PCT = re.compile(r"\b(\d{4})\.?(\d{4})\b")
 _SRO = re.compile(r"\b\d{2,4}\s*\(\s*[IiVvXx]+\s*\)\s*/\s*\d{4}\b")
-
-# Product names for query enrichment, derived from the supported-PCT catalog
-# rather than duplicated here.
-from app.services.compliance.pct_catalog import product_search_hints
 
 
 

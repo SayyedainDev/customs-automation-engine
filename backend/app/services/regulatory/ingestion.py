@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

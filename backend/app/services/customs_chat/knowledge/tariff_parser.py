@@ -95,10 +95,12 @@ def parse_tariff_page(text: str, *, page_number: int | None = None) -> list[Pars
                 break
             rate_match = _RATE_RE.match(candidate)
             if rate_match:
-                rate = float(rate_match.group(1))
-                needs_review = False
-                cursor += 1
-                break
+                candidate_rate = float(rate_match.group(1))
+                if 0.0 <= candidate_rate <= 200.0:
+                    rate = candidate_rate
+                    needs_review = False
+                    cursor += 1
+                    break
             description_parts.append(candidate)
             cursor += 1
 

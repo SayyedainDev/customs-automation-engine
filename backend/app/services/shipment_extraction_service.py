@@ -37,7 +37,6 @@ from app.services.extraction.document_bundle import (
     ensure_pdf_text as _ensure_pdf_text,
     materialize_field as _materialize_field,
     normalized_product as _normalized_product,
-    page_has_useful_text as _page_has_useful_text,
     page_marked_text as _page_marked_text,
 )
 from app.services.extraction.cache_fingerprint import (
@@ -444,8 +443,38 @@ def _comparison_check(
             invoice_source_page=invoice_field.source_page,
             packing_list_source_page=packing_field.source_page,
         )
-    left = normalizer(invoice_value) if normalizer else invoice_value
-    right = normalizer(packing_value) if normalizer else packing_value
+    try:
+        left = normalizer(invoice_value) if normalizer else invoice_value
+        right = normalizer(packing_value) if normalizer else packing_value
+    except ValueError:
+        return CrossDocumentCheck(
+            check_id=check_id,
+            check_name=check_name,
+            status=ComplianceCheckStatus.MANUAL_REVIEW,
+            message=(
+                f"{check_name} could not be normalized for comparison: "
+                f"invoice has '{invoice_value}' and packing list has '{packing_value}'."
+            ),
+            invoice_source_page=invoice_field.source_page,
+            packing_list_source_page=packing_field.source_page,
+        )
+    if (
+        left is None
+        or right is None
+        or (isinstance(left, str) and not left.strip())
+        or (isinstance(right, str) and not right.strip())
+    ):
+        return CrossDocumentCheck(
+            check_id=check_id,
+            check_name=check_name,
+            status=ComplianceCheckStatus.MANUAL_REVIEW,
+            message=(
+                f"{check_name} could not be verified because one or both values "
+                "have no usable content after normalization."
+            ),
+            invoice_source_page=invoice_field.source_page,
+            packing_list_source_page=packing_field.source_page,
+        )
     matches = left == right
     return CrossDocumentCheck(
         check_id=check_id,
@@ -491,8 +520,19 @@ def _weight_consistency_check(
                 else None
             ),
         )
-    valid = gross_weight.value >= net_weight.value
     source_page = gross_weight.source_page or net_weight.source_page
+    if net_weight.value <= 0 or gross_weight.value <= 0:
+        return CrossDocumentCheck(
+            check_id=f"{document_name}_gross_not_below_net",
+            check_name=f"{document_name} gross weight is not below net weight",
+            status=ComplianceCheckStatus.FAILED,
+            message=f"{document_name} net weight and gross weight must both be greater than zero.",
+            invoice_source_page=source_page if document_name == "invoice" else None,
+            packing_list_source_page=(
+                source_page if document_name == "packing_list" else None
+            ),
+        )
+    valid = gross_weight.value >= net_weight.value
     return CrossDocumentCheck(
         check_id=f"{document_name}_gross_not_below_net",
         check_name=f"{document_name} gross weight is not below net weight",

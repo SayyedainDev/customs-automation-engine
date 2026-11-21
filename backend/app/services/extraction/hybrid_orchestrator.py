@@ -24,7 +24,7 @@ from app.schemas.multi_line_extraction import (
     MultiLinePackingListCandidates,
     PackingListItemCandidate,
 )
-from app.schemas.shipment_extraction import CandidateField, FieldValidationStatus
+from app.schemas.shipment_extraction import FieldValidationStatus
 from app.services.extraction.regex_extractor import (
     FieldResult,
     RegexExtraction,
@@ -101,15 +101,22 @@ _PACKING_LINE_FIELD_MAP: dict[str, str] = {
 
 def _decimal(raw: Any) -> Decimal | None:
     try:
-        return Decimal(str(raw))
+        dec = Decimal(str(raw))
     except (InvalidOperation, TypeError, ValueError):
         return None
+    return dec if dec.is_finite() else None
 
 
 def _int(raw: Any) -> int | None:
     try:
-        return int(Decimal(str(raw)))
+        dec = Decimal(str(raw))
     except (InvalidOperation, TypeError, ValueError):
+        return None
+    if not dec.is_finite() or dec != dec.to_integral_value():
+        return None
+    try:
+        return int(dec)
+    except (OverflowError, ValueError):
         return None
 
 

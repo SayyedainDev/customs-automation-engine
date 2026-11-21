@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.exceptions import StoredDocumentNotFoundError
 from app.models.documents import DocumentUploadRecord
 from app.schemas.ocr import OcrPageResult, OcrValidationStatus
 from app.schemas.shipment_extraction import (
@@ -137,7 +138,15 @@ def _apply_ocr_fallback(
     pages_by_number = {page.page_number: page for page in bundle.pages}
     updated_reviews: list[SourcePageReview] = []
     ocr_results: list[OcrPageResult] = []
-    pdf_path = Path(document_service.UPLOAD_DIRECTORY) / document.stored_filename
+    pdf_path: Path | None = None
+    pdf_path_error: str | None = None
+    if any(review.requires_ocr for review in bundle.reviews):
+        try:
+            pdf_path = document_service.resolve_stored_document_path(
+                document.stored_filename, require_exists=False
+            )
+        except StoredDocumentNotFoundError as exc:
+            pdf_path_error = str(exc)
 
     for review in bundle.reviews:
         page = pages_by_number[review.page_number]
@@ -146,6 +155,10 @@ def _apply_ocr_fallback(
             continue
 
         try:
+            if pdf_path is None:
+                raise OcrExtractionError(
+                    pdf_path_error or "The stored PDF could not be found."
+                )
             result = ocr_pdf_page(
                 pdf_path=pdf_path,
                 document_id=document.id,

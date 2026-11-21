@@ -30,6 +30,7 @@ def compute_consensus(
     deterministic_status: str,
     *,
     human_review_required: bool = True,
+    extra_critical_anomalies: list[str] | None = None,
 ) -> ConsensusResult:
     agreed: list[str] = []
     disagreed: list[str] = []
@@ -63,6 +64,7 @@ def compute_consensus(
         for issue in auditor.newly_detected_issues
         if (
             "arithmetic disagreement" in issue
+            or "invoice-total reconciliation disagreement" in issue
             or "gross weight is below" in issue
             or "non-positive weight" in issue
         )
@@ -114,6 +116,8 @@ def compute_consensus(
     # 6. Provenance / critical anomalies.
     unresolved.extend(auditor.missing_provenance)
     unresolved.extend(auditor.critical_anomalies)
+    extra_critical = [anomaly for anomaly in (extra_critical_anomalies or []) if anomaly]
+    unresolved.extend(extra_critical)
     if broker.unsupported_products:
         unresolved.append("unsupported_product_present")
 
@@ -131,6 +135,7 @@ def compute_consensus(
     if escalate:
         critical.append(f"auditor_{auditor.recommended_workflow_action.value}")
     critical.extend(anomaly for anomaly in auditor.critical_anomalies if anomaly)
+    critical.extend(extra_critical)
 
     # Uncertainty triggers review only when human review is enabled. A definite,
     # agreed failure is already a deterministic terminal answer; routing every
