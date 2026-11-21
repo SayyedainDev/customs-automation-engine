@@ -1,0 +1,39 @@
+specTree:
+  kinds:
+    enabler:
+      category: node
+      label: Enabler
+      suffix: .enabler
+      aliases: []
+      opening: PROVIDES
+    outcome:
+      category: node
+      label: Outcome
+      suffix: .outcome
+      aliases: []
+      opening: WE BELIEVE THAT
+    adr:
+      category: decision
+      label: ADR
+      suffix: .adr.md
+      aliases: []
+    pdr:
+      category: decision
+      label: PDR
+      suffix: .pdr.md
+      aliases: []
+validation:
+  paths: {}
+  literal:
+    enabled: false
+  knip:
+    enabled: false
+harnessEnvironment:
+  instructions:
+    files:
+      - path: AGENTS.md
+        targetAgents:
+          - codex
+      - path: CLAUDE.md
+        targetAgents:
+          - claudeCode
