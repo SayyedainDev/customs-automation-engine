@@ -8,12 +8,17 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.exceptions import (
     DocumentNotFoundError,
+    DocumentPageNotFoundError,
     PdfExtractionError,
     StoredDocumentNotFoundError,
     UnsupportedDocumentTypeError,
 )
 from app.models.documents import DocumentUploadRecord
-from app.schemas.documents import DocumentExtractionResponse
+from app.schemas.documents import DocumentExtractionResponse, DocumentPagePreviewResponse
+from app.services.extraction.page_preview import (
+    build_pdf_page_preview,
+    render_pdf_page_png,
+)
 from app.services.extraction.pdf_extractor import extract_text_from_pdf
 
 
@@ -129,3 +134,58 @@ def extract_uploaded_pdf(
         page_count=document.page_count,
         character_count=document.character_count,
     )
+
+
+def _resolve_stored_pdf(
+    db: Session,
+    document_id: UUID,
+) -> tuple[DocumentUploadRecord, Path]:
+    """Validate document type, resolve the safe disk path inside UPLOAD_DIRECTORY."""
+    document = get_uploaded_document_by_id(db=db, document_id=document_id)
+    if document.file_extension != ".pdf":
+        raise UnsupportedDocumentTypeError(
+            "Page preview currently supports PDF files only."
+        )
+    upload_root = Path(UPLOAD_DIRECTORY).resolve()
+    stored_path = (upload_root / document.stored_filename).resolve()
+    if not stored_path.is_relative_to(upload_root) or not stored_path.is_file():
+        raise StoredDocumentNotFoundError("The stored PDF could not be found.")
+    return document, stored_path
+
+
+def get_uploaded_pdf_page_preview(
+    db: Session,
+    document_id: UUID,
+    page_number: int,
+    *,
+    highlight: str | None = None,
+    field_name: str | None = None,
+) -> DocumentPagePreviewResponse:
+    """Return page dimensions, image URL, and highlighted field bounding boxes."""
+    document, stored_path = _resolve_stored_pdf(db=db, document_id=document_id)
+    stored_pages = (
+        document.extracted_pages
+        if isinstance(document.extracted_pages, list)
+        else None
+    )
+    return build_pdf_page_preview(
+        stored_path,
+        document_id=document.id,
+        original_filename=document.original_filename,
+        page_number=page_number,
+        stored_pages=stored_pages,
+        highlight=highlight,
+        field_name=field_name,
+    )
+
+
+def render_uploaded_pdf_page_image(
+    db: Session,
+    document_id: UUID,
+    page_number: int,
+    *,
+    dpi: int = 150,
+) -> bytes:
+    """Render one page of an uploaded PDF to PNG bytes."""
+    _document, stored_path = _resolve_stored_pdf(db=db, document_id=document_id)
+    return render_pdf_page_png(stored_path, page_number=page_number, dpi=dpi)

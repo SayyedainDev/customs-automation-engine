@@ -219,6 +219,9 @@ class HumanReviewRequest(BaseModel):
     #: check_ids a correction to any of the above fields would rerun - shown
     #: to the reviewer so they know what "submit" actually does.
     affected_check_ids: list[str] = Field(default_factory=list)
+    #: Missing supporting documents identified on the current revision so the
+    #: UI can prompt the reviewer to upload the required file inline.
+    missing_documents: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HumanCorrection(BaseModel):
@@ -250,6 +253,7 @@ class HumanReviewDecision(BaseModel):
     reviewer_reference: str
     reason: str | None = None
     review_note: str | None = None
+    source: str | None = None
     timestamp: str
 
 

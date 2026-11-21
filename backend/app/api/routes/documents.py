@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db_session
 from app.core.exceptions import (
     DocumentNotFoundError,
+    DocumentPageNotFoundError,
     PdfExtractionError,
     StoredDocumentNotFoundError,
     UnsupportedDocumentTypeError,
@@ -17,12 +18,15 @@ from app.schemas.documents import (
     DocumentCreate,
     DocumentExtractionResponse,
     DocumentMetadataResponse,
+    DocumentPagePreviewResponse,
     DocumentResponse,
     DocumentUploadResponse,
 )
 from app.services.document_service import (
     extract_uploaded_pdf,
     get_uploaded_document_by_id,
+    get_uploaded_pdf_page_preview,
+    render_uploaded_pdf_page_image,
 )
 from app.services.document_upload_service import UPLOAD_DIRECTORY, process_document_upload
 
@@ -96,6 +100,91 @@ def extract_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="The document extraction state could not be saved.",
         ) from exc
+
+
+def _preview_http_error(document_id: UUID, exc: Exception) -> HTTPException:
+    if isinstance(exc, DocumentNotFoundError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Uploaded document {document_id} was not found.",
+        )
+    if isinstance(exc, (StoredDocumentNotFoundError, DocumentPageNotFoundError)):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    if isinstance(exc, UnsupportedDocumentTypeError):
+        return HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=str(exc),
+        )
+    if isinstance(exc, PdfExtractionError):
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        )
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="The document preview could not be generated.",
+    )
+
+
+@router.get(
+    "/uploads/{document_id}/pages/{page_number}",
+    response_model=DocumentPagePreviewResponse,
+)
+def get_uploaded_document_page_preview(
+    document_id: UUID,
+    page_number: int,
+    highlight: str | None = Query(default=None),
+    field_name: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+) -> DocumentPagePreviewResponse:
+    try:
+        return get_uploaded_pdf_page_preview(
+            db=db,
+            document_id=document_id,
+            page_number=page_number,
+            highlight=highlight,
+            field_name=field_name,
+        )
+    except (
+        DocumentNotFoundError,
+        StoredDocumentNotFoundError,
+        DocumentPageNotFoundError,
+        UnsupportedDocumentTypeError,
+        PdfExtractionError,
+    ) as exc:
+        raise _preview_http_error(document_id, exc) from exc
+
+
+@router.get("/uploads/{document_id}/pages/{page_number}/image")
+def get_uploaded_document_page_image(
+    document_id: UUID,
+    page_number: int,
+    dpi: int = Query(default=150, ge=72, le=300),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    try:
+        png_bytes = render_uploaded_pdf_page_image(
+            db=db,
+            document_id=document_id,
+            page_number=page_number,
+            dpi=dpi,
+        )
+    except (
+        DocumentNotFoundError,
+        StoredDocumentNotFoundError,
+        DocumentPageNotFoundError,
+        UnsupportedDocumentTypeError,
+        PdfExtractionError,
+    ) as exc:
+        raise _preview_http_error(document_id, exc) from exc
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @router.get("/", response_model=list[DocumentResponse], include_in_schema=False)

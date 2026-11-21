@@ -85,7 +85,7 @@ def test_address_label_does_not_block_the_exporter_and_consignee_names() -> None
     exporter = extract_field("exporter_name", REAL_INVOICE_TEXT)
     consignee = extract_field("consignee_name", REAL_INVOICE_TEXT)
 
-    assert exporter.value == "Multan Raw Cotton Traders (Pvt.) Ltd"
+    assert exporter.value == "Multan Raw Cotton Traders (Pvt.) Ltd."
     assert exporter.confidence == "high"
     assert consignee.value == "Al Ain Fibre Trading LLC"
     assert consignee.confidence == "high"

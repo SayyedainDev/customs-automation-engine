@@ -349,13 +349,13 @@ FIELD_PATTERNS: Final[dict[str, tuple[FieldPattern, ...]]] = {
     ),
     # ---- quantities ------------------------------------------------------ #
     "gross_weight": _label_value(
-        r"(?:declared[ \t]+)?gross[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
+        r"(?:(?:declared|total)[ \t]+)?gross[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
         r"|gross[ \t]+weight[ \t]*\((?:kgs?|m\.?t\.?)\)",
         _V_WEIGHT,
         "Gross Weight",
     ),
     "net_weight": _label_value(
-        r"(?:declared[ \t]+)?net[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
+        r"(?:(?:declared|total)[ \t]+)?net[ \t]+w(?:eigh)?t\.?(?:[ \t]+total)?"
         r"|net[ \t]+weight[ \t]*\((?:kgs?|m\.?t\.?)\)",
         _V_WEIGHT,
         "Net Weight",
@@ -428,6 +428,9 @@ LINE_ITEM_FIELDS: Final[tuple[str, ...]] = (
     "unit",
     "unit_price",
     "line_total",
+    "net_weight",
+    "gross_weight",
+    "package_count",
 )
 
 DOCUMENT_FIELDS: Final[tuple[str, ...]] = (
@@ -674,9 +677,24 @@ _LABEL_ONLY_ORG_WORDS = frozenset(
 )
 
 
+_LEGAL_ABBREV_SUFFIX = re.compile(
+    r"\b(?:ltd|pvt|pte|co|inc|corp|bros|est|mfg|intl|int'l|s\.a|b\.v|n\.v|l\.l\.c|plc)\.$",
+    re.IGNORECASE,
+)
+
+
 def normalise_org(raw: str) -> str | None:
-    """Trim a captured organisation line without inventing structure."""
-    value = " ".join(raw.split()).strip(" .,;:-")
+    """Trim a captured organisation line without inventing structure.
+
+    Trailing periods are stripped from stray prose punctuation, but preserved
+    when part of a standard corporate legal abbreviation (e.g. ``Ltd.``, ``Co.``,
+    ``Inc.``) so legal names match their verbatim document spelling.
+    """
+    value = " ".join(raw.split()).lstrip(" .,;:-").rstrip(" ,;:-")
+    if value.endswith("."):
+        value = re.sub(r"\.+$", ".", value)
+        if not _LEGAL_ABBREV_SUFFIX.search(value):
+            value = value.rstrip(".").rstrip(" ,;:-")
     # A capture that is only punctuation or a stray label fragment is not a name.
     if len(value) < 3 or not re.search(r"[A-Za-z]{2}", value):
         return None
@@ -705,6 +723,7 @@ FIELD_NORMALISERS: Final[dict[str, Callable[[str], str | None]]] = {
     "unit_price": normalise_money,
     "line_total": normalise_money,
     "quantity": normalise_money,
+    "package_count": normalise_count,
     "number_of_packages": normalise_count,
     "pct_code": normalise_pct_code,
     "invoice_number": normalise_identifier,

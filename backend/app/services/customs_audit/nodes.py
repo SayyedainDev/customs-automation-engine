@@ -13,6 +13,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -25,7 +26,18 @@ from app.core.exceptions import (
     StructuredExtractionProviderError,
     StructuredExtractionProviderUnavailableError,
 )
+from app.models.documents import DocumentUploadRecord
 from app.schemas.multi_line_extraction import MultiLineShipmentRequest
+from app.schemas.supporting_documents import (
+    SupportingDocumentRef,
+    SupportingDocumentType,
+    canonical_supporting_type,
+)
+from app.services import document_service
+from app.services.compliance.document_requirements import (
+    collect_outstanding_documents,
+    display_name as missing_document_display_name,
+)
 from app.services.customs_audit.consensus import compute_consensus
 from app.services.customs_audit.dependency_map import (
     InvalidFieldPathError,
@@ -66,6 +78,7 @@ from app.services.customs_audit.state import (
 from app.services.multi_line_shipment_service import (
     CorrectionValidationError,
     FieldCorrection,
+    invalidate_cached_multi_line_response,
 )
 
 NodeFn = Callable[[dict[str, Any]], dict[str, Any]]
@@ -147,6 +160,7 @@ _REVIEW_TITLE_BY_REASON = {
     "net_weight_mismatch": "Confirm net weight",
     "gross_weight_mismatch": "Confirm gross weight",
     "pct_code_mismatch": "Confirm product code",
+    "missing_required_document": "Upload missing supporting document",
 }
 
 
@@ -202,7 +216,11 @@ def _field_correction_basis(field: dict[str, Any]) -> str:
 
 
 def _disputed_field_details_for_check(
-    check: dict[str, Any], item_reference: str | None, extraction_result: dict[str, Any]
+    check: dict[str, Any],
+    item_reference: str | None,
+    extraction_result: dict[str, Any],
+    *,
+    doc_ids: dict[str, str | None] | None = None,
 ) -> list[dict[str, Any]]:
     """The invoice-side and packing-side values behind one failed/uncertain
     item-comparison check, each traceable to a document, page, confidence
@@ -227,11 +245,20 @@ def _disputed_field_details_for_check(
         if item_data is None:
             continue
         field = item_data.get(field_name) or {}
+        raw_doc_id = (
+            field.get("source_document_id")
+            or extraction_result.get(
+                "commercial_invoice_document_id"
+                if doc_key == "invoice"
+                else "packing_list_document_id"
+            )
+            or (doc_ids or {}).get(document_type)
+        )
         details.append(
             {
                 "field_path": f"{path_root}[{item_index}].{field_name}",
                 "document_type": document_type,
-                "document_id": None,
+                "document_id": str(raw_doc_id) if raw_doc_id else None,
                 "page": field.get("source_page"),
                 "value": field.get("value"),
                 "confidence": field.get("confidence"),
@@ -269,6 +296,8 @@ def _plain_language_question(
     reason_code: str,
     details: list[dict[str, Any]],
     unresolved_issues: list[str] | None = None,
+    *,
+    missing_documents: list[dict[str, str]] | None = None,
 ) -> str:
     if len(details) >= 2 and reason_code in _REVIEW_TITLE_BY_REASON:
         first, second = details[0], details[1]
@@ -312,6 +341,13 @@ def _plain_language_question(
             "accept the result on that basis, or to reject it and verify the "
             f"rule against the official document. ({joined})"
         )
+    if missing_documents:
+        names = ", ".join(doc["display_name"] for doc in missing_documents)
+        return (
+            f"Required supporting paperwork is missing ({names}). Upload the "
+            "missing document below to attach it and re-run compliance, or "
+            "accept/reject the current result."
+        )
     return (
         "CACE could not complete this check on its own and no specific value is "
         "in dispute. Review the findings below and either accept the result for "
@@ -330,7 +366,82 @@ def _review_task_id(state: dict[str, Any], revision_number: int) -> str:
     return "review-" + hashlib.sha256(seed.encode()).hexdigest()[:24]
 
 
-def _allowed_actions(has_disputed_values: bool) -> list[HumanAction]:
+def _canonical_missing_doc_type(raw_type: str) -> str:
+    canonical = canonical_supporting_type(raw_type)
+    return (
+        canonical.value
+        if canonical is not SupportingDocumentType.UNKNOWN
+        else raw_type
+    )
+
+
+def _missing_documents_for_review(state: dict[str, Any]) -> list[dict[str, str]]:
+    """Collect distinct missing supporting documents for inline upload."""
+    extraction_result = state.get("extraction_result") or {}
+    all_checks: list[dict[str, Any]] = list(
+        extraction_result.get("shipment_level_checks") or []
+    )
+    for item in extraction_result.get("items") or []:
+        all_checks.extend(item.get("item_checks") or [])
+        compliance = item.get("compliance") or {}
+        all_checks.extend(compliance.get("checks") or [])
+        all_checks.extend(compliance.get("executable_rule_checks") or [])
+
+    collected: dict[str, dict[str, str]] = {}
+    for entry in collect_outstanding_documents(all_checks):
+        doc_key = _canonical_missing_doc_type(entry.document_type)
+        if doc_key not in collected:
+            collected[doc_key] = {
+                "document_type": doc_key,
+                "display_name": entry.display_name,
+                "requirement": entry.requirement,
+            }
+
+    for raw in extraction_result.get("outstanding_documents") or []:
+        if not isinstance(raw, dict):
+            continue
+        raw_type = str(raw.get("document_type") or "").strip()
+        if not raw_type:
+            continue
+        doc_key = _canonical_missing_doc_type(raw_type)
+        if doc_key not in collected:
+            collected[doc_key] = {
+                "document_type": doc_key,
+                "display_name": str(
+                    raw.get("display_name")
+                    or missing_document_display_name(raw_type)
+                ),
+                "requirement": str(raw.get("requirement") or "required"),
+            }
+
+    return list(collected.values())
+
+
+def _can_reprocess_documents(state: dict[str, Any]) -> bool:
+    """True when OCR uncertainty, missing items, or Auditor signals extraction retry."""
+    extraction_result = state.get("extraction_result") or {}
+    page_reviews = extraction_result.get("page_reviews") or []
+    if any(
+        isinstance(review, dict)
+        and (
+            bool(review.get("requires_ocr"))
+            or str(review.get("ocr_validation_status") or "") in {"failed", "manual_review"}
+        )
+        for review in page_reviews
+    ):
+        return True
+    if not (extraction_result.get("items") or []):
+        return True
+    auditor_report = state.get("auditor_report") or {}
+    return str(auditor_report.get("recommended_workflow_action") or "") == "rerun_extraction"
+
+
+def _allowed_actions(
+    has_disputed_values: bool,
+    *,
+    has_missing_documents: bool = False,
+    can_reprocess: bool = False,
+) -> list[HumanAction]:
     """The actions a reviewer can actually carry out on this task."""
     actions = [
         HumanAction.ACCEPT_MANUAL_REVIEW,
@@ -338,11 +449,15 @@ def _allowed_actions(has_disputed_values: bool) -> list[HumanAction]:
         HumanAction.ADD_REVIEW_NOTE,
     ]
     if has_disputed_values:
-        return [
+        actions = [
             HumanAction.CONFIRM_EXTRACTED_VALUE,
             HumanAction.CORRECT_EXTRACTED_VALUE,
             *actions,
         ]
+    if has_missing_documents:
+        actions.append(HumanAction.PROVIDE_MISSING_DOCUMENT)
+    if can_reprocess:
+        actions.append(HumanAction.REQUEST_REPROCESSING)
     return actions
 
 
@@ -355,12 +470,21 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
     affected_check_ids: list[str] = []
     reason_code = "manual_review_required"
     present_check_ids = _all_check_ids(extraction_result)
+    doc_ids: dict[str, str | None] = {
+        "commercial_invoice": state.get("commercial_invoice_document_id"),
+        "packing_list": state.get("packing_list_document_id"),
+    }
     for item in extraction_result.get("items") or []:
         reference = item.get("item_reference")
         for check in item.get("item_checks") or []:
             if check.get("status") not in ("failed", "manual_review"):
                 continue
-            details = _disputed_field_details_for_check(check, reference, extraction_result)
+            details = _disputed_field_details_for_check(
+                check,
+                reference,
+                extraction_result,
+                doc_ids=doc_ids,
+            )
             if not details:
                 continue
             if not disputed_details:
@@ -376,6 +500,11 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
                 for check_id in dependency.resolve_check_ids(present_check_ids):
                     if check_id not in affected_check_ids:
                         affected_check_ids.append(check_id)
+
+    missing_documents = _missing_documents_for_review(state)
+    can_reprocess = _can_reprocess_documents(state)
+    if reason_code == "manual_review_required" and missing_documents and not disputed_details:
+        reason_code = "missing_required_document"
 
     return HumanReviewRequest(
         reason=consensus.get("reason", "human review required"),
@@ -394,20 +523,14 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
         ],
         deterministic_status=consensus.get("deterministic_status"),
         evidence_passages=state.get("retrieved_evidence", [])[:5],
-        # PROVIDE_MISSING_DOCUMENT / REQUEST_REPROCESSING are deliberately
-        # excluded here: document replacement is not implemented in this
-        # prototype, and workflow_service.submit_review() explicitly rejects
-        # them if a client submits them anyway - never silently "completing"
-        # as though a new document had actually been attached.
-        #
-        # Confirm/correct are offered only when there is a value to confirm or
-        # correct. This list was fixed, so a review raised purely by
-        # evidence-provenance gaps - CACE's own curated rule text carrying no
-        # page number or effective date - still invited the reviewer to
-        # "confirm the extracted value" with no field attached. Taking the
-        # offered action produced correction_validation_failed and completed
-        # the workflow, so the human review resolved nothing.
-        allowed_actions=_allowed_actions(bool(disputed_details)),
+        # Confirm/correct are offered only when a disputed value exists,
+        # provide_missing_document only when supporting docs are outstanding,
+        # and request_reprocessing only when OCR/missing-items warrant retry.
+        allowed_actions=_allowed_actions(
+            bool(disputed_details),
+            has_missing_documents=bool(missing_documents),
+            can_reprocess=can_reprocess,
+        ),
         created_at=utcnow_iso(),
         review_status="open",
         review_task_id=_review_task_id(state, revision_number),
@@ -418,9 +541,11 @@ def _build_review_task(state: dict[str, Any]) -> HumanReviewRequest:
             reason_code,
             disputed_details,
             list(consensus.get("unresolved_issues") or []),
+            missing_documents=missing_documents,
         ),
         disputed_field_details=[DisputedFieldDetail(**d) for d in disputed_details],
         affected_check_ids=affected_check_ids,
+        missing_documents=missing_documents,
     )
 
 
@@ -978,11 +1103,12 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
         }
 
     def resume_workflow(state: dict[str, Any]) -> dict[str, Any]:
-        """The legacy-actions path: reject / accept-manual-review / add-note.
-        PROVIDE_MISSING_DOCUMENT / REQUEST_REPROCESSING never reach the graph
-        at all (workflow_service.submit_review() rejects them first). A
-        confirm/correct action never reaches this node either -
-        route_human_action sends it to apply_human_correction instead."""
+        """Accept, reject, or record a review note without modifying inputs.
+
+        Targeted value corrections, ``provide_missing_document``, and
+        ``request_reprocessing`` are routed to ``apply_human_correction``
+        instead of here.
+        """
         decision = state.get("human_review_decision") or {}
         action = decision.get("action")
         updates: dict[str, Any] = {"updated_at": utcnow_iso()}
@@ -1056,20 +1182,12 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 "updated_at": utcnow_iso(),
             }
 
-        if decision.get("action") == HumanAction.PROVIDE_MISSING_DOCUMENT.value:
-            provided_ids = [str(x) for x in (decision.get("provided_document_ids") or []) if x]
-            if not provided_ids:
-                return _fail("no provided_document_ids were supplied with provide_missing_document")
-            doc_type_hint = str(decision.get("source") or "form_e_or_psw_export_declaration")
-            updated_supporting = list(state.get("supporting_documents") or [])
-            existing_ids = {str(s.get("document_id")) for s in updated_supporting if isinstance(s, dict)}
-            for pid in provided_ids:
-                if pid not in existing_ids:
-                    updated_supporting.append({"document_type": doc_type_hint, "document_id": pid})
-            updated_additional_types = list(state.get("additional_uploaded_document_types") or [])
-            if doc_type_hint not in updated_additional_types:
-                updated_additional_types.append(doc_type_hint)
-            request = MultiLineShipmentRequest(
+        def _build_shipment_request(
+            *,
+            additional_types: list[str],
+            supporting: list[dict[str, Any]],
+        ) -> MultiLineShipmentRequest:
+            return MultiLineShipmentRequest(
                 review_revision_id=state.get("review_revision_id") or uuid4(),
                 commercial_invoice_document_id=UUID(state["commercial_invoice_document_id"]),
                 packing_list_document_id=(
@@ -1079,11 +1197,96 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 ),
                 shipment_date=state.get("shipment_date"),
                 letter_of_credit_date=state.get("letter_of_credit_date"),
-                additional_uploaded_document_types=updated_additional_types,
-                supporting_documents=updated_supporting,
+                additional_uploaded_document_types=additional_types,
+                supporting_documents=[
+                    SupportingDocumentRef.model_validate(item) for item in supporting
+                ],
             )
-            with deps.session_factory() as db:
-                new_extraction_result = deps.run_pipeline(db, request)
+
+        def _clear_document_extraction_caches(
+            db: Any, document_ids: list[str]
+        ) -> list[str]:
+            if not hasattr(db, "get") or not hasattr(db, "commit"):
+                return []
+            cleared: list[str] = []
+            for raw_id in dict.fromkeys(document_ids):
+                if not raw_id:
+                    continue
+                try:
+                    doc_uuid = UUID(str(raw_id))
+                except ValueError:
+                    continue
+                record = db.get(DocumentUploadRecord, doc_uuid)
+                if record is None:
+                    continue
+                record.structured_data = None
+                record.structured_extraction_status = "pending"
+                record.structured_extraction_error = None
+                record.structured_extraction_model = None
+                record.structured_extracted_at = None
+                record.ocr_pages = None
+                # Only clear extracted PDF text when the source file exists on disk so
+                # synthetic DB-only records remain readable during reprocessing.
+                if (
+                    record.stored_filename
+                    and (Path(document_service.UPLOAD_DIRECTORY) / record.stored_filename).is_file()
+                ):
+                    record.status = "uploaded"
+                    record.extracted_text = None
+                    record.extracted_pages = None
+                cleared.append(str(doc_uuid))
+            if cleared:
+                db.commit()
+            return cleared
+
+        def _run_pipeline_in_session(
+            request: MultiLineShipmentRequest,
+            *,
+            clear_doc_ids: list[str] | None = None,
+        ) -> tuple[dict[str, Any] | None, list[str], dict[str, Any] | None]:
+            try:
+                with deps.session_factory() as db:
+                    cleared = (
+                        _clear_document_extraction_caches(db, clear_doc_ids)
+                        if clear_doc_ids is not None
+                        else []
+                    )
+                    result = deps.run_pipeline(db, request)
+                return result, cleared, None
+            except StructuredExtractionProviderUnavailableError:
+                raise
+            except (
+                DocumentNotFoundError,
+                StoredDocumentNotFoundError,
+                ShipmentExtractionInputError,
+                StructuredExtractionProviderError,
+            ) as exc:
+                return None, [], _fail(f"{type(exc).__name__}: {exc}")
+
+        if decision.get("action") == HumanAction.PROVIDE_MISSING_DOCUMENT.value:
+            provided_ids = [str(x) for x in (decision.get("provided_document_ids") or []) if x]
+            if not provided_ids:
+                return _fail("no provided_document_ids were supplied with provide_missing_document")
+            fallback_missing = (review_task.get("missing_documents") or [{}])[0]
+            raw_source = (
+                decision.get("source")
+                or fallback_missing.get("document_type")
+                or "form_e_or_psw_export_declaration"
+            )
+            doc_type_hint = _canonical_missing_doc_type(str(raw_source))
+            updated_supporting = list(state.get("supporting_documents") or [])
+            existing_ids = {str(s.get("document_id")) for s in updated_supporting if isinstance(s, dict)}
+            for pid in provided_ids:
+                if pid not in existing_ids:
+                    updated_supporting.append({"document_type": doc_type_hint, "document_id": pid})
+            updated_additional_types = list(state.get("additional_uploaded_document_types") or [])
+            request = _build_shipment_request(
+                additional_types=updated_additional_types,
+                supporting=updated_supporting,
+            )
+            new_extraction_result, _cleared, failure_state = _run_pipeline_in_session(request)
+            if failure_state is not None or new_extraction_result is None:
+                return failure_state or _fail("pipeline reprocessing failed")
             new_check_ids = _all_check_ids(new_extraction_result)
             events = [
                 _event(
@@ -1121,15 +1324,98 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 source_page=1,
                 affected_check_ids=new_check_ids,
             ).model_dump(mode="json")
+            destination = (
+                ((new_extraction_result.get("invoice") or {}).get("destination_country") or {}).get("value")
+            )
             return {
                 "supporting_documents": updated_supporting,
                 "additional_uploaded_document_types": updated_additional_types,
                 "additional_document_ids": _append(state, "additional_document_ids", provided_ids),
                 "extraction_result": new_extraction_result,
+                "destination_country": destination or state.get("destination_country"),
+                "page_reviews": new_extraction_result.get("page_reviews", []),
                 "matched_items": new_extraction_result.get("items", []),
                 "cross_document_checks": new_extraction_result.get("shipment_level_checks", []),
                 "human_correction_history": _append(
                     state, "human_correction_history", [doc_correction_record]
+                ),
+                "affected_check_ids": new_check_ids,
+                "correction_applied": True,
+                "audit_events": _append(state, "audit_events", events),
+                "updated_at": utcnow_iso(),
+            }
+
+        if decision.get("action") == HumanAction.REQUEST_REPROCESSING.value:
+            request = _build_shipment_request(
+                additional_types=list(state.get("additional_uploaded_document_types") or []),
+                supporting=list(state.get("supporting_documents") or []),
+            )
+            invalidate_cached_multi_line_response(request)
+            doc_ids = [
+                str(state.get("commercial_invoice_document_id") or ""),
+                str(state.get("packing_list_document_id") or ""),
+                *(
+                    str(item.get("document_id") or "")
+                    for item in (state.get("supporting_documents") or [])
+                    if isinstance(item, dict)
+                ),
+            ]
+            new_extraction_result, cleared_ids, failure_state = _run_pipeline_in_session(
+                request, clear_doc_ids=doc_ids
+            )
+            if failure_state is not None or new_extraction_result is None:
+                return failure_state or _fail("document reprocessing failed")
+            new_check_ids = _all_check_ids(new_extraction_result)
+            reprocess_reason = str(
+                decision.get("reason")
+                or decision.get("review_note")
+                or "Requested fresh document reprocessing"
+            )
+            events = [
+                _event(
+                    event_type="reprocessing_requested",
+                    node_name="apply_human_correction",
+                    actor=ActorType.HUMAN,
+                    actor_reference=reviewer,
+                    payload={
+                        "cleared_document_ids": cleared_ids,
+                        "reason": reprocess_reason,
+                    },
+                ),
+                _event(
+                    event_type="checks_recomputed",
+                    node_name="apply_human_correction",
+                    actor=ActorType.SYSTEM,
+                    payload={
+                        "new_overall_status": new_extraction_result.get("overall_status"),
+                        "affected_check_ids": new_check_ids,
+                    },
+                ),
+            ]
+            reprocess_record = HumanCorrection(
+                field_path="shipment_reprocessing",
+                original_value="Cached extraction",
+                corrected_value="Reprocessed from source documents",
+                reviewer_reference=reviewer or "unknown",
+                reason=reprocess_reason,
+                source="request_reprocessing",
+                timestamp=decision.get("timestamp") or utcnow_iso(),
+                correction_id=str(uuid4()),
+                review_task_id=review_task.get("review_task_id"),
+                revision_from=revision_from,
+                affected_check_ids=new_check_ids,
+            ).model_dump(mode="json")
+            destination = (
+                ((new_extraction_result.get("invoice") or {}).get("destination_country") or {}).get("value")
+            )
+            return {
+                "extraction_result": new_extraction_result,
+                "destination_country": destination or state.get("destination_country"),
+                "page_reviews": new_extraction_result.get("page_reviews", []),
+                "matched_items": new_extraction_result.get("items", []),
+                "cross_document_checks": new_extraction_result.get("shipment_level_checks", []),
+                "human_correction_history": _append(
+                    state, "human_correction_history", [reprocess_record]
                 ),
                 "affected_check_ids": new_check_ids,
                 "correction_applied": True,
@@ -1269,9 +1555,18 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             "updated_at": utcnow_iso(),
         }
 
+    def _revision_trigger(decision: dict[str, Any] | None) -> str:
+        action = str((decision or {}).get("action") or "")
+        if action == HumanAction.PROVIDE_MISSING_DOCUMENT.value:
+            return "missing_document_provided"
+        if action == HumanAction.REQUEST_REPROCESSING.value:
+            return "reprocessing_requested"
+        return "human_correction"
+
     def freeze_corrected_revision(state: dict[str, Any]) -> dict[str, Any]:
         extraction_result = state.get("extraction_result") or {}
         history = state.get("deterministic_result_history") or []
+        trigger = _revision_trigger(state.get("human_review_decision"))
         frozen = {
             "version": len(history) + 1,
             "source": "deterministic_engine",
@@ -1283,7 +1578,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
                 for i in extraction_result.get("items", [])
             ],
             "frozen_at": utcnow_iso(),
-            "triggered_by": "human_correction",
+            "triggered_by": trigger,
         }
         events = [
             _event(
@@ -1412,7 +1707,7 @@ def make_nodes(deps: WorkflowDeps) -> dict[str, NodeFn]:
             AuditRevision(
                 revision_number=deterministic.get("version") or (len(audit_revisions) + 1),
                 frozen_at=deterministic.get("frozen_at") or utcnow_iso(),
-                triggered_by="human_correction",
+                triggered_by=_revision_trigger(state.get("human_review_decision")),
                 correction_id=(
                     (state.get("human_correction_history") or [{}])[-1].get("correction_id")
                 ),
@@ -1596,15 +1891,16 @@ def route_after_compare(state: dict[str, Any]) -> str:
 
 
 def route_human_action(state: dict[str, Any]) -> str:
-    """confirm/correct and provide_missing_document go through the targeted
-    recompute chain; every other action (reject, accept, note) keeps the
-    existing resume_workflow behaviour unchanged."""
+    """confirm/correct, provide_missing_document, and request_reprocessing
+    go through the targeted recompute chain; every other action (reject,
+    accept, note) keeps the existing resume_workflow behaviour unchanged."""
     decision = state.get("human_review_decision") or {}
     action = decision.get("action")
     if action in (
         HumanAction.CORRECT_EXTRACTED_VALUE.value,
         HumanAction.CONFIRM_EXTRACTED_VALUE.value,
         HumanAction.PROVIDE_MISSING_DOCUMENT.value,
+        HumanAction.REQUEST_REPROCESSING.value,
     ):
         return "apply_human_correction"
     return "resume_workflow"

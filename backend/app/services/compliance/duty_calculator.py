@@ -20,12 +20,41 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.tariff import TariffLine
 
 MONEY_QUANTUM = Decimal("0.01")
 HUNDRED = Decimal("100")
+_EIGHT_DIGIT_RE = re.compile(r"^\d{8}$")
+
+# Verified FY2025-26 Pakistan Customs Tariff statutory CD rates and source
+# pages for the 17 supported textile PCT codes (validated against
+# regulatory_data/processed/fbr/pct/tariff_lines_fy2025_26.json).
+VERIFIED_TEXTILE_TARIFF_RATES: dict[str, tuple[Decimal, int]] = {
+    "52010090": (Decimal("0.00"), 133),
+    "52051100": (Decimal("5.00"), 133),
+    "52052100": (Decimal("5.00"), 134),
+    "52085200": (Decimal("10.00"), 137),
+    "52093100": (Decimal("10.00"), 137),
+    "52094200": (Decimal("10.00"), 137),
+    "52114200": (Decimal("10.00"), 138),
+    "61051000": (Decimal("20.00"), 155),
+    "61061000": (Decimal("20.00"), 155),
+    "61091000": (Decimal("20.00"), 156),
+    "61102000": (Decimal("20.00"), 156),
+    "62034200": (Decimal("20.00"), 158),
+    "62046290": (Decimal("20.00"), 159),
+    "62052090": (Decimal("20.00"), 159),
+    "63013000": (Decimal("20.00"), 161),
+    "63023110": (Decimal("20.00"), 161),
+    "63026010": (Decimal("20.00"), 162),
+}
 
 
 def _to_decimal(value: Decimal | int | float | str | None, default: str = "0.00") -> Decimal:
@@ -49,6 +78,111 @@ def default_acd_rate_for_cd(cd_pct: Decimal) -> Decimal:
     if cd_pct >= Decimal("20"):
         return Decimal("6.00")
     return Decimal("2.00")
+
+
+def statutory_tax_defaults_for_cd(
+    cd_pct: Decimal | int | float | str,
+) -> dict[str, float]:
+    """Return statutory FY2026-27 supplementary duty/tax rates for a CD slab."""
+    cd_dec = quantize_money(_to_decimal(cd_pct, "0.00"))
+    return {
+        "additional_duty_pct": float(default_acd_rate_for_cd(cd_dec)),
+        "regulatory_duty_pct": 0.0,
+        "sales_tax_pct": 18.0,
+        "income_tax_pct": 5.5,
+    }
+
+
+@dataclass(frozen=True)
+class ResolvedTariffRates:
+    """Resolved statutory tax schedule for one 8-digit PCT/HS code."""
+
+    hs_code: str
+    customs_duty_pct: Decimal
+    additional_customs_duty_pct: Decimal
+    regulatory_duty_pct: Decimal
+    sales_tax_pct: Decimal
+    advance_income_tax_pct: Decimal
+    rate_source: str
+    tariff_year: str | None = None
+    source_page: int | None = None
+
+
+def resolve_tariff_rates_for_hs_code(
+    db: Session | None,
+    hs_code: str | None,
+) -> ResolvedTariffRates | None:
+    """Resolve confirmed statutory rates for an 8-digit HS/PCT code without guessing.
+
+    Checks ``tariff_lines`` in PostgreSQL/SQLite first when ``db`` is available,
+    respecting ``needs_review=True`` rows as unresolved, then falls back to the
+    verified FY2025-26 textile schedule for supported codes.
+    """
+    digits = re.sub(r"\D", "", hs_code or "")
+    if not _EIGHT_DIGIT_RE.match(digits):
+        return None
+
+    if db is not None:
+        row = db.execute(
+            select(TariffLine).where(TariffLine.hs_code == digits)
+        ).scalar_one_or_none()
+        if row is not None:
+            if row.needs_review or row.customs_duty_pct is None:
+                return None
+            cd = quantize_money(_to_decimal(row.customs_duty_pct))
+            defaults = statutory_tax_defaults_for_cd(cd)
+            return ResolvedTariffRates(
+                hs_code=digits,
+                customs_duty_pct=cd,
+                additional_customs_duty_pct=quantize_money(
+                    _to_decimal(
+                        row.additional_duty_pct
+                        if row.additional_duty_pct is not None
+                        else defaults["additional_duty_pct"]
+                    )
+                ),
+                regulatory_duty_pct=quantize_money(
+                    _to_decimal(
+                        row.regulatory_duty_pct
+                        if row.regulatory_duty_pct is not None
+                        else defaults["regulatory_duty_pct"]
+                    )
+                ),
+                sales_tax_pct=quantize_money(
+                    _to_decimal(
+                        row.sales_tax_pct
+                        if row.sales_tax_pct is not None
+                        else defaults["sales_tax_pct"]
+                    )
+                ),
+                advance_income_tax_pct=quantize_money(
+                    _to_decimal(
+                        row.income_tax_pct
+                        if row.income_tax_pct is not None
+                        else defaults["income_tax_pct"]
+                    )
+                ),
+                rate_source="tariff_lines_db",
+                tariff_year=row.tariff_year,
+                source_page=row.source_page,
+            )
+
+    verified = VERIFIED_TEXTILE_TARIFF_RATES.get(digits)
+    if verified is None:
+        return None
+    cd_pct, page_num = verified
+    defaults = statutory_tax_defaults_for_cd(cd_pct)
+    return ResolvedTariffRates(
+        hs_code=digits,
+        customs_duty_pct=quantize_money(cd_pct),
+        additional_customs_duty_pct=quantize_money(_to_decimal(defaults["additional_duty_pct"])),
+        regulatory_duty_pct=quantize_money(_to_decimal(defaults["regulatory_duty_pct"])),
+        sales_tax_pct=quantize_money(_to_decimal(defaults["sales_tax_pct"])),
+        advance_income_tax_pct=quantize_money(_to_decimal(defaults["income_tax_pct"])),
+        rate_source="pct_fy2025_26_schedule",
+        tariff_year="FY2025-26",
+        source_page=page_num,
+    )
 
 
 @dataclass(frozen=True)
@@ -101,13 +235,27 @@ class CascadingTaxBreakdown:
 
 class DutyCalculationRequest(BaseModel):
     assessed_value: Decimal = Field(default=Decimal("100.00"), gt=Decimal("0"))
-    customs_duty_pct: Decimal = Field(ge=Decimal("0"), le=Decimal("200"))
-    additional_customs_duty_pct: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
-    regulatory_duty_pct: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0"), le=Decimal("200"))
-    federal_excise_duty_pct: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0"), le=Decimal("200"))
-    sales_tax_pct: Decimal = Field(default=Decimal("18.00"), ge=Decimal("0"), le=Decimal("100"))
-    value_addition_tax_pct: Decimal = Field(default=Decimal("3.00"), ge=Decimal("0"), le=Decimal("100"))
-    advance_income_tax_pct: Decimal = Field(default=Decimal("5.50"), ge=Decimal("0"), le=Decimal("100"))
+    customs_duty_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("200")
+    )
+    additional_customs_duty_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("100")
+    )
+    regulatory_duty_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("200")
+    )
+    federal_excise_duty_pct: Decimal = Field(
+        default=Decimal("0.00"), ge=Decimal("0"), le=Decimal("200")
+    )
+    sales_tax_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("100")
+    )
+    value_addition_tax_pct: Decimal = Field(
+        default=Decimal("3.00"), ge=Decimal("0"), le=Decimal("100")
+    )
+    advance_income_tax_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("100")
+    )
     hs_code: str | None = None
 
 
@@ -115,6 +263,9 @@ class DutyCalculationResponse(BaseModel):
     hs_code: str | None = None
     breakdown: dict[str, str]
     formula_steps: list[str]
+    rate_source: str = "caller_supplied"
+    tariff_year: str | None = None
+    source_page: int | None = None
 
 
 def calculate_cascading_customs_taxes(

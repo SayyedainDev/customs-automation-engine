@@ -28,6 +28,32 @@ export interface DocumentExtractionResponse {
   character_count: number;
 }
 
+export interface HighlightBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  left_pct: number;
+  top_pct: number;
+  width_pct: number;
+  height_pct: number;
+  text: string;
+  match_type: string;
+}
+
+export interface DocumentPagePreviewResponse {
+  document_id: string;
+  original_filename: string;
+  page_number: number;
+  page_count: number;
+  page_width: number;
+  page_height: number;
+  image_url: string;
+  word_count: number;
+  highlight_query?: string | null;
+  highlights: HighlightBox[];
+}
+
 export interface DocumentMetadata {
   document_id: string;
   original_filename: string;
@@ -190,6 +216,12 @@ export interface DisputedFieldDetail {
   correction_basis?: string;
 }
 
+export interface MissingDocumentPrompt {
+  document_type: string;
+  display_name: string;
+  requirement: string;
+}
+
 export interface ReviewTaskResponse {
   task_id: string;
   workflow_id: string;
@@ -207,6 +239,7 @@ export interface ReviewTaskResponse {
   plain_language_question: string | null;
   disputed_field_details: DisputedFieldDetail[];
   affected_check_ids: string[];
+  missing_documents?: MissingDocumentPrompt[];
 }
 
 export interface SubmitCorrectionRequest {
@@ -233,7 +266,7 @@ export interface AuditEvent {
 export interface DutyCalculationRequest {
   hs_code?: string | null;
   assessed_value: string;
-  customs_duty_pct: string;
+  customs_duty_pct?: string | null;
   additional_customs_duty_pct?: string | null;
   regulatory_duty_pct?: string;
   federal_excise_duty_pct?: string;
@@ -246,6 +279,9 @@ export interface DutyCalculationResponse {
   hs_code?: string | null;
   breakdown: Record<string, string>;
   formula_steps: string[];
+  rate_source?: string;
+  tariff_year?: string | null;
+  source_page?: number | null;
 }
 
 export interface EvidenceResult {
@@ -560,6 +596,6 @@ export interface ChatCoverageResponse {
 
 /** Parsed contents of one SSE frame from POST /api/v1/customs-chat/messages. */
 export interface ChatStreamEvent {
-  event: "stage" | "meta" | "token" | "sources" | "tool_result" | "done";
+  event: "stage" | "meta" | "token" | "sources" | "tool_result" | "done" | "error";
   data: Record<string, unknown>;
 }

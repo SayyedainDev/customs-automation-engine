@@ -125,6 +125,7 @@ export function useDocumentReview() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState(false);
+  const [missingDocUploadProgress, setMissingDocUploadProgress] = useState(0);
   const [agentError, setAgentError] = useState<string | null>(null);
   const activeReviewRevisionRef = useRef<string | null>(null);
 
@@ -138,6 +139,7 @@ export function useDocumentReview() {
     setWorkflowRevisionId(null);
     setReviewTask(null);
     setEvents([]);
+    setMissingDocUploadProgress(0);
     setAgentError(null);
     setPhase("idle");
   }, []);
@@ -507,9 +509,7 @@ export function useDocumentReview() {
     }
   }
 
-  async function submitDecision(
-    action: "accept_manual_review" | "reject_submission",
-  ) {
+  async function submitWorkflowReviewPayload(payload: Record<string, unknown>) {
     if (
       !workflow ||
       !workflowRevisionId ||
@@ -519,31 +519,10 @@ export function useDocumentReview() {
       return;
     }
     const expectedRevisionId = workflowRevisionId;
-    if (
-      action === "reject_submission" &&
-      !window.confirm(
-        "Reject this submission? This decision will be recorded in the audit history.",
-      )
-    ) {
-      return;
-    }
-
     setDecisionBusy(true);
     setAgentError(null);
     try {
-      const next = await api.submitReview(workflow.workflow_id, {
-        action,
-        reviewer_reference: "cace-class-demo-reviewer",
-        reason:
-          action === "accept_manual_review"
-            ? "Reviewed the surfaced findings and accepted the manual-review outcome."
-            : "Reviewed the surfaced findings and rejected the submission.",
-        review_note:
-          action === "accept_manual_review"
-            ? "Manual review accepted in the operations console."
-            : "Submission rejected in the operations console.",
-        provided_document_ids: [],
-      });
+      const next = await api.submitReview(workflow.workflow_id, payload);
       if (activeReviewRevisionRef.current !== expectedRevisionId) return;
       if (
         next.review_revision_id &&
@@ -567,6 +546,33 @@ export function useDocumentReview() {
     }
   }
 
+  async function submitDecision(
+    action: "accept_manual_review" | "reject_submission",
+  ) {
+    if (
+      action === "reject_submission" &&
+      !window.confirm(
+        "Reject this submission? This decision will be recorded in the audit history.",
+      )
+    ) {
+      return;
+    }
+
+    await submitWorkflowReviewPayload({
+      action,
+      reviewer_reference: "cace-class-demo-reviewer",
+      reason:
+        action === "accept_manual_review"
+          ? "Reviewed the surfaced findings and accepted the manual-review outcome."
+          : "Reviewed the surfaced findings and rejected the submission.",
+      review_note:
+        action === "accept_manual_review"
+          ? "Manual review accepted in the operations console."
+          : "Submission rejected in the operations console.",
+      provided_document_ids: [],
+    });
+  }
+
   // Confirms or corrects exactly one disputed field the backend already
   // included in the open review task - the frontend can never submit a
   // field_path the backend has not itself offered (see SubmitCorrectionRequest).
@@ -576,6 +582,26 @@ export function useDocumentReview() {
     originalValue: unknown,
     correctedValue: unknown,
     reason: string,
+  ) {
+    await submitWorkflowReviewPayload({
+      action,
+      field_path: fieldPath,
+      original_value: originalValue,
+      corrected_value: correctedValue,
+      reviewer_reference: "cace-class-demo-reviewer",
+      reason,
+      review_note:
+        action === "confirm_extracted_value"
+          ? "Reviewer confirmed the extracted value in the operations console."
+          : "Reviewer corrected the extracted value in the operations console.",
+      provided_document_ids: [],
+    });
+  }
+
+  async function submitMissingDocument(
+    file: File,
+    documentType: string,
+    note: string,
   ) {
     if (
       !workflow ||
@@ -588,19 +614,32 @@ export function useDocumentReview() {
     const expectedRevisionId = workflowRevisionId;
     setDecisionBusy(true);
     setAgentError(null);
+    setMissingDocUploadProgress(0);
     try {
+      const uploaded = await api.uploadDocument(file, setMissingDocUploadProgress);
+      setMissingDocUploadProgress(100);
+      sessionRef.current.addDocument({
+        id: uploaded.document_id,
+        name: uploaded.original_filename,
+        role: "supporting_document",
+        sizeBytes: uploaded.size_bytes,
+        uploadedAt: new Date().toISOString(),
+        status: uploaded.status,
+      });
+      if (activeReviewRevisionRef.current !== expectedRevisionId) return;
+
+      const trimmedNote = note.trim();
       const next = await api.submitReview(workflow.workflow_id, {
-        action,
-        field_path: fieldPath,
-        original_value: originalValue,
-        corrected_value: correctedValue,
+        action: "provide_missing_document",
+        provided_document_ids: [uploaded.document_id],
+        source: documentType,
         reviewer_reference: "cace-class-demo-reviewer",
-        reason,
+        reason:
+          trimmedNote ||
+          "Provided missing supporting document in the operations console.",
         review_note:
-          action === "confirm_extracted_value"
-            ? "Reviewer confirmed the extracted value in the operations console."
-            : "Reviewer corrected the extracted value in the operations console.",
-        provided_document_ids: [],
+          trimmedNote ||
+          `Uploaded ${uploaded.original_filename} for ${documentType}.`,
       });
       if (activeReviewRevisionRef.current !== expectedRevisionId) return;
       if (
@@ -621,8 +660,24 @@ export function useDocumentReview() {
         setAgentError(readableError(requestError));
       }
     } finally {
+      setMissingDocUploadProgress(0);
       setDecisionBusy(false);
     }
+  }
+
+  async function submitReprocess(reason: string) {
+    const trimmedReason = reason.trim();
+    await submitWorkflowReviewPayload({
+      action: "request_reprocessing",
+      provided_document_ids: [],
+      reviewer_reference: "cace-class-demo-reviewer",
+      reason:
+        trimmedReason ||
+        "Requested fresh extraction and OCR reprocessing in the operations console.",
+      review_note:
+        trimmedReason ||
+        "Document reprocessing requested in the operations console.",
+    });
   }
 
   function startOver() {
@@ -729,6 +784,7 @@ export function useDocumentReview() {
     events,
     agentBusy,
     decisionBusy,
+    missingDocUploadProgress,
     agentError,
     stages,
     chooseInvoice,
@@ -740,6 +796,8 @@ export function useDocumentReview() {
     loadExistingWorkflow,
     submitDecision,
     submitCorrection,
+    submitMissingDocument,
+    submitReprocess,
     startOver,
     dismissError: () => setError(null),
     dismissAgentError: () => setAgentError(null),

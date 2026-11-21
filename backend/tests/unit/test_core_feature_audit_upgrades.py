@@ -530,3 +530,353 @@ def test_customs_chat_retriever_and_checklist_tool_surface_complete_citations(
         reset_embedding_provider()
         reset_reranker()
 
+
+def test_provide_missing_document_route_preserves_document_type_and_surfaces_task(
+    isolated_database: Engine,
+) -> None:
+    """Missing supporting documents surface in GET /review and preserve their
+    submitted document type (`source`) through POST /review into Revision 2."""
+    from app.api.routes.customs_audit import get_customs_audit_service
+    from app.schemas.supporting_documents import SupportingDocumentRef
+    from app.services.customs_audit.agents import (
+        DeterministicAuditorAgent,
+        DeterministicBrokerAgent,
+    )
+    from app.services.customs_audit.checkpointer import build_memory_checkpointer
+    from app.services.customs_audit.deps import WorkflowDeps
+    from app.services.customs_audit.factory import build_service
+    from tests.unit.test_customs_audit import (
+        PASSED_LEGAL_CHECK,
+        line,
+        make_extraction,
+    )
+
+    doc_id = uuid4()
+    with Session(isolated_database) as db:
+        db.add(
+            DocumentUploadRecord(
+                id=doc_id,
+                original_filename="coo.pdf",
+                stored_filename=f"{doc_id}.pdf",
+                file_extension=".pdf",
+                mime_type="application/pdf",
+                size_bytes=1024,
+                status="extracted",
+            )
+        )
+        db.commit()
+
+    recorded_requests: list[MultiLineShipmentRequest] = []
+    missing_coo_check = {
+        "check_id": "destination_certificate_of_origin",
+        "check_name": "Certificate of Origin for China",
+        "status": "failed",
+        "required_document": "certificate_of_origin",
+        "message": "Certificate of Origin is required for China shipments.",
+        "source_document": "TIPP CPFTA",
+        "issuing_authority": "Ministry of Commerce",
+        "pct_code": "61091000",
+    }
+
+    def dynamic_pipeline(_db: Session, req: MultiLineShipmentRequest) -> dict:
+        recorded_requests.append(req)
+        if len(recorded_requests) == 1:
+            return make_extraction(
+                [
+                    line(
+                        status="failed",
+                        compliance_checks=[PASSED_LEGAL_CHECK, missing_coo_check],
+                        item_checks=[{"check_id": "item_quantity_match", "status": "passed"}],
+                    )
+                ],
+                "failed",
+            )
+        return passed_extraction()
+
+    deps = WorkflowDeps(
+        session_factory=lambda: Session(isolated_database),
+        run_pipeline=dynamic_pipeline,
+        evidence_provider=lambda _db, _pct, _q: [],
+        broker_agent=DeterministicBrokerAgent(),
+        auditor_agent=DeterministicAuditorAgent(),
+        human_review_required=True,
+        rule_data_version_fn=lambda: "sha256:testrules",
+        vector_index_version_fn=lambda _db: "vec-index-v1",
+    )
+    svc = build_service(
+        lambda: Session(isolated_database),
+        deps=deps,
+        checkpointer=build_memory_checkpointer(),
+    )
+
+    async def override_service():
+        return svc
+
+    app.dependency_overrides[get_customs_audit_service] = override_service
+    try:
+        start_resp = client.post(
+            "/api/v1/customs-audit/workflows",
+            json={
+                "commercial_invoice_document_id": str(uuid4()),
+                "packing_list_document_id": str(uuid4()),
+                "shipment_date": "2026-07-20",
+                "additional_uploaded_document_types": ["form_e"],
+            },
+        )
+        assert start_resp.status_code == 200
+        started = start_resp.json()
+        assert started["status"] == "awaiting_human_review"
+        wf_id = started["workflow_id"]
+
+        review_resp = client.get(f"/api/v1/customs-audit/workflows/{wf_id}/review")
+        assert review_resp.status_code == 200
+        task = review_resp.json()
+        assert "provide_missing_document" in task["requested_actions"]
+        assert task["reason_code"] == "missing_required_document"
+        assert any(
+            doc["document_type"] == "certificate_of_origin"
+            for doc in task["missing_documents"]
+        )
+
+        submit_resp = client.post(
+            f"/api/v1/customs-audit/workflows/{wf_id}/review",
+            json={
+                "action": "provide_missing_document",
+                "provided_document_ids": [str(doc_id)],
+                "source": "certificate_of_origin",
+                "reviewer_reference": "reviewer-ui-1",
+                "reason": "Uploaded Chamber of Commerce COO PDF.",
+            },
+        )
+        assert submit_resp.status_code == 200
+        resumed = submit_resp.json()
+        assert resumed["status"] == "completed"
+        assert resumed["deterministic_status"] == "passed"
+        assert len(recorded_requests) == 2
+        recomputed_req = recorded_requests[1]
+        assert recomputed_req.supporting_documents == [
+            SupportingDocumentRef(
+                document_type="certificate_of_origin",
+                document_id=doc_id,
+            )
+        ]
+        assert recomputed_req.additional_uploaded_document_types == ["form_e"]
+        revisions = resumed["final_report"]["audit_revisions"]
+        assert len(revisions) == 2
+        assert revisions[1]["triggered_by"] == "missing_document_provided"
+    finally:
+        app.dependency_overrides.pop(get_customs_audit_service, None)
+
+
+def test_request_reprocessing_clears_caches_and_creates_new_revision(
+    isolated_database: Engine,
+) -> None:
+    """`request_reprocessing` clears document structured/OCR caches and the
+    revision pipeline cache, re-runs extraction/checks, and appends Revision 2."""
+    from app.api.routes.customs_audit import get_customs_audit_service
+    from app.services.customs_audit.agents import (
+        DeterministicAuditorAgent,
+        DeterministicBrokerAgent,
+    )
+    from app.services.customs_audit.checkpointer import build_memory_checkpointer
+    from app.services.customs_audit.deps import WorkflowDeps
+    from app.services.customs_audit.factory import build_service
+    from tests.unit.test_customs_audit import events, ocr_extraction
+
+    inv_id = uuid4()
+    pkg_id = uuid4()
+    rev_id = uuid4()
+    with Session(isolated_database) as db:
+        for doc_id, fname in ((inv_id, "inv.pdf"), (pkg_id, "pkg.pdf")):
+            db.add(
+                DocumentUploadRecord(
+                    id=doc_id,
+                    original_filename=fname,
+                    stored_filename=f"{doc_id}.pdf",
+                    file_extension=".pdf",
+                    mime_type="application/pdf",
+                    size_bytes=2048,
+                    status="extracted",
+                    extracted_text="Cached text",
+                    structured_data={"phase_2c_commercial_invoice": {"status": "extracted"}},
+                    structured_extraction_status="extracted",
+                    ocr_pages=[{"page_number": 1, "ocr_confidence": "0.55"}],
+                )
+            )
+        db.commit()
+
+    cached_req = MultiLineShipmentRequest(
+        review_revision_id=rev_id,
+        commercial_invoice_document_id=inv_id,
+        packing_list_document_id=pkg_id,
+        shipment_date="2026-07-20",
+        additional_uploaded_document_types=[],
+        supporting_documents=[],
+    )
+    cache_multi_line_response(
+        cached_req,
+        type("DummyResp", (), {"model_dump": lambda self, mode="json": ocr_extraction()})(),  # type: ignore[arg-type]
+    )
+    assert get_cached_multi_line_response(cached_req) is not None
+
+    observed_cache_during_run: list[dict | None] = []
+    calls = {"count": 0}
+
+    def reprocessing_pipeline(db: Session, req: MultiLineShipmentRequest) -> dict:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return ocr_extraction()
+        inv_row = db.get(DocumentUploadRecord, inv_id)
+        pkg_row = db.get(DocumentUploadRecord, pkg_id)
+        observed_cache_during_run.append(
+            {
+                "inv_structured": inv_row.structured_data if inv_row else "missing",
+                "inv_ocr": inv_row.ocr_pages if inv_row else "missing",
+                "pkg_structured": pkg_row.structured_data if pkg_row else "missing",
+                "pipeline_cache": get_cached_multi_line_response(req),
+            }
+        )
+        return passed_extraction()
+
+    deps = WorkflowDeps(
+        session_factory=lambda: Session(isolated_database),
+        run_pipeline=reprocessing_pipeline,
+        evidence_provider=lambda _db, _pct, _q: [],
+        broker_agent=DeterministicBrokerAgent(),
+        auditor_agent=DeterministicAuditorAgent(),
+        human_review_required=True,
+        rule_data_version_fn=lambda: "sha256:testrules",
+        vector_index_version_fn=lambda _db: "vec-index-v1",
+    )
+    svc = build_service(
+        lambda: Session(isolated_database),
+        deps=deps,
+        checkpointer=build_memory_checkpointer(),
+    )
+
+    async def override_service():
+        return svc
+
+    app.dependency_overrides[get_customs_audit_service] = override_service
+    try:
+        start_resp = client.post(
+            "/api/v1/customs-audit/workflows",
+            json={
+                "review_revision_id": str(rev_id),
+                "commercial_invoice_document_id": str(inv_id),
+                "packing_list_document_id": str(pkg_id),
+                "shipment_date": "2026-07-20",
+            },
+        )
+        assert start_resp.status_code == 200
+        wf_id = start_resp.json()["workflow_id"]
+
+        review_resp = client.get(f"/api/v1/customs-audit/workflows/{wf_id}/review")
+        assert review_resp.status_code == 200
+        assert "request_reprocessing" in review_resp.json()["requested_actions"]
+
+        reprocess_resp = client.post(
+            f"/api/v1/customs-audit/workflows/{wf_id}/review",
+            json={
+                "action": "request_reprocessing",
+                "reviewer_reference": "reviewer-ui-1",
+                "reason": "OCR misread page 1; force clean re-extraction.",
+            },
+        )
+        assert reprocess_resp.status_code == 200
+        resumed = reprocess_resp.json()
+        assert resumed["status"] == "completed"
+        assert resumed["deterministic_status"] == "passed"
+        assert calls["count"] == 2
+        assert observed_cache_during_run == [
+            {
+                "inv_structured": None,
+                "inv_ocr": None,
+                "pkg_structured": None,
+                "pipeline_cache": None,
+            }
+        ]
+        event_types = [e["event_type"] for e in events(svc, isolated_database, wf_id)]
+        assert "reprocessing_requested" in event_types
+        assert "checks_recomputed" in event_types
+        revisions = resumed["final_report"]["audit_revisions"]
+        assert len(revisions) == 2
+        assert revisions[1]["triggered_by"] == "reprocessing_requested"
+    finally:
+        _REVISION_PIPELINE_CACHE.clear()
+        app.dependency_overrides.pop(get_customs_audit_service, None)
+
+
+def test_disputed_field_details_include_source_document_ids(
+    isolated_database: Engine,
+) -> None:
+    """Paused human-review tasks populate document_id on invoice and packing-list
+    disputed_field_details so the side-by-side PDF viewer can inspect both PDFs."""
+    from app.api.routes.customs_audit import get_customs_audit_service
+    from app.services.customs_audit.agents import (
+        DeterministicAuditorAgent,
+        DeterministicBrokerAgent,
+    )
+    from app.services.customs_audit.checkpointer import build_memory_checkpointer
+    from app.services.customs_audit.deps import WorkflowDeps
+    from app.services.customs_audit.factory import build_service
+    from tests.unit.test_customs_audit import fld, mismatch_extraction
+
+    invoice_id = str(uuid4())
+    packing_id = str(uuid4())
+    extraction_payload = mismatch_extraction()
+    extraction_payload["packing_list"]["items"] = [
+        {
+            "item_index": 1,
+            "line_number": fld(1),
+            "product_name": fld("Cotton knitted T"),
+            "pct_code": fld("6109.1000"),
+            "quantity": fld("99"),
+            "unit": fld("PCS"),
+            "net_weight": fld("75"),
+            "gross_weight": fld("80"),
+        }
+    ]
+
+    deps = WorkflowDeps(
+        session_factory=lambda: Session(isolated_database),
+        run_pipeline=lambda _db, _req: extraction_payload,
+        evidence_provider=lambda _db, _pct, _q: [],
+        broker_agent=DeterministicBrokerAgent(),
+        auditor_agent=DeterministicAuditorAgent(),
+        human_review_required=True,
+        rule_data_version_fn=lambda: "sha256:testrules",
+        vector_index_version_fn=lambda _db: "vec-index-v1",
+    )
+    svc = build_service(
+        lambda: Session(isolated_database),
+        deps=deps,
+        checkpointer=build_memory_checkpointer(),
+    )
+
+    async def override_service():
+        return svc
+
+    app.dependency_overrides[get_customs_audit_service] = override_service
+    try:
+        start_resp = client.post(
+            "/api/v1/customs-audit/workflows",
+            json={
+                "commercial_invoice_document_id": invoice_id,
+                "packing_list_document_id": packing_id,
+                "shipment_date": "2026-07-20",
+            },
+        )
+        assert start_resp.status_code == 200
+        wf_id = start_resp.json()["workflow_id"]
+
+        review_resp = client.get(f"/api/v1/customs-audit/workflows/{wf_id}/review")
+        assert review_resp.status_code == 200
+        details = review_resp.json()["disputed_field_details"]
+        by_type = {d["document_type"]: d for d in details}
+        assert by_type["commercial_invoice"]["document_id"] == invoice_id
+        assert by_type["packing_list"]["document_id"] == packing_id
+    finally:
+        app.dependency_overrides.pop(get_customs_audit_service, None)
+
+

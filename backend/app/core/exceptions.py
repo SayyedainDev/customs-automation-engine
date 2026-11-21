@@ -6,6 +6,10 @@ class StoredDocumentNotFoundError(Exception):
     """Raised when metadata exists but its PDF file is missing."""
 
 
+class DocumentPageNotFoundError(Exception):
+    """Raised when a requested PDF page number is outside the document range."""
+
+
 class PdfExtractionError(Exception):
     """Raised when text cannot be extracted from a PDF."""
 

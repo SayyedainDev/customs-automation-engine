@@ -166,7 +166,7 @@ def test_standard_invoice_extracts_with_no_provider_call(
     assert telemetry is not None and telemetry.llm_calls == 0
     assert len(candidates.line_items) == 1
     # The fields compliance and matching actually consume.
-    assert candidates.exporter_name.value == "Multan Raw Cotton Traders (Pvt.) Ltd"
+    assert candidates.exporter_name.value == "Multan Raw Cotton Traders (Pvt.) Ltd."
     assert candidates.invoice_number.value == "MRC-INV-2026-101"
     assert candidates.currency.value == "USD"
     assert str(candidates.invoice_total.value) == "2000.00"

@@ -20,6 +20,7 @@ resolver - so it is reused directly.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
 
 from groq import Groq
@@ -100,6 +101,7 @@ def maybe_run_checklist_tool(
     standalone_question: str,
     destination: str | None,
     client: Groq | None = None,
+    on_match: Callable[[], None] | None = None,
 ) -> tuple[ChecklistTool, str | None, tuple[Citation, ...]] | None:
     """Returns ``(tool_result, explanation_or_none, citations)`` when the question is a
     checklist ask about a single, unambiguous, supported textile product -
@@ -123,6 +125,9 @@ def maybe_run_checklist_tool(
     product = SUPPORTED_PCT_PRODUCTS.get(pct_code)
     if not product:
         return None
+
+    if on_match is not None:
+        on_match()
 
     country = destination or _DEFAULT_DESTINATION
     guidance = generate_pre_submission_guidance(

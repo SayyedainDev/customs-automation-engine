@@ -41,7 +41,7 @@ _HEADING_RE = re.compile(r"^\d{2}\.\d{2}[A-Za-z]?$")
 _PCT_RE = re.compile(r"^(\d{4})\.(\d{4})$")
 _RATE_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*%?$")
 #: How many lines ahead to look for a rate before giving up on this code.
-_MAX_LOOKAHEAD = 8
+_MAX_LOOKAHEAD = 24
 
 
 @dataclass(frozen=True)

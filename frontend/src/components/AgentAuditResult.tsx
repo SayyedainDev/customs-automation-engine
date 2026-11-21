@@ -4,13 +4,17 @@ import {
   BookOpen,
   CheckCircle2,
   Clock3,
+  Download,
   FileSearch,
   FileText,
   History,
+  RefreshCw,
+  UploadCloud,
   UserCheck,
   Workflow,
   XCircle,
 } from "lucide-react";
+import { api } from "../api/client";
 import type {
   AuditEvent,
   DisputedFieldDetail,
@@ -18,6 +22,9 @@ import type {
   WorkflowStatusResponse,
 } from "../api/types";
 import { displayValue, formatDate, labelize } from "../lib/format";
+import { SUPPORTING_DOCUMENT_TYPES } from "../lib/supportingDocuments";
+import { FileDropzone } from "./FileDropzone";
+import { PdfProvenanceViewer, type PdfInspectTarget } from "./PdfProvenanceViewer";
 import { StatusBadge } from "./StatusBadge";
 
 type CorrectionAction = "confirm_extracted_value" | "correct_extracted_value";
@@ -382,10 +389,14 @@ function checkLabel(checkId: string): string {
 function CorrectionPanel({
   reviewTask,
   busy,
+  invoiceDocumentId,
+  packingListDocumentId,
   onCorrection,
 }: {
   reviewTask: ReviewTaskResponse;
   busy: boolean;
+  invoiceDocumentId?: string | null;
+  packingListDocumentId?: string | null;
   onCorrection: (
     action: CorrectionAction,
     fieldPath: string,
@@ -395,6 +406,29 @@ function CorrectionPanel({
   ) => void;
 }) {
   const details: DisputedFieldDetail[] = reviewTask.disputed_field_details;
+  const targets: Array<PdfInspectTarget | null> = details.map((detail) => {
+    const resolvedDocId =
+      detail.document_id ??
+      (detail.document_type === "commercial_invoice"
+        ? invoiceDocumentId
+        : detail.document_type === "packing_list"
+          ? packingListDocumentId
+          : null);
+    if (!resolvedDocId) return null;
+    const leafField = detail.field_path.split(".").pop() ?? detail.field_path;
+    return {
+      documentId: resolvedDocId,
+      documentLabel: labelize(detail.document_type),
+      pageNumber: detail.page && detail.page >= 1 ? detail.page : 1,
+      highlightValue: detail.value != null ? String(detail.value) : null,
+      fieldName: detail.field_path,
+      fieldLabel: labelize(leafField),
+    };
+  });
+  const selectableTargets = targets.filter(
+    (item): item is PdfInspectTarget => item !== null,
+  );
+  const firstInspectable = targets.findIndex((item) => item !== null);
   const [selectedValue, setSelectedValue] = useState<string>(
     details.length ? String(details[0].value) : "",
   );
@@ -402,8 +436,16 @@ function CorrectionPanel({
   const [customTargetIndex, setCustomTargetIndex] = useState(0);
   const [customValue, setCustomValue] = useState("");
   const [reason, setReason] = useState("");
+  const [inspectedIndex, setInspectedIndex] = useState<number>(
+    firstInspectable >= 0 ? firstInspectable : 0,
+  );
 
   if (!details.length) return null;
+
+  const activeTarget = targets[inspectedIndex] ?? selectableTargets[0] ?? null;
+  const activeTabIndex = activeTarget
+    ? selectableTargets.indexOf(activeTarget)
+    : -1;
 
   const canSubmit =
     reason.trim().length > 0 && (!useCustom || customValue.trim().length > 0);
@@ -443,111 +485,262 @@ function CorrectionPanel({
   }
 
   return (
-    <div className="correction-panel">
-      {reviewTask.plain_language_question ? (
-        <p className="correction-panel__question">
-          {reviewTask.plain_language_question}
-        </p>
-      ) : null}
+    <div className={activeTarget ? "review-split" : undefined}>
+      <div className="correction-panel">
+        {reviewTask.plain_language_question ? (
+          <p className="correction-panel__question">
+            {reviewTask.plain_language_question}
+          </p>
+        ) : null}
 
-      <div className="correction-panel__options">
-        {details.map((detail, index) => (
-          <label className="correction-panel__option" key={index}>
+        <div className="correction-panel__options">
+          {details.map((detail, index) => (
+            <div className="correction-panel__option-row" key={index}>
+              <label className="correction-panel__option">
+                <input
+                  type="radio"
+                  name="correction-value"
+                  checked={!useCustom && selectedValue === String(detail.value)}
+                  onChange={() => {
+                    setUseCustom(false);
+                    setSelectedValue(String(detail.value));
+                    if (targets[index]) setInspectedIndex(index);
+                  }}
+                />
+                <span>
+                  Use the {labelize(detail.document_type)} value:{" "}
+                  <strong>{displayValue(detail.value)}</strong>
+                  {detail.page ? ` (page ${detail.page})` : ""}
+                </span>
+              </label>
+              {targets[index] ? (
+                <button
+                  type="button"
+                  className="button button--secondary button--compact"
+                  onClick={() => setInspectedIndex(index)}
+                >
+                  <FileSearch aria-hidden="true" size={14} />
+                  Inspect on PDF
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <label className="correction-panel__option">
             <input
               type="radio"
               name="correction-value"
-              checked={!useCustom && selectedValue === String(detail.value)}
-              onChange={() => {
-                setUseCustom(false);
-                setSelectedValue(String(detail.value));
-              }}
+              checked={useCustom}
+              onChange={() => setUseCustom(true)}
             />
-            <span>
-              Use the {labelize(detail.document_type)} value:{" "}
-              <strong>{displayValue(detail.value)}</strong>
-              {detail.page ? ` (page ${detail.page})` : ""}
-            </span>
+            <span>Enter a different value</span>
           </label>
-        ))}
-        <label className="correction-panel__option">
-          <input
-            type="radio"
-            name="correction-value"
-            checked={useCustom}
-            onChange={() => setUseCustom(true)}
+          {useCustom ? (
+            <div className="correction-panel__custom">
+              <select
+                value={customTargetIndex}
+                onChange={(event) => {
+                  const nextIdx = Number(event.target.value);
+                  setCustomTargetIndex(nextIdx);
+                  if (targets[nextIdx]) setInspectedIndex(nextIdx);
+                }}
+              >
+                {details.map((detail, index) => (
+                  <option key={index} value={index}>
+                    Correct the {labelize(detail.document_type)} value
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={customValue}
+                onChange={(event) => setCustomValue(event.target.value)}
+                placeholder="Corrected value"
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <label className="correction-panel__reason">
+          Reason
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="e.g. Confirmed against the corrected packing list"
+            rows={2}
           />
-          <span>Enter a different value</span>
         </label>
-        {useCustom ? (
-          <div className="correction-panel__custom">
-            <select
-              value={customTargetIndex}
-              onChange={(event) => setCustomTargetIndex(Number(event.target.value))}
-            >
-              {details.map((detail, index) => (
-                <option key={index} value={index}>
-                  Correct the {labelize(detail.document_type)} value
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={customValue}
-              onChange={(event) => setCustomValue(event.target.value)}
-              placeholder="Corrected value"
-            />
-          </div>
+
+        {reviewTask.affected_check_ids.length ? (
+          <p className="muted">
+            This will re-check:{" "}
+            {Array.from(new Set(reviewTask.affected_check_ids.map(checkLabel))).join(
+              ", ",
+            )}
+            .
+          </p>
         ) : null}
+
+        <button
+          className="button button--primary"
+          type="button"
+          disabled={busy || !canSubmit}
+          onClick={handleSubmit}
+        >
+          <CheckCircle2 aria-hidden="true" size={16} />
+          {busy ? "Submitting…" : "Submit"}
+        </button>
+
+        <details className="technical-details">
+          <summary>Technical details</summary>
+          <ul className="plain-list">
+            {details.map((detail, index) => (
+              <li key={index}>
+                {detail.field_path} · confidence{" "}
+                {detail.confidence != null
+                  ? `${Math.round(detail.confidence * 100)}%`
+                  : "n/a"}{" "}
+                · {detail.extraction_method ?? "unknown method"}
+                {detail.correction_basis
+                  ? ` · basis: ${labelize(detail.correction_basis)}`
+                  : ""}
+              </li>
+            ))}
+            <li>Affected check IDs: {reviewTask.affected_check_ids.join(", ")}</li>
+          </ul>
+        </details>
       </div>
 
-      <label className="correction-panel__reason">
-        Reason
-        <textarea
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          placeholder="e.g. Confirmed against the corrected packing list"
-          rows={2}
+      {activeTarget ? (
+        <PdfProvenanceViewer
+          target={activeTarget}
+          availableTargets={selectableTargets}
+          selectedTargetIndex={activeTabIndex >= 0 ? activeTabIndex : undefined}
+          onSelectTarget={(tabIndex) => {
+            const picked = selectableTargets[tabIndex];
+            const detailIdx = picked ? targets.indexOf(picked) : -1;
+            if (detailIdx >= 0) setInspectedIndex(detailIdx);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function MissingDocumentPanel({
+  reviewTask,
+  busy,
+  uploadProgress,
+  onUpload,
+}: {
+  reviewTask: ReviewTaskResponse;
+  busy: boolean;
+  uploadProgress: number;
+  onUpload: (file: File, documentType: string, note: string) => void;
+}) {
+  const missingDocs = reviewTask.missing_documents ?? [];
+  const knownTypes = new Set(SUPPORTING_DOCUMENT_TYPES.map((item) => item.value));
+  const extraOptions = missingDocs
+    .filter((doc) => !knownTypes.has(doc.document_type))
+    .map((doc) => ({
+      value: doc.document_type,
+      label: doc.display_name,
+    }));
+  const typeOptions = [
+    ...SUPPORTING_DOCUMENT_TYPES.map((item) => ({
+      value: item.value,
+      label: item.label,
+    })),
+    ...extraOptions,
+  ];
+  const [documentType, setDocumentType] = useState<string>(
+    missingDocs[0]?.document_type || SUPPORTING_DOCUMENT_TYPES[0].value,
+  );
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+
+  function handleFile(nextFile: File | null, validationError?: string) {
+    setFile(nextFile);
+    setFileError(validationError ?? null);
+  }
+
+  function handleSubmit() {
+    if (!file || busy) return;
+    onUpload(file, documentType, note);
+  }
+
+  return (
+    <div className="missing-doc-panel">
+      {missingDocs.length ? (
+        <div className="missing-doc-panel__chips">
+          {missingDocs.map((doc) => (
+            <span
+              key={doc.document_type}
+              className={`requirement-tag requirement-tag--${
+                doc.requirement === "required" ? "required" : "conditional"
+              }`}
+            >
+              {doc.display_name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <label className="missing-doc-panel__field">
+        Supporting document type
+        <select
+          value={documentType}
+          onChange={(event) => setDocumentType(event.target.value)}
+          disabled={busy}
+        >
+          {typeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <FileDropzone
+        label="Attach missing supporting PDF"
+        helper="Upload the issued supporting document to verify it against the shipment."
+        file={file}
+        disabled={busy}
+        onFile={handleFile}
+      />
+
+      {fileError ? (
+        <p className="missing-doc-panel__error" role="alert">
+          {fileError}
+        </p>
+      ) : null}
+
+      <label className="missing-doc-panel__field">
+        Reviewer note (optional)
+        <input
+          type="text"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="e.g. Uploaded signed certificate of origin"
+          disabled={busy}
         />
       </label>
 
-      {reviewTask.affected_check_ids.length ? (
-        <p className="muted">
-          This will re-check:{" "}
-          {Array.from(new Set(reviewTask.affected_check_ids.map(checkLabel))).join(
-            ", ",
-          )}
-          .
+      {busy && uploadProgress > 0 ? (
+        <p className="missing-doc-panel__progress" role="status">
+          Uploading and re-running compliance… {uploadProgress}%
         </p>
       ) : null}
 
       <button
         className="button button--primary"
         type="button"
-        disabled={busy || !canSubmit}
+        disabled={busy || !file}
         onClick={handleSubmit}
       >
-        <CheckCircle2 aria-hidden="true" size={16} />
-        {busy ? "Submitting…" : "Submit"}
+        <UploadCloud aria-hidden="true" size={16} />
+        {busy ? "Uploading & verifying…" : "Upload & re-run compliance"}
       </button>
-
-      <details className="technical-details">
-        <summary>Technical details</summary>
-        <ul className="plain-list">
-          {details.map((detail, index) => (
-            <li key={index}>
-              {detail.field_path} · confidence{" "}
-              {detail.confidence != null
-                ? `${Math.round(detail.confidence * 100)}%`
-                : "n/a"}{" "}
-              · {detail.extraction_method ?? "unknown method"}
-              {detail.correction_basis
-                ? ` · basis: ${labelize(detail.correction_basis)}`
-                : ""}
-            </li>
-          ))}
-          <li>Affected check IDs: {reviewTask.affected_check_ids.join(", ")}</li>
-        </ul>
-      </details>
     </div>
   );
 }
@@ -587,6 +780,13 @@ function Report({
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   const correctionValidationErrors = uniqueText(
     asList(finalReport.correction_validation_errors),
+  );
+  const lineItems = asList(report.line_items)
+    .map(asRecord)
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const dutySummary = asRecord(report.duty_estimation_summary);
+  const hasDutyEstimates = Boolean(
+    dutySummary || lineItems.some((item) => asRecord(item.duty_estimate) !== null),
   );
   const uploadedResult = String(report.uploaded_document_result ?? "");
   const problems = asRecord(report.problems);
@@ -733,6 +933,110 @@ function Report({
         </section>
       ) : null}
 
+      {hasDutyEstimates ? (
+        <section className="report-section">
+          <h3>Estimated statutory duties &amp; landed cost</h3>
+          <p className="section-intro">
+            Deterministic FY2026–27 cascading duty and tax schedule per matched
+            line item using Pakistan Customs Tariff and statutory SRO rates.
+          </p>
+
+          {lineItems.length ? (
+            <div className="table-wrap duty-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Product</th>
+                    <th>PCT Code</th>
+                    <th>Line Value</th>
+                    <th>CD %</th>
+                    <th>Est. Duties &amp; Taxes</th>
+                    <th>Est. Landed Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((item, index) => {
+                    const est = asRecord(item.duty_estimate);
+                    const bd = est ? asRecord(est.breakdown) : null;
+                    return (
+                      <tr key={index}>
+                        <td>{displayValue(item.line_number)}</td>
+                        <td>{displayValue(item.product_name)}</td>
+                        <td>{displayValue(item.pct_code)}</td>
+                        <td>{displayValue(item.line_total)}</td>
+                        <td>{bd ? `${displayValue(bd.customs_duty_pct)}%` : "—"}</td>
+                        <td>
+                          {bd ? displayValue(bd.total_duties_and_taxes) : "—"}
+                        </td>
+                        <td>
+                          {bd ? displayValue(bd.total_landed_cost) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {dutySummary ? (
+            <>
+              <dl className="metadata-grid metadata-grid--compact duty-summary-grid">
+                <div className="metadata-item">
+                  <dt>Assessed value (V)</dt>
+                  <dd>
+                    {displayValue(dutySummary.total_assessed_value)}
+                    {dutySummary.currency ? ` ${displayValue(dutySummary.currency)}` : ""}
+                  </dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Customs duty (CD)</dt>
+                  <dd>{displayValue(dutySummary.total_customs_duty)}</dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Additional CD (ACD)</dt>
+                  <dd>{displayValue(dutySummary.total_additional_customs_duty)}</dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Sales tax (ST)</dt>
+                  <dd>{displayValue(dutySummary.total_sales_tax)}</dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>VAT (12th Sch.)</dt>
+                  <dd>{displayValue(dutySummary.total_value_addition_tax)}</dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Sec. 148 AIT</dt>
+                  <dd>{displayValue(dutySummary.total_advance_income_tax)}</dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Total duties &amp; taxes</dt>
+                  <dd>
+                    <strong>{displayValue(dutySummary.total_duties_and_taxes)}</strong>{" "}
+                    ({displayValue(dutySummary.effective_rate_pct)}%)
+                  </dd>
+                </div>
+                <div className="metadata-item">
+                  <dt>Estimated landed cost</dt>
+                  <dd>
+                    <strong>
+                      {displayValue(dutySummary.total_landed_cost)}
+                      {dutySummary.currency ? ` ${displayValue(dutySummary.currency)}` : ""}
+                    </strong>
+                  </dd>
+                </div>
+              </dl>
+              {dutySummary.basis_note ? (
+                <p className="duty-estimate-note">
+                  {displayValue(dutySummary.basis_note)}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
       {problemEntries.length ? (
         <section className="report-section">
           <h3>Why this decision was reached</h3>
@@ -868,6 +1172,16 @@ function Report({
                 <strong>{displayValue(revision.status_label)}</strong>
                 {revision.triggered_by === "human_correction" ? (
                   <span className="muted"> · after a human correction</span>
+                ) : revision.triggered_by === "missing_document_provided" ? (
+                  <span className="muted">
+                    {" "}
+                    · after uploading a missing supporting document
+                  </span>
+                ) : revision.triggered_by === "reprocessing_requested" ? (
+                  <span className="muted">
+                    {" "}
+                    · after reprocessing source documents
+                  </span>
                 ) : null}
               </li>
             ))}
@@ -911,13 +1225,21 @@ export function AgentAuditResult({
   reviewTask,
   events,
   busy,
+  uploadProgress = 0,
+  invoiceDocumentId,
+  packingListDocumentId,
   onDecision,
   onCorrection,
+  onProvideMissingDocument,
+  onReprocess,
 }: {
   workflow: WorkflowStatusResponse;
   reviewTask: ReviewTaskResponse | null;
   events: AuditEvent[];
   busy: boolean;
+  uploadProgress?: number;
+  invoiceDocumentId?: string | null;
+  packingListDocumentId?: string | null;
   onDecision: (action: "accept_manual_review" | "reject_submission") => void;
   onCorrection?: (
     action: CorrectionAction,
@@ -926,7 +1248,41 @@ export function AgentAuditResult({
     correctedValue: unknown,
     reason: string,
   ) => void;
+  onProvideMissingDocument?: (
+    file: File,
+    documentType: string,
+    note: string,
+  ) => void;
+  onReprocess?: (reason: string) => void;
 }) {
+  const [dossierBusy, setDossierBusy] = useState<"pdf" | "json" | null>(null);
+  const [dossierError, setDossierError] = useState<string | null>(null);
+  const allowsMissingDocumentUpload = Boolean(
+    reviewTask &&
+      (reviewTask.requested_actions.includes("provide_missing_document") ||
+        (reviewTask.missing_documents?.length ?? 0) > 0),
+  );
+  const allowsReprocessing = Boolean(
+    reviewTask &&
+      reviewTask.requested_actions.includes("request_reprocessing"),
+  );
+
+  async function handleDownloadDossier(format: "pdf" | "json") {
+    if (dossierBusy) return;
+    setDossierBusy(format);
+    setDossierError(null);
+    try {
+      await api.downloadAuditDossier(workflow.workflow_id, format);
+    } catch (err) {
+      setDossierError(
+        err instanceof Error
+          ? err.message
+          : "Could not download audit dossier.",
+      );
+    } finally {
+      setDossierBusy(null);
+    }
+  }
   return (
     <section className="panel agent-audit" aria-labelledby="agent-audit-heading">
       <div className="panel__header">
@@ -970,8 +1326,11 @@ export function AgentAuditResult({
 
               {onCorrection && reviewTask.disputed_field_details.length ? (
                 <CorrectionPanel
+                  key={reviewTask.review_task_id ?? reviewTask.task_id}
                   reviewTask={reviewTask}
                   busy={busy}
+                  invoiceDocumentId={invoiceDocumentId}
+                  packingListDocumentId={packingListDocumentId}
                   onCorrection={onCorrection}
                 />
               ) : reviewTask.disputed_fields.length ? (
@@ -985,6 +1344,16 @@ export function AgentAuditResult({
                 </details>
               ) : null}
 
+              {onProvideMissingDocument && allowsMissingDocumentUpload ? (
+                <MissingDocumentPanel
+                  key={`missing-${reviewTask.review_task_id ?? reviewTask.task_id}`}
+                  reviewTask={reviewTask}
+                  busy={busy}
+                  uploadProgress={uploadProgress}
+                  onUpload={onProvideMissingDocument}
+                />
+              ) : null}
+
               <div className="action-row">
                 <button
                   className="button button--primary"
@@ -995,6 +1364,21 @@ export function AgentAuditResult({
                   <CheckCircle2 aria-hidden="true" size={16} />
                   {busy ? "Submitting…" : "Accept review and continue"}
                 </button>
+                {onReprocess && allowsReprocessing ? (
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      onReprocess(
+                        "Requested fresh extraction and OCR reprocessing from the operations console.",
+                      )
+                    }
+                  >
+                    <RefreshCw aria-hidden="true" size={16} />
+                    Reprocess from PDFs
+                  </button>
+                ) : null}
                 <button
                   className="button button--danger"
                   type="button"
@@ -1010,7 +1394,36 @@ export function AgentAuditResult({
         ) : null}
 
         {workflow.final_report ? (
-          <Report finalReport={workflow.final_report} />
+          <>
+            <div className="dossier-actions">
+              <button
+                type="button"
+                className="button button--primary"
+                disabled={dossierBusy !== null}
+                onClick={() => void handleDownloadDossier("pdf")}
+              >
+                <Download aria-hidden="true" size={16} />
+                {dossierBusy === "pdf"
+                  ? "Generating PDF packet…"
+                  : "Download Pre-Submission Audit Packet (PDF)"}
+              </button>
+              <button
+                type="button"
+                className="button button--secondary"
+                disabled={dossierBusy !== null}
+                onClick={() => void handleDownloadDossier("json")}
+              >
+                <FileText aria-hidden="true" size={16} />
+                {dossierBusy === "json" ? "Exporting JSON…" : "Export JSON"}
+              </button>
+            </div>
+            {dossierError ? (
+              <p className="dossier-actions__error" role="alert">
+                {dossierError}
+              </p>
+            ) : null}
+            <Report finalReport={workflow.final_report} />
+          </>
         ) : null}
 
         {events.length ? (

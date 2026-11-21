@@ -384,3 +384,80 @@ def test_shipment_id_delegates_to_the_shipment_assistant(_isolated_engine, monke
     # logic - reaching a response at all confirms delegation happened rather
     # than falling into the general customs pipeline.
     assert isinstance(result.answer, str) and result.answer
+
+
+# --- Real-time stage callback ordering --------------------------------------
+
+
+def test_answer_customs_question_invokes_on_stage_in_execution_order(_isolated_engine, monkeypatch):
+    _disable_llm_extras(monkeypatch)
+    monkeypatch.setattr(get_settings(), "customs_chat_enable_verifier", True)
+    db = _session(_isolated_engine)
+    add_evidence(
+        db,
+        key="form_e_stage_order",
+        source_document="Export Facilitation Scheme 2021 (test fixture)",
+        parent_text=(
+            "Form E submission requirements are explained here. Form E "
+            "submission requirements must be met before export under SRO "
+            "957(I)/2021, within 180 days of the invoice date."
+        ),
+        pct_codes=[],
+    )
+    fake = FakeGroqClient(
+        answer_text=(
+            "You must submit Form-E, the export form your bank and customs "
+            "need, before shipment. Under SRO 957(I)/2021 you have 180 days "
+            "from the invoice date to do this."
+        )
+    )
+    recorded: list[str] = []
+    result = answer_customs_question(
+        db,
+        message="form e submission requirements",
+        client=fake,
+        on_stage=recorded.append,
+    )
+    assert recorded == list(result.stages)
+    assert recorded == [
+        "input_guard",
+        "scope_router",
+        "query_rewriter",
+        "hybrid_retrieval",
+        "answer_generation",
+        "output_guard",
+        "groundedness_verifier",
+    ]
+
+
+def test_checklist_tool_emits_stage_before_explanation_generation(_isolated_engine, monkeypatch):
+    from app.services.customs_chat.knowledge import checklist_tool
+
+    _disable_llm_extras(monkeypatch)
+    db = _session(_isolated_engine)
+    timeline: list[str] = []
+
+    def fake_checklist_explanation(**_kwargs):
+        timeline.append("explain_called")
+        return "You need a commercial invoice, packing list, and Form-E."
+
+    monkeypatch.setattr(
+        checklist_tool,
+        "generate_checklist_explanation",
+        fake_checklist_explanation,
+    )
+
+    result = answer_customs_question(
+        db,
+        message="What documents do I need to export a t-shirt?",
+        client=FakeGroqClient(),
+        on_stage=lambda stage: timeline.append(f"stage:{stage}"),
+    )
+
+    assert result.checklist_tool is not None
+    assert "stage:checklist_tool" in timeline
+    assert "explain_called" in timeline
+    assert "stage:output_guard" in timeline
+    assert timeline.index("stage:checklist_tool") < timeline.index("explain_called")
+    assert timeline.index("explain_called") < timeline.index("stage:output_guard")
+    assert result.stages[-2:] == ("checklist_tool", "output_guard")

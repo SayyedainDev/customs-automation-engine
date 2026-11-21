@@ -7,6 +7,7 @@ import type {
   ChatStreamEvent,
   DocumentExtractionResponse,
   DocumentMetadata,
+  DocumentPagePreviewResponse,
   DocumentUploadResponse,
   DutyCalculationRequest,
   DutyCalculationResponse,
@@ -203,11 +204,7 @@ async function streamCustomsChat(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
+  const drainFrames = () => {
     let frameEnd = buffer.indexOf("\n\n");
     while (frameEnd !== -1) {
       const frame = buffer.slice(0, frameEnd);
@@ -237,6 +234,20 @@ async function streamCustomsChat(
       }
       frameEnd = buffer.indexOf("\n\n");
     }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      buffer += decoder.decode().replace(/\r\n/g, "\n");
+      if (buffer.trim().length > 0 && !buffer.endsWith("\n\n")) {
+        buffer += "\n\n";
+      }
+      drainFrames();
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    drainFrames();
   }
 }
 
@@ -261,6 +272,26 @@ export const api = {
 
   getDocument: (documentId: string) =>
     request<DocumentMetadata>(`/documents/uploads/${documentId}`),
+
+  getDocumentPagePreview: (
+    documentId: string,
+    pageNumber: number,
+    options?: { highlight?: string | null; fieldName?: string | null },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.highlight && options.highlight.trim()) {
+      params.set("highlight", options.highlight.trim());
+    }
+    if (options?.fieldName && options.fieldName.trim()) {
+      params.set("field_name", options.fieldName.trim());
+    }
+    const qs = params.toString();
+    return request<DocumentPagePreviewResponse>(
+      `/documents/uploads/${documentId}/pages/${pageNumber}${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  documentPageImageUrl: (imagePath: string) => apiUrl(imagePath),
 
   checkMultiLine: (payload: MultiLineShipmentRequest) =>
     request<MultiLineShipmentResponse>(
@@ -311,6 +342,48 @@ export const api = {
     request<{ workflow_id: string; events: AuditEvent[] }>(
       `/api/v1/customs-audit/workflows/${workflowId}/events`,
     ),
+
+  downloadAuditDossier: async (
+    workflowId: string,
+    format: "pdf" | "json" = "pdf",
+  ): Promise<void> => {
+    const response = await fetch(
+      apiUrl(
+        `/api/v1/customs-audit/workflows/${workflowId}/dossier?format=${format}`,
+      ),
+    );
+    if (!response.ok) {
+      let detail: unknown;
+      try {
+        detail = await response.json();
+      } catch {
+        detail = undefined;
+      }
+      throw new ApiError(
+        detailMessage(
+          detail && typeof detail === "object" && "detail" in detail
+            ? (detail as { detail: unknown }).detail
+            : detail,
+        ),
+        response.status,
+      );
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download =
+        format === "pdf"
+          ? `cace-audit-packet-${workflowId.slice(0, 8)}.pdf`
+          : `cace-audit-dossier-${workflowId.slice(0, 8)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  },
 
   searchEvidence: (payload: {
     query: string;
