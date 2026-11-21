@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   Loader2,
   Send,
@@ -23,6 +24,33 @@ import type {
 } from "../api/types";
 import { PageHeader } from "../components/PageHeader";
 
+interface ChatStageItem {
+  stage: string;
+  label: string;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  input_guard: "Checking question safety",
+  scope_router: "Confirming customs scope",
+  query_rewriter: "Interpreting question",
+  shipment_context_lookup: "Loading shipment records",
+  shipment_evidence_retrieval: "Checking shipment evidence",
+  checklist_tool: "Running compliance checklist",
+  tariff_lookup: "Looking up tariff schedule",
+  hybrid_retrieval: "Searching regulatory sources",
+  answer_generation: "Drafting answer",
+  output_guard: "Verifying numbers and claims",
+  groundedness_verifier: "Double-checking source citations",
+};
+
+function stageLabel(stage: string, label?: string): string {
+  if (label && label.trim()) return label;
+  const mapped = STAGE_LABELS[stage];
+  if (mapped) return mapped;
+  const words = stage.replace(/_/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Processing";
+}
+
 interface ChatTurnUI {
   id: string;
   role: "user" | "assistant";
@@ -38,7 +66,7 @@ interface ChatTurnUI {
   feedback?: "up" | "down" | null;
   streaming?: boolean;
   failed?: boolean;
-  stages?: string[];
+  stages?: ChatStageItem[];
 }
 
 const MODE_LABEL: Record<ChatRing, string> = {
@@ -314,16 +342,23 @@ export function CustomsChatPage() {
     const onEvent = (event: ChatStreamEvent) => {
       switch (event.event) {
         case "stage": {
-          const data = event.data as { stage: string };
+          const data = event.data as { stage: string; label?: string };
+          const nextStage: ChatStageItem = {
+            stage: data.stage,
+            label: stageLabel(data.stage, data.label),
+          };
           setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantTurnId
-                ? {
-                    ...message,
-                    stages: [...(message.stages ?? []), data.stage],
-                  }
-                : message,
-            ),
+            prev.map((message) => {
+              if (message.id !== assistantTurnId) return message;
+              const existing = message.stages ?? [];
+              if (existing.some((item) => item.stage === nextStage.stage)) {
+                return message;
+              }
+              return {
+                ...message,
+                stages: [...existing, nextStage],
+              };
+            }),
           );
           break;
         }
@@ -378,6 +413,12 @@ export function CustomsChatPage() {
             disclaimer: data.disclaimer,
             streaming: false,
           });
+          break;
+        }
+        case "error": {
+          const data = event.data as { detail?: string };
+          patchAssistant({ streaming: false, failed: true });
+          setError(data.detail || "The assistant could not complete this request.");
           break;
         }
       }
@@ -495,14 +536,46 @@ export function CustomsChatPage() {
                     {message.role === "assistant" ? <ModeBadge mode={message.mode} /> : null}
                   </header>
 
-                  <p className="chat-message__text">
-                    {message.failed && !message.text ? (
-                      <span className="muted">No response was received.</span>
-                    ) : (
-                      message.text
-                    )}
-                    {message.streaming ? <span className="chat-cursor" /> : null}
-                  </p>
+                  {message.streaming && !message.text && message.stages && message.stages.length > 0 ? (
+                    <div className="chat-stage-progress" role="status" aria-live="polite">
+                      <ul className="chat-stage-progress__list">
+                        {message.stages.map((item, index) => {
+                          const isLast = index === (message.stages?.length ?? 0) - 1;
+                          return (
+                            <li
+                              key={item.stage}
+                              className={`chat-stage-progress__item ${
+                                isLast
+                                  ? "chat-stage-progress__item--active"
+                                  : "chat-stage-progress__item--done"
+                              }`}
+                            >
+                              {isLast ? (
+                                <Loader2 className="spinner" size={13} aria-hidden="true" />
+                              ) : (
+                                <CheckCircle2 size={13} aria-hidden="true" />
+                              )}
+                              <span>
+                                {item.label}
+                                {isLast ? "…" : ""}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {!(message.streaming && !message.text && message.stages?.length) ? (
+                    <p className="chat-message__text">
+                      {message.failed && !message.text ? (
+                        <span className="muted">No response was received.</span>
+                      ) : (
+                        message.text
+                      )}
+                      {message.streaming ? <span className="chat-cursor" /> : null}
+                    </p>
+                  ) : null}
 
                   {message.checklistTool ? (
                     <ChecklistToolCard tool={message.checklistTool} />
@@ -523,6 +596,21 @@ export function CustomsChatPage() {
                           <ChatSourceCard key={`${message.id}-${index}`} source={source} />
                         ))}
                       </ul>
+                    </details>
+                  ) : null}
+
+                  {message.role === "assistant" &&
+                  !message.streaming &&
+                  !message.failed &&
+                  message.stages &&
+                  message.stages.length > 0 ? (
+                    <details className="citation-card__technical chat-stage-trace">
+                      <summary>Verification steps ({message.stages.length})</summary>
+                      <ol className="chat-stage-trace__list">
+                        {message.stages.map((item) => (
+                          <li key={item.stage}>{item.label}</li>
+                        ))}
+                      </ol>
                     </details>
                   ) : null}
 

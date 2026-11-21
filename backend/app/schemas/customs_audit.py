@@ -58,6 +58,7 @@ class ReviewTaskResponse(BaseModel):
     plain_language_question: str | None = None
     disputed_field_details: list[Any] = Field(default_factory=list)
     affected_check_ids: list[Any] = Field(default_factory=list)
+    missing_documents: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SubmitReviewRequest(BaseModel):

@@ -143,6 +143,9 @@ export function NewReviewPage() {
           reviewTask={review.reviewTask}
           events={review.events}
           busy={review.decisionBusy}
+          uploadProgress={review.missingDocUploadProgress}
+          invoiceDocumentId={review.compliance.commercial_invoice_document_id}
+          packingListDocumentId={review.compliance.packing_list_document_id}
           onDecision={(action) => void review.submitDecision(action)}
           onCorrection={(action, fieldPath, originalValue, correctedValue, reason) =>
             void review.submitCorrection(
@@ -153,6 +156,10 @@ export function NewReviewPage() {
               reason,
             )
           }
+          onProvideMissingDocument={(file, documentType, note) =>
+            void review.submitMissingDocument(file, documentType, note)
+          }
+          onReprocess={(reason) => void review.submitReprocess(reason)}
         />
       ) : !review.compliance && review.workflow ? (
         <AgentAuditResult
@@ -160,6 +167,7 @@ export function NewReviewPage() {
           reviewTask={review.reviewTask}
           events={review.events}
           busy={review.decisionBusy}
+          uploadProgress={review.missingDocUploadProgress}
           onDecision={(action) => void review.submitDecision(action)}
           onCorrection={(action, fieldPath, originalValue, correctedValue, reason) =>
             void review.submitCorrection(
@@ -170,6 +178,10 @@ export function NewReviewPage() {
               reason,
             )
           }
+          onProvideMissingDocument={(file, documentType, note) =>
+            void review.submitMissingDocument(file, documentType, note)
+          }
+          onReprocess={(reason) => void review.submitReprocess(reason)}
         />
       ) : null}
     </>

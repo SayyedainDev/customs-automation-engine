@@ -250,7 +250,7 @@ _LABEL_VOCABULARY = frozenset(
 
 def _reject_label_fragment(raw: str) -> str | None:
     """Reject a printed field label (or its connector tail) as a value."""
-    value = " ".join((raw or "").split()).strip(" \t|.,;:-–—")
+    value = " ".join((raw or "").split()).lstrip(" \t|.,;:-–—").rstrip(" \t|,;:-–—")
     if not value or _CONNECTOR_PREFIX.match(value):
         return None
     if not re.search(r"[A-Za-z0-9]", value):

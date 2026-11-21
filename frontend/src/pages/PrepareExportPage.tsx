@@ -187,25 +187,31 @@ export function PrepareExportPage() {
   // under a Cotton yarn selection.
   const [checkedInputs, setCheckedInputs] = useState<FormInputs | null>(null);
   const [assessedValue, setAssessedValue] = useState("1000.00");
-  const [cdPct, setCdPct] = useState("20.00");
+  const [cdPct, setCdPct] = useState("");
   const [rdPct, setRdPct] = useState("0.00");
   const [dutyBusy, setDutyBusy] = useState(false);
+  const [dutyError, setDutyError] = useState<string | null>(null);
   const [dutyResult, setDutyResult] =
     useState<DutyCalculationResponse | null>(null);
 
   const handleCalculateDuties = async (e: React.FormEvent) => {
     e.preventDefault();
     setDutyBusy(true);
+    setDutyError(null);
+    const trimmedCd = cdPct.trim();
     try {
       const res = await api.calculateDuties({
         hs_code: pctCode || null,
         assessed_value: assessedValue,
-        customs_duty_pct: cdPct,
+        customs_duty_pct: trimmedCd ? trimmedCd : null,
         regulatory_duty_pct: rdPct,
       });
       setDutyResult(res);
-    } catch {
+    } catch (err) {
       setDutyResult(null);
+      setDutyError(
+        err instanceof Error ? err.message : "Could not calculate statutory duties.",
+      );
     } finally {
       setDutyBusy(false);
     }
@@ -450,8 +456,13 @@ export function PrepareExportPage() {
                     min="0"
                     value={cdPct}
                     onChange={(e) => setCdPct(e.target.value)}
+                    placeholder="Leave blank to auto-resolve from PCT"
                     className="text-input"
                   />
+                  <small className="muted">
+                    Leave blank to auto-resolve statutory rate for PCT{" "}
+                    {pctCode || "selected"}.
+                  </small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="rdPct">Regulatory Duty (%)</label>
@@ -473,6 +484,11 @@ export function PrepareExportPage() {
                   {dutyBusy ? "Calculating…" : "Calculate statutory taxes"}
                 </button>
               </form>
+              {dutyError ? (
+                <p className="missing-doc-panel__error" role="alert" style={{ marginTop: "0.75rem" }}>
+                  {dutyError}
+                </p>
+              ) : null}
               {dutyResult ? (
                 <div style={{ marginTop: "1rem" }}>
                   <p>
@@ -484,6 +500,19 @@ export function PrepareExportPage() {
                     <strong>Total Landed Cost:</strong>{" "}
                     {dutyResult.breakdown.total_landed_cost}
                   </p>
+                  {dutyResult.rate_source ? (
+                    <p className="muted" style={{ fontSize: "0.8rem" }}>
+                      Rate source:{" "}
+                      {dutyResult.rate_source === "caller_supplied"
+                        ? "Manual override"
+                        : `${dutyResult.tariff_year ?? "FY2025-26"} schedule${
+                            dutyResult.source_page
+                              ? ` (page ${dutyResult.source_page})`
+                              : ""
+                          }`}{" "}
+                      · CD {dutyResult.breakdown.customs_duty_pct}%
+                    </p>
+                  ) : null}
                   <details className="citation-card__technical">
                     <summary>12-step compounding formula</summary>
                     <ul className="plain-list">

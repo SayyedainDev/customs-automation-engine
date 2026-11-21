@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   FileCheck2,
+  FileSearch,
   Files,
   ListChecks,
   ShieldCheck,
@@ -14,6 +16,7 @@ import type {
   MultiLineShipmentResponse,
 } from "../api/types";
 import { displayValue, labelize } from "../lib/format";
+import { PdfProvenanceViewer, type PdfInspectTarget } from "./PdfProvenanceViewer";
 import { StatusBadge } from "./StatusBadge";
 
 const invoiceFields = [
@@ -390,6 +393,8 @@ export function ComplianceReviewResult({
 }: {
   result: MultiLineShipmentResponse;
 }) {
+  const [inspectedTarget, setInspectedTarget] =
+    useState<PdfInspectTarget | null>(null);
   const allItemChecks = result.items.flatMap((item) => [
     ...item.item_checks.map((check) => ({
       check,
@@ -816,10 +821,27 @@ export function ComplianceReviewResult({
         </div>
         <div className="panel__body">
           <dl className="metadata-grid">
-            {invoiceFields.map(([name, label]) => {
-              const field = extractedField(result.invoice, name);
+            {[
+              ...invoiceFields.map(([name, label]) => ({
+                key: name,
+                name,
+                label,
+                documentLabel: "Commercial invoice",
+                defaultDocumentId: result.commercial_invoice_document_id,
+                field: extractedField(result.invoice, name),
+              })),
+              ...packingFields.map(([name, label]) => ({
+                key: `packing-${name}`,
+                name,
+                label,
+                documentLabel: "Packing list",
+                defaultDocumentId: result.packing_list_document_id,
+                field: extractedField(result.packing_list, name),
+              })),
+            ].map(({ key, name, label, documentLabel: docLabel, defaultDocumentId, field }) => {
+              const docId = field?.source_document_id ?? defaultDocumentId;
               return (
-                <div key={name} className="metadata-item">
+                <div key={key} className="metadata-item">
                   <dt>{label}</dt>
                   <dd>{displayValue(field?.value)}</dd>
                   <small>
@@ -828,25 +850,35 @@ export function ComplianceReviewResult({
                       ? ` · ${confidenceLabel(field.confidence)}`
                       : ""}
                   </small>
-                </div>
-              );
-            })}
-            {packingFields.map(([name, label]) => {
-              const field = extractedField(result.packing_list, name);
-              return (
-                <div key={`packing-${name}`} className="metadata-item">
-                  <dt>{label}</dt>
-                  <dd>{displayValue(field?.value)}</dd>
-                  <small>
-                    {field?.source_page ? `Page ${field.source_page}` : "No page"}
-                    {field?.confidence !== undefined
-                      ? ` · ${confidenceLabel(field.confidence)}`
-                      : ""}
-                  </small>
+                  {field?.value !== null && field?.value !== undefined && field?.source_page && docId ? (
+                    <button
+                      type="button"
+                      className="metadata-item__inspect"
+                      onClick={() =>
+                        setInspectedTarget({
+                          documentId: docId,
+                          documentLabel: docLabel,
+                          pageNumber: field.source_page ?? 1,
+                          highlightValue: String(field.value),
+                          fieldName: name,
+                          fieldLabel: label,
+                        })
+                      }
+                    >
+                      <FileSearch size={12} aria-hidden="true" />
+                      View on PDF
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
           </dl>
+          {inspectedTarget ? (
+            <PdfProvenanceViewer
+              target={inspectedTarget}
+              onClose={() => setInspectedTarget(null)}
+            />
+          ) : null}
         </div>
       </section>
 

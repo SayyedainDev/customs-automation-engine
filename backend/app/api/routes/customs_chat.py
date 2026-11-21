@@ -7,17 +7,20 @@ The old assistant router (``api/routes/assistant.py``) is untouched: its
 deterministic textile compliance engine, which this does not replace.
 
 On streaming: ``POST /messages`` with ``stream: true`` (the default) opens
-an SSE connection. The pipeline call in ``pipeline.answer_customs_question``
-is blocking and already fully guarded (see ``generation/answerer.py`` for
-why real token-level streaming is deferred past phase 1) - this endpoint
-paces the finished, safe answer over the wire in word-chunks so the client
-still gets a live-typing UI, rather than one large response at the end.
+an SSE connection. Pipeline stages flush in real time as each stage begins,
+while the generated answer text stays held back until ``output_guard`` and
+``groundedness_verifier`` approve it (see ``generation/answerer.py``). Once
+verified, the finished safe answer streams in word-chunks for a responsive UI.
 """
 
 from __future__ import annotations
 
 import json
+import logging
+import queue
+import threading
 from collections.abc import Generator
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -45,6 +48,8 @@ from app.services.customs_chat.memory.history import record_feedback
 from app.services.customs_chat.pipeline import answer_customs_question
 from app.services.assistant.scopes import get_knowledge_corpus_scope
 from app.services.regulatory.source_kinds import get_corpus_snapshot_date
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/customs-chat", tags=["Customs Assistant"])
 
@@ -135,6 +140,25 @@ def _to_response(result: ChatTurnResult) -> ChatMessageResponse:
     )
 
 
+_STAGE_LABELS: dict[str, str] = {
+    "input_guard": "Checking question safety",
+    "scope_router": "Confirming customs scope",
+    "query_rewriter": "Interpreting question",
+    "shipment_context_lookup": "Loading shipment records",
+    "shipment_evidence_retrieval": "Checking shipment evidence",
+    "checklist_tool": "Running compliance checklist",
+    "tariff_lookup": "Looking up tariff schedule",
+    "hybrid_retrieval": "Searching regulatory sources",
+    "answer_generation": "Drafting answer",
+    "output_guard": "Verifying numbers and claims",
+    "groundedness_verifier": "Double-checking source citations",
+}
+
+
+def _stage_label(stage: str) -> str:
+    return _STAGE_LABELS.get(stage) or (stage.replace("_", " ").capitalize())
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
@@ -148,16 +172,74 @@ _STREAM_CHUNK_WORDS = 6
 def _stream_live_turn(
     db: Session, payload: ChatMessageRequest
 ) -> Generator[str, None, None]:
-    yield _sse("stage", {"stage": "input_guard"})
-    result = answer_customs_question(
-        db,
-        message=payload.message,
-        conversation_id=payload.conversation_id,
-        shipment_id=payload.shipment_id,
+    event_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
+
+    def run_pipeline() -> None:
+        try:
+            turn_result = answer_customs_question(
+                db,
+                message=payload.message,
+                conversation_id=payload.conversation_id,
+                shipment_id=payload.shipment_id,
+                on_stage=lambda stage: event_queue.put(("stage", stage)),
+            )
+            event_queue.put(("result", turn_result))
+        except BaseException as exc:  # noqa: BLE001 - forwarded to SSE stream consumer
+            event_queue.put(("error", exc))
+
+    worker = threading.Thread(
+        target=run_pipeline,
+        name="customs-chat-stream",
+        daemon=True,
     )
+    worker.start()
+
+    emitted_stages: set[str] = set()
+    result: ChatTurnResult | None = None
+    try:
+        while True:
+            kind, item = event_queue.get()
+            if kind == "stage":
+                stage_name = str(item)
+                if stage_name not in emitted_stages:
+                    emitted_stages.add(stage_name)
+                    yield _sse(
+                        "stage",
+                        {"stage": stage_name, "label": _stage_label(stage_name)},
+                    )
+            elif kind == "result":
+                if isinstance(item, ChatTurnResult):
+                    result = item
+                break
+            elif kind == "error":
+                if isinstance(item, Exception):
+                    logger.exception("Customs chat stream pipeline failed", exc_info=item)
+                    yield _sse(
+                        "error",
+                        {
+                            "detail": (
+                                "The assistant ran into an unexpected problem while "
+                                "preparing this answer. Please try again."
+                            )
+                        },
+                    )
+                    return
+                if isinstance(item, BaseException):
+                    raise item
+                return
+    finally:
+        # Ensure the worker finishes touching the SQLAlchemy session before
+        # FastAPI tears down get_db_session(), even if the client disconnects.
+        worker.join()
+
+    if result is None:
+        return
+
     for stage in result.stages:
-        if stage != "input_guard":
-            yield _sse("stage", {"stage": stage})
+        if stage not in emitted_stages:
+            emitted_stages.add(stage)
+            yield _sse("stage", {"stage": stage, "label": _stage_label(stage)})
+
     yield from _stream_result(result, include_stages=False)
 
 
@@ -166,7 +248,7 @@ def _stream_result(
 ) -> Generator[str, None, None]:
     if include_stages:
         for stage in result.stages:
-            yield _sse("stage", {"stage": stage})
+            yield _sse("stage", {"stage": stage, "label": _stage_label(stage)})
     yield _sse(
         "meta",
         {
@@ -226,7 +308,14 @@ def post_message(payload: ChatMessageRequest, db: Session = Depends(get_db_sessi
         )
         return _to_response(result)
 
-    return StreamingResponse(_stream_live_turn(db, payload), media_type="text/event-stream")
+    return StreamingResponse(
+        _stream_live_turn(db, payload),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationHistoryResponse)

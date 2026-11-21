@@ -10,8 +10,16 @@ instead of empty placeholders.
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from app.services.compliance.duty_calculator import (
+    calculate_cascading_customs_taxes,
+    quantize_money,
+    resolve_tariff_rates_for_hs_code,
+)
 from app.services.customs_audit.state import utcnow_iso
 from app.services.compliance.document_requirements import (
     collect_outstanding_documents,
@@ -52,6 +60,7 @@ _UNCERTAIN_FIELD_IDS = {"required_fields", "items_present_in_both_documents"}
 
 _DOCUMENT_NAMES = {
     "form_e": "Form-E",
+    "form_e_or_psw_export_declaration": "Form-E / PSW export declaration",
     "commercial_invoice": "Commercial invoice",
     "packing_list": "Packing list",
     "certificate_of_origin": "Certificate of origin",
@@ -61,9 +70,11 @@ _DOCUMENT_NAMES = {
     "product_permit": "Product permit",
     "product_approval": "Product approval",
     "import_permit": "Import permit",
+    "importing_country_permit": "Importing-country permit",
     "sbp_deposit_proof": "Proof of SBP deposit",
     "sbp_confirmation": "SBP confirmation",
     "irrevocable_letter_of_credit": "Irrevocable letter of credit",
+    "shipment_reprocessing": "Document reprocessing",
 }
 
 _FIELD_LABELS = {
@@ -152,7 +163,119 @@ def _shipment_summary(invoice: dict, packing: dict, state: dict) -> dict[str, An
     }
 
 
-def _line_items(extraction: dict) -> list[dict[str, Any]]:
+def _parse_positive_decimal(value: Any) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    raw = str(value).replace(",", "").strip()
+    if not raw:
+        return None
+    try:
+        dec = Decimal(raw)
+    except InvalidOperation:
+        return None
+    if not dec.is_finite() or dec <= Decimal("0"):
+        return None
+    return dec
+
+
+def _estimate_line_duty(
+    pct_code: Any,
+    line_total: Any,
+    *,
+    db: Session | None = None,
+    currency: str | None = None,
+) -> dict[str, Any] | None:
+    assessed = _parse_positive_decimal(line_total)
+    if assessed is None:
+        return None
+    resolved = resolve_tariff_rates_for_hs_code(
+        db, str(pct_code) if pct_code is not None else None
+    )
+    if resolved is None:
+        return None
+    breakdown = calculate_cascading_customs_taxes(
+        assessed_value=assessed,
+        customs_duty_pct=resolved.customs_duty_pct,
+        additional_customs_duty_pct=resolved.additional_customs_duty_pct,
+        regulatory_duty_pct=resolved.regulatory_duty_pct,
+        sales_tax_pct=resolved.sales_tax_pct,
+        advance_income_tax_pct=resolved.advance_income_tax_pct,
+    )
+    return {
+        "hs_code": resolved.hs_code,
+        "currency": currency,
+        "rate_source": resolved.rate_source,
+        "tariff_year": resolved.tariff_year,
+        "source_page": resolved.source_page,
+        "breakdown": breakdown.to_dict(),
+    }
+
+
+def _duty_estimation_summary(
+    line_items: list[dict[str, Any]],
+    *,
+    currency: str | None = None,
+) -> dict[str, Any] | None:
+    totals: dict[str, Decimal] = {
+        "assessed_value": Decimal("0.00"),
+        "customs_duty": Decimal("0.00"),
+        "additional_customs_duty": Decimal("0.00"),
+        "regulatory_duty": Decimal("0.00"),
+        "sales_tax": Decimal("0.00"),
+        "value_addition_tax": Decimal("0.00"),
+        "advance_income_tax": Decimal("0.00"),
+        "total_duties_and_taxes": Decimal("0.00"),
+        "total_landed_cost": Decimal("0.00"),
+    }
+    lines_estimated = 0
+    for row in line_items:
+        est = row.get("duty_estimate")
+        if not isinstance(est, dict):
+            continue
+        bd = est.get("breakdown")
+        if not isinstance(bd, dict):
+            continue
+        lines_estimated += 1
+        for key in totals:
+            totals[key] = quantize_money(totals[key] + Decimal(str(bd.get(key, "0.00"))))
+
+    if lines_estimated == 0:
+        return None
+
+    assessed = totals["assessed_value"]
+    eff_rate = (
+        quantize_money((totals["total_duties_and_taxes"] / assessed) * Decimal("100"))
+        if assessed > Decimal("0")
+        else Decimal("0.00")
+    )
+    return {
+        "total_assessed_value": f"{totals['assessed_value']:.2f}",
+        "total_customs_duty": f"{totals['customs_duty']:.2f}",
+        "total_additional_customs_duty": f"{totals['additional_customs_duty']:.2f}",
+        "total_regulatory_duty": f"{totals['regulatory_duty']:.2f}",
+        "total_sales_tax": f"{totals['sales_tax']:.2f}",
+        "total_value_addition_tax": f"{totals['value_addition_tax']:.2f}",
+        "total_advance_income_tax": f"{totals['advance_income_tax']:.2f}",
+        "total_duties_and_taxes": f"{totals['total_duties_and_taxes']:.2f}",
+        "total_landed_cost": f"{totals['total_landed_cost']:.2f}",
+        "effective_rate_pct": f"{eff_rate:.2f}",
+        "lines_estimated": lines_estimated,
+        "total_lines": len(line_items),
+        "currency": currency,
+        "basis_note": (
+            "Estimated under Pakistan FY2026-27 statutory import-stage cascading rates "
+            "(CD, S.R.O. 1063(I)/2026 ACD, RD, ST 18%, VAT 3%, Sec. 148 AIT 5.5%) "
+            "using invoice line value as assessed base for landed-cost reference."
+        ),
+    }
+
+
+def _line_items(
+    extraction: dict,
+    *,
+    db: Session | None = None,
+    currency: str | None = None,
+) -> list[dict[str, Any]]:
     invoice = extraction.get("invoice") or {}
     packing = extraction.get("packing_list") or {}
     results = extraction.get("items") or []
@@ -171,15 +294,17 @@ def _line_items(extraction: dict) -> list[dict[str, Any]]:
         result = result_by_invoice_index.get(index, {})
         packing_item = packing_by_index.get(result.get("packing_item_index"))
         match_strategy = result.get("match_strategy")
+        pct_code = _fv(line.get("pct_code"))
+        line_total = _fv(line.get("line_total"))
         rows.append(
             {
                 "line_number": _fv(line.get("line_number")),
                 "product_name": _fv(line.get("product_name")),
-                "pct_code": _fv(line.get("pct_code")),
+                "pct_code": pct_code,
                 "quantity": _fv(line.get("quantity")),
                 "unit": _fv(line.get("unit")),
                 "unit_price": _fv(line.get("unit_price")),
-                "line_total": _fv(line.get("line_total")),
+                "line_total": line_total,
                 "net_weight": _fv(line.get("net_weight")),
                 "gross_weight": _fv(line.get("gross_weight")),
                 "invoice_source_page": line.get("item_source_page"),
@@ -188,6 +313,12 @@ def _line_items(extraction: dict) -> list[dict[str, Any]]:
                 ),
                 "match_method": _MATCH_METHODS.get(match_strategy, match_strategy),
                 "extraction_confidence": line.get("item_confidence"),
+                "duty_estimate": _estimate_line_duty(
+                    pct_code,
+                    line_total,
+                    db=db,
+                    currency=currency,
+                ),
             }
         )
     return rows
@@ -622,7 +753,11 @@ def _correction_field_label(field_path: str) -> str:
     try:
         parsed = parse_field_path(field_path)
     except InvalidFieldPathError:
-        return field_path.replace("_", " ").strip().capitalize() or "Supporting document"
+        return (
+            _DOCUMENT_NAMES.get(field_path)
+            or field_path.replace("_", " ").strip().capitalize()
+            or "Supporting document"
+        )
     document_label = "Invoice" if parsed.document == "invoice" else "Packing list"
     field_label = _CORRECTION_FIELD_LABELS.get(parsed.field, parsed.field.replace("_", " "))
     return f"{document_label} {field_label}"
@@ -677,7 +812,11 @@ def _audit_revision_rows(revisions: list[dict[str, Any]]) -> list[dict[str, Any]
     return rows
 
 
-def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
+def build_audit_report(
+    state: dict[str, Any],
+    *,
+    db: Session | None = None,
+) -> dict[str, Any]:
     """Assemble the full, business-readable audit report dict from state."""
     extraction = state.get("extraction_result") or {}
     invoice = extraction.get("invoice") or {}
@@ -748,6 +887,10 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
     regulatory_evidence_status_by_check = state.get("regulatory_evidence_status_by_check") or {}
     document_evidence_by_check = state.get("document_evidence_by_check") or {}
     system_scope_statements_by_check = state.get("system_scope_statements_by_check") or {}
+    raw_currency = _fv(invoice.get("currency"))
+    currency = str(raw_currency) if raw_currency else None
+    line_items = _line_items(extraction, db=db, currency=currency)
+    duty_summary = _duty_estimation_summary(line_items, currency=currency)
     return {
         "overall_result": result_label,
         "overall_reason": reason,
@@ -769,7 +912,8 @@ def build_audit_report(state: dict[str, Any]) -> dict[str, Any]:
         "documents_to_obtain": _documents_to_obtain(all_checks),
         "supporting_documents": _supporting_documents(extraction),
         "shipment_summary": _shipment_summary(invoice, packing, state),
-        "line_items": _line_items(extraction),
+        "line_items": line_items,
+        "duty_estimation_summary": duty_summary,
         "checks_passed": checks_passed,
         "problems": problems,
         "required_actions": actions,

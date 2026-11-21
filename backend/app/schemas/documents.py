@@ -64,3 +64,33 @@ class DocumentExtractionResponse(BaseModel):
     status: str
     page_count: int
     character_count: int
+
+
+class HighlightBox(BaseModel):
+    """PDF page bounding box in both point coordinates and viewport percentages."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    left_pct: float
+    top_pct: float
+    width_pct: float
+    height_pct: float
+    text: str
+    match_type: str
+
+
+class DocumentPagePreviewResponse(BaseModel):
+    """Metadata, dimensions, image URL, and highlighted field locations for one PDF page."""
+
+    document_id: UUID
+    original_filename: str
+    page_number: int
+    page_count: int
+    page_width: float
+    page_height: float
+    image_url: str
+    word_count: int
+    highlight_query: str | None = None
+    highlights: list[HighlightBox] = Field(default_factory=list)

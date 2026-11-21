@@ -258,20 +258,30 @@ _HEADER_PHRASES: tuple[tuple[str, str | None], ...] = (
     ("total amount", "line_total"),
     ("amount", "line_total"),
     ("value", "line_total"),
-    # Columns that genuinely exist but are not part of the line-item schema.
-    # Naming them explicitly is what stops their values being reassigned to a
-    # neighbouring modelled column.
-    ("net wt kg", None),
-    ("gross wt kg", None),
-    ("net wt", None),
-    ("gross wt", None),
-    ("net weight", None),
-    ("gross weight", None),
-    ("packages", None),
-    ("line", None),
+    ("net weight kg", "net_weight"),
+    ("net weight kgs", "net_weight"),
+    ("net wt kg", "net_weight"),
+    ("net wt kgs", "net_weight"),
+    ("net weight", "net_weight"),
+    ("net wt", "net_weight"),
+    ("gross weight kg", "gross_weight"),
+    ("gross weight kgs", "gross_weight"),
+    ("gross wt kg", "gross_weight"),
+    ("gross wt kgs", "gross_weight"),
+    ("gross weight", "gross_weight"),
+    ("gross wt", "gross_weight"),
+    ("package count", "package_count"),
+    ("no of packages", "package_count"),
+    ("packages", "package_count"),
+    ("pkgs", "package_count"),
+    # Columns that genuinely exist as row-index markers but are not part of the
+    # line-item payload. Naming them explicitly prevents their digits from
+    # bleeding into the neighbouring description column.
+    ("item no", None),
     ("sr no", None),
     ("s no", None),
-    ("item no", None),
+    ("line", None),
+    ("item", None),
     ("no", None),
 )
 
@@ -298,12 +308,40 @@ _TABLE_END_MARKERS: tuple[str, ...] = (
     "shipping mark",
     "test note",
     "declaration",
+    "packing method",
+    "authorized signature",
+    "prepared by",
+    "synthetic test document",
+    "note:",
+    "remarks:",
 )
 
 _MAX_PHRASE_WORDS = max(len(phrase.split()) for phrase, _ in _HEADER_PHRASES)
 
 #: Vertical tolerance, in points, for treating words as being on the same row.
 _ROW_TOLERANCE = 3.0
+#: Vertical window, in points, for grouping wrapped two-line column headings
+#: into the same header band (e.g. "Item\nRef." next to "Product Description").
+_WRAPPED_HEADER_Y_TOLERANCE = 12.0
+_PAREN_UNIT_TOKEN = re.compile(r"^\([A-Za-z0-9./$]+\)$")
+
+
+def _row_y_midpoint(row: list[tuple]) -> float:
+    return sum((word[1] + word[3]) / 2 for word in row) / len(row)
+
+
+def _is_non_data_header_band_row(row: list[tuple]) -> bool:
+    return bool(row) and not any(
+        any(character.isdigit() for character in word[4]) for word in row
+    )
+
+
+def _rows_horizontally_disjoint(row_a: list[tuple], row_b: list[tuple]) -> bool:
+    return all(
+        a[2] <= b[0] + 1.0 or b[2] <= a[0] + 1.0
+        for a in row_a
+        for b in row_b
+    )
 
 
 def _cluster_rows(words: list[tuple]) -> list[list[tuple]]:
@@ -391,6 +429,11 @@ def _identify_header(row: list[tuple]) -> list[_Column] | None:
             continue
 
         _, field_name, span = matched_phrase
+        while (
+            index + span < len(words)
+            and _PAREN_UNIT_TOKEN.match(words[index + span][4].strip())
+        ):
+            span += 1
         group = words[index : index + span]
         if field_name is not None:
             claimed.add(field_name)
@@ -418,12 +461,28 @@ def _column_boundaries(columns: list[_Column]) -> list[float]:
     closer to the previous heading's centre. On a real fixture that dropped the
     leading word of "Raw cotton, other" into the unmodelled "Line" column.
     Splitting in the gap between headings assigns the whole cell correctly.
+
+    For a left-aligned ``description`` column sitting to the left of a
+    left-aligned ``pct_code`` or ``unit`` heading, keep the horizontal gap inside
+    ``description`` right up to just before the next heading's left edge so long
+    product descriptions are not clipped at the heading midpoint.
     """
     ordered = sorted(columns, key=lambda column: column.left)
-    return [
-        (ordered[index].right + ordered[index + 1].left) / 2
-        for index in range(len(ordered) - 1)
-    ]
+    boundaries: list[float] = []
+    for index in range(len(ordered) - 1):
+        left_col = ordered[index]
+        right_col = ordered[index + 1]
+        midpoint = (left_col.right + right_col.left) / 2
+        if (
+            left_col.field_name == "description"
+            and right_col.field_name in ("pct_code", "unit")
+        ):
+            boundaries.append(
+                min(right_col.left, max(midpoint, right_col.left - 4.0))
+            )
+        else:
+            boundaries.append(midpoint)
+    return boundaries
 
 
 def _assign_to_column(
@@ -438,6 +497,43 @@ def _assign_to_column(
         if centre < boundary:
             return ordered[index]
     return ordered[-1]
+
+
+def _normalise_row_cells(
+    cells: dict[str, str], *, method: Method
+) -> dict[str, FieldResult]:
+    item: dict[str, FieldResult] = {}
+    for name, raw in cells.items():
+        cleaned = raw.strip()
+        if not cleaned:
+            item[name] = FieldResult(reason="empty cell")
+            continue
+        normalised = _normalise_value(name, cleaned)
+        if normalised is None:
+            item[name] = FieldResult(
+                confidence="low",
+                method=method,
+                candidates=[cleaned],
+                reason=f"cell text {cleaned!r} did not normalise for {name}",
+            )
+            continue
+        item[name] = FieldResult(
+            value=normalised,
+            confidence="high",
+            method=method,
+            candidates=[normalised],
+        )
+    return item
+
+
+def _is_valid_reconstructed_item(item: dict[str, FieldResult]) -> bool:
+    has_resolved_description = "description" in item and item["description"].resolved
+    has_resolved_key_cell = any(
+        item[name].resolved
+        for name in ("quantity", "line_total", "unit_price", "pct_code")
+        if name in item
+    )
+    return has_resolved_description and has_resolved_key_cell
 
 
 def reconstruct_line_items(page_words: list[list[tuple]]) -> list[dict[str, FieldResult]]:
@@ -458,57 +554,106 @@ def reconstruct_line_items(page_words: list[list[tuple]]) -> list[dict[str, Fiel
             continue
         rows = _cluster_rows(words)
         columns: list[_Column] | None = None
+        boundaries: list[float] = []
 
-        for row in rows:
+        row_index = 0
+        while row_index < len(rows):
+            row = rows[row_index]
             if columns is None:
-                columns = _identify_header(row)
+                candidate = _identify_header(row)
+                if candidate is None:
+                    row_index += 1
+                    continue
+
+                header_words = list(row)
+                header_y = _row_y_midpoint(row)
+
+                if row_index > 0:
+                    prev_row = rows[row_index - 1]
+                    if (
+                        abs(_row_y_midpoint(prev_row) - header_y)
+                        <= _WRAPPED_HEADER_Y_TOLERANCE
+                        and _is_non_data_header_band_row(prev_row)
+                        and _rows_horizontally_disjoint(header_words, prev_row)
+                    ):
+                        merged = _identify_header(header_words + prev_row)
+                        if merged is not None:
+                            candidate = merged
+                            header_words = header_words + prev_row
+
+                if row_index + 1 < len(rows):
+                    next_row = rows[row_index + 1]
+                    if (
+                        abs(_row_y_midpoint(next_row) - header_y)
+                        <= _WRAPPED_HEADER_Y_TOLERANCE
+                        and _is_non_data_header_band_row(next_row)
+                    ):
+                        if _rows_horizontally_disjoint(header_words, next_row):
+                            merged = _identify_header(header_words + next_row)
+                            if merged is not None:
+                                candidate = merged
+                                header_words = header_words + next_row
+                        row_index += 1
+
+                columns = sorted(candidate, key=lambda column: column.left)
+                boundaries = _column_boundaries(columns)
+                row_index += 1
                 continue
 
             mapped_names = [c.field_name for c in columns if c.field_name]
             cells: dict[str, list[str]] = {name: [] for name in mapped_names}
-            boundaries = _column_boundaries(columns)
+            prev_word: tuple | None = None
+            prev_col: _Column | None = None
             for word in row:
                 assigned = _assign_to_column(word, columns, boundaries)
+                if (
+                    prev_word is not None
+                    and prev_col is not None
+                    and prev_col.field_name == "description"
+                    and assigned is not None
+                    and assigned is not prev_col
+                ):
+                    prev_idx = columns.index(prev_col)
+                    if (
+                        prev_idx + 1 < len(columns)
+                        and assigned is columns[prev_idx + 1]
+                        and word[0] - prev_word[2] <= 6.0
+                        and word[2] <= assigned.left
+                    ):
+                        assigned = prev_col
                 # A word under an unmodelled column is dropped, not reassigned
                 # to the nearest modelled one.
                 if assigned is not None and assigned.field_name is not None:
                     cells[assigned.field_name].append(word[4])
+                prev_word = word
+                prev_col = assigned
 
+            full_row_text = " ".join(word[4] for word in row).strip()
             description_text = " ".join(cells.get("description") or []).strip()
-            if description_text.casefold().startswith(_TABLE_END_MARKERS):
+            if (
+                description_text.casefold().startswith(_TABLE_END_MARKERS)
+                or full_row_text.casefold().startswith(_TABLE_END_MARKERS)
+            ):
                 # The item table has ended; nothing below this row on the
                 # page is another product line.
                 break
 
             if not cells.get("description") or not any(
-                cells.get(name) for name in ("quantity", "line_total", "unit_price")
+                cells.get(name)
+                for name in ("quantity", "line_total", "unit_price", "pct_code")
             ):
-                # A row with no description or no numbers is a subtotal line,
-                # a page footer, or spacing - not a line item.
+                # A row with no description or no numbers/code is a subtotal
+                # line, a page footer, or spacing - not a line item.
+                row_index += 1
                 continue
 
-            item: dict[str, FieldResult] = {}
-            for name, tokens in cells.items():
-                raw = " ".join(tokens).strip()
-                if not raw:
-                    item[name] = FieldResult(reason="empty cell")
-                    continue
-                normalised = _normalise_value(name, raw)
-                if normalised is None:
-                    item[name] = FieldResult(
-                        confidence="low",
-                        method="regex_table",
-                        candidates=[raw],
-                        reason=f"cell text {raw!r} did not normalise for {name}",
-                    )
-                    continue
-                item[name] = FieldResult(
-                    value=normalised,
-                    confidence="high",
-                    method="regex_table",
-                    candidates=[normalised],
-                )
+            raw_cells = {name: " ".join(tokens) for name, tokens in cells.items()}
+            item = _normalise_row_cells(raw_cells, method="regex_table")
+            if not _is_valid_reconstructed_item(item):
+                row_index += 1
+                continue
             items.append(item)
+            row_index += 1
 
     return items
 
@@ -532,7 +677,8 @@ _MIN_STACKED_HEADER_COLUMNS = 3
 
 def _stacked_header_phrase(line: str) -> tuple[str, str | None] | None:
     """The header column this whole line names, if it names one exactly."""
-    key = re.sub(r"[^a-z ]", " ", line.casefold())
+    stripped = re.sub(r"\([^)]*\)", " ", line.casefold())
+    key = re.sub(r"[^a-z ]", " ", stripped)
     key = " ".join(key.split())
     if not key:
         return None
@@ -594,7 +740,8 @@ def _stacked_rows(
             if column.field_name is not None
         }
         if not cells.get("description") or not any(
-            cells.get(name) for name in ("quantity", "line_total", "unit_price")
+            cells.get(name)
+            for name in ("quantity", "line_total", "unit_price", "pct_code")
         ):
             break
         rows.append(cells)
@@ -621,25 +768,12 @@ def reconstruct_line_items_from_text(text: str) -> list[dict[str, FieldResult]]:
             continue
         items: list[dict[str, FieldResult]] = []
         for cells in rows:
-            item: dict[str, FieldResult] = {}
-            for name, raw in cells.items():
-                normalised = _normalise_value(name, raw)
-                if normalised is None:
-                    item[name] = FieldResult(
-                        confidence="low",
-                        method="regex_stacked_table",
-                        candidates=[raw],
-                        reason=f"cell text {raw!r} did not normalise for {name}",
-                    )
-                    continue
-                item[name] = FieldResult(
-                    value=normalised,
-                    confidence="high",
-                    method="regex_stacked_table",
-                    candidates=[normalised],
-                )
+            item = _normalise_row_cells(cells, method="regex_stacked_table")
+            if not _is_valid_reconstructed_item(item):
+                continue
             items.append(item)
-        return items
+        if items:
+            return items
     return []
 
 

@@ -22,6 +22,7 @@ uploads/
 .local/
 .cache/
 .evaluation_cache/
+benchmark_cache/
 *.sqlite
 *.sqlite3
 *.db

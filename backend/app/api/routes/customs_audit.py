@@ -1,6 +1,7 @@
-from typing import Any
+import json
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db_session
@@ -12,6 +13,10 @@ from app.schemas.customs_audit import (
     SubmitReviewRequest,
     WorkflowListResponse,
     WorkflowStatusResponse,
+)
+from app.services.customs_audit.dossier import (
+    build_audit_dossier_payload,
+    render_audit_dossier_pdf,
 )
 from app.services.customs_audit.factory import get_app_customs_audit_service
 from app.services.customs_audit.state import HumanAction, utcnow_iso
@@ -39,7 +44,14 @@ def _uuid_or_404(service: CustomsAuditService, db: Session, workflow_id: str):
 
 def _decision_from_request(payload: SubmitReviewRequest) -> dict[str, Any]:
     corrections: list[dict[str, Any]] = []
-    if payload.action == HumanAction.CORRECT_EXTRACTED_VALUE.value and payload.field_path:
+    if (
+        payload.action
+        in {
+            HumanAction.CORRECT_EXTRACTED_VALUE.value,
+            HumanAction.CONFIRM_EXTRACTED_VALUE.value,
+        }
+        and payload.field_path
+    ):
         corrections.append(
             {
                 "field_path": payload.field_path,
@@ -58,6 +70,7 @@ def _decision_from_request(payload: SubmitReviewRequest) -> dict[str, Any]:
         "reviewer_reference": payload.reviewer_reference,
         "reason": payload.reason,
         "review_note": payload.review_note,
+        "source": payload.source,
         "timestamp": utcnow_iso(),
     }
 
@@ -196,3 +209,42 @@ async def retry_workflow(
         raise HTTPException(status_code=404, detail="workflow not found") from exc
     except WorkflowStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/workflows/{workflow_id}/dossier")
+def export_workflow_dossier(
+    workflow_id: str,
+    format: Literal["pdf", "json"] = Query(default="pdf"),
+    db: Session = Depends(get_db_session),
+    service: CustomsAuditService = Depends(get_customs_audit_service),
+) -> Response:
+    wid = _uuid_or_404(service, db, workflow_id)
+    try:
+        workflow_status = service.get_status(db, wid)
+        events = service.get_events(db, wid)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="workflow not found") from exc
+
+    dossier = build_audit_dossier_payload(workflow_status, events)
+    short_id = str(wid)[:8]
+    if format == "json":
+        return Response(
+            content=json.dumps(dossier, indent=2, default=str),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="cace-audit-dossier-{short_id}.json"'
+                )
+            },
+        )
+
+    pdf_bytes = render_audit_dossier_pdf(dossier)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="cace-audit-packet-{short_id}.pdf"'
+            )
+        },
+    )

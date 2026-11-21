@@ -1561,3 +1561,9 @@ def get_cached_multi_line_response(
 
     cached = _REVISION_PIPELINE_CACHE.get(_revision_cache_key(request))
     return copy.deepcopy(cached) if cached is not None else None
+
+
+def invalidate_cached_multi_line_response(
+    request: MultiLineShipmentRequest,
+) -> None:
+    _REVISION_PIPELINE_CACHE.pop(_revision_cache_key(request), None)

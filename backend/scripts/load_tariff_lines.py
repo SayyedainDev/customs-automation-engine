@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.core.database import get_engine  # noqa: E402
 from app.models.tariff import TariffLine  # noqa: E402
+from app.services.compliance.duty_calculator import statutory_tax_defaults_for_cd  # noqa: E402
 
 DEFAULT_JSON = (
     BACKEND_ROOT.parent / "regulatory_data" / "processed" / "fbr" / "pct" / "tariff_lines_fy2025_26.json"
@@ -37,6 +38,36 @@ def load_rows(session: Session, rows: list[dict]) -> int:
     codes = [row["hs_code"] for row in rows]
     session.execute(delete(TariffLine).where(TariffLine.hs_code.in_(codes)))
     for row in rows:
+        needs_review = bool(row.get("needs_review", False))
+        customs_duty_pct = row.get("customs_duty_pct")
+        if not needs_review and customs_duty_pct is not None:
+            defaults = statutory_tax_defaults_for_cd(customs_duty_pct)
+            acd_pct = (
+                row.get("additional_duty_pct")
+                if row.get("additional_duty_pct") is not None
+                else defaults["additional_duty_pct"]
+            )
+            rd_pct = (
+                row.get("regulatory_duty_pct")
+                if row.get("regulatory_duty_pct") is not None
+                else defaults["regulatory_duty_pct"]
+            )
+            st_pct = (
+                row.get("sales_tax_pct")
+                if row.get("sales_tax_pct") is not None
+                else defaults["sales_tax_pct"]
+            )
+            wht_pct = (
+                row.get("income_tax_pct")
+                if row.get("income_tax_pct") is not None
+                else defaults["income_tax_pct"]
+            )
+        else:
+            acd_pct = None
+            rd_pct = None
+            st_pct = None
+            wht_pct = None
+
         session.add(
             TariffLine(
                 id=uuid4(),
@@ -44,11 +75,15 @@ def load_rows(session: Session, rows: list[dict]) -> int:
                 description=row["description"],
                 chapter=row.get("chapter"),
                 heading=row.get("heading"),
-                customs_duty_pct=row.get("customs_duty_pct"),
+                customs_duty_pct=customs_duty_pct,
+                additional_duty_pct=acd_pct,
+                regulatory_duty_pct=rd_pct,
+                sales_tax_pct=st_pct,
+                income_tax_pct=wht_pct,
                 unit=row.get("unit"),
                 tariff_year=row["tariff_year"],
                 source_page=row.get("source_page"),
-                needs_review=bool(row.get("needs_review", False)),
+                needs_review=needs_review,
             )
         )
     session.commit()

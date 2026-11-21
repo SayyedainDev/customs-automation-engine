@@ -70,6 +70,8 @@ _LINE_FIELD_MAP: dict[str, str] = {
     "unit": "unit",
     "unit_price": "unit_price",
     "line_total": "line_total",
+    "net_weight": "net_weight",
+    "gross_weight": "gross_weight",
 }
 
 #: hybrid field name -> packing-list header schema field name. Packing lists
@@ -85,16 +87,15 @@ _PACKING_HEADER_FIELD_MAP: dict[str, str] = {
 #: everything else in _PACKING_HEADER_FIELD_MAP coerces through _decimal.
 _PACKING_HEADER_INT_FIELDS: frozenset[str] = frozenset({"declared_package_count_total"})
 
-#: hybrid line-item field name -> packing-list item schema field name. A
-#: packing-list table has no price column; per-item net_weight/gross_weight/
-#: package_count have no reconstructable column either (`_HEADER_PHRASES`
-#: deliberately leaves "net wt"/"gross wt"/"packages" unmapped, same as the
-#: invoice mapper's per-line weights), so they stay unresolved here too.
+#: hybrid line-item field name -> packing-list item schema field name.
 _PACKING_LINE_FIELD_MAP: dict[str, str] = {
     "description": "product_name",
     "pct_code": "pct_code",
     "quantity": "quantity",
     "unit": "unit",
+    "net_weight": "net_weight",
+    "gross_weight": "gross_weight",
+    "package_count": "package_count",
 }
 
 
@@ -345,7 +346,13 @@ def to_packing_candidates(
                     "not a reconstructed column on this table"
                 )
                 continue
-            coerce = _decimal if schema_field == "quantity" else None
+            coerce: Callable[[Any], Any] | None
+            if schema_field in {"quantity", "net_weight", "gross_weight"}:
+                coerce = _decimal
+            elif schema_field == "package_count":
+                coerce = _int
+            else:
+                coerce = None
             line_payload[schema_field] = _candidate(
                 item.get(source), page=page, coerce=coerce
             )

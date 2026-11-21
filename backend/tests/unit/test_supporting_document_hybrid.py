@@ -181,7 +181,7 @@ def test_deployed_next_line_layout_is_fully_resolved_without_label_fragments(
     assert extraction.unresolved_important_fields() == []
     assert extraction.fields["document_number"].value == expected_number
     exporter = extraction.fields["exporter_or_applicant"]
-    assert exporter.value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert exporter.value == "Lahore Cotton Garments (Pvt.) Ltd."
     assert exporter.raw_value == "Lahore Cotton Garments (Pvt.) Ltd."
     assert exporter.source_label == "Exporter / Applicant"
     assert "Applicant" not in exporter.raw_value
@@ -205,7 +205,7 @@ def test_compound_exporter_label_is_consumed_as_one_label(label: str) -> None:
     extraction = hybrid.extract_deterministically(_bundle(text), FORM)
 
     field = extraction.fields["exporter_or_applicant"]
-    assert field.value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert field.value == "Lahore Cotton Garments (Pvt.) Ltd."
     assert field.source_label == label
     assert field.source_span is not None
 
@@ -243,7 +243,7 @@ def test_exporter_layout_variants_are_label_aware(replacement: str) -> None:
     )
     extraction = hybrid.extract_deterministically(_bundle(text), FORM)
     assert extraction.fields["exporter_or_applicant"].value == (
-        "Lahore Cotton Garments (Pvt.) Ltd"
+        "Lahore Cotton Garments (Pvt.) Ltd."
     )
 
 
@@ -257,7 +257,7 @@ def test_multiline_exporter_stops_before_address_and_next_field() -> None:
     )
     extraction = hybrid.extract_deterministically(_bundle(text), FORM)
     field = extraction.fields["exporter_or_applicant"]
-    assert field.value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert field.value == "Lahore Cotton Garments (Pvt.) Ltd."
     assert field.raw_value is not None
     assert "Industrial Estate" not in field.raw_value
     assert "Invoice Number" not in field.source_excerpt
@@ -323,7 +323,7 @@ def test_standard_documents_make_zero_gapfill_calls(
                 "Consignor\nSynthetic Alternate Exporter Ltd.",
             ),
             "exporter_or_applicant",
-            "Synthetic Alternate Exporter Ltd",
+            "Synthetic Alternate Exporter Ltd.",
         ),
         (
             COO,
@@ -534,7 +534,7 @@ def test_two_unresolved_fields_use_one_small_request(
     assert telemetry["estimated_input_tokens"] < 1_000
     assert extraction.fields["document_number"].value == "PSW-EXP-2026-00192"
     assert extraction.fields["exporter_or_applicant"].value == (
-        "Lahore Cotton Garments (Pvt.) Ltd"
+        "Lahore Cotton Garments (Pvt.) Ltd."
     )
 
 
@@ -777,7 +777,7 @@ def test_provider_failure_preserves_deterministic_fields_and_retry_state(
         cache = record.structured_data["supporting_document"]
         assert cache["status"] == "partial"
         assert cache["candidates"]["exporter_or_applicant"]["value"] == (
-            "Synthetic Textile Exporter Ltd"
+            "Synthetic Textile Exporter Ltd."
         )
         assert cache["candidates"]["document_number"]["value"] is None
         assert record.structured_extraction_status == "partial"

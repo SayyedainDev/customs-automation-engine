@@ -28,6 +28,7 @@ from app.services.extraction.patterns import (
     normalise_count,
     normalise_identifier,
     normalise_money,
+    normalise_org,
     normalise_pct_code,
     normalise_text,
     parse_date,
@@ -88,7 +89,7 @@ def test_compound_label_is_never_captured_as_its_own_value(document: str) -> Non
     producing ``consignee_name = "/ Consignee"``. Confidently wrong.
     """
     result = extract_field("consignee_name", normalise_text(document))
-    assert result.value == "Shanghai Sample Trading Co., Ltd"
+    assert result.value == "Shanghai Sample Trading Co., Ltd."
     assert "consignee" not in (result.value or "").lower()
 
 
@@ -109,7 +110,7 @@ def test_atomic_label_prevents_backtracking_into_a_partial_label() -> None:
     for document in (TEXT_LAYER_INVOICE, OCR_SINGLE_LINE_INVOICE):
         result = extract_field("consignee_name", normalise_text(document))
         assert result.confidence == "high", result.candidates
-        assert result.candidates == ["Shanghai Sample Trading Co., Ltd"]
+        assert result.candidates == ["Shanghai Sample Trading Co., Ltd."]
 
 
 def test_prose_word_is_not_accepted_as_an_invoice_number() -> None:
@@ -134,8 +135,8 @@ def test_text_layer_and_ocr_layouts_agree(document: str) -> None:
         for name, result in extraction.fields.items()
         if result.resolved
     }
-    assert resolved["exporter_name"] == "Lahore Cotton Garments (Pvt.) Ltd"
-    assert resolved["consignee_name"] == "Shanghai Sample Trading Co., Ltd"
+    assert resolved["exporter_name"] == "Lahore Cotton Garments (Pvt.) Ltd."
+    assert resolved["consignee_name"] == "Shanghai Sample Trading Co., Ltd."
     assert resolved["invoice_number"] == "LCG-INV-2026-002"
     assert resolved["invoice_date"] == "2026-06-25"
     assert resolved["country_of_destination"] == "China"
@@ -448,8 +449,8 @@ def test_orchestrator_output_validates_against_the_existing_schema() -> None:
     candidates = to_invoice_candidates(extraction)
     assert isinstance(candidates, MultiLineInvoiceCandidates)
     assert candidates.invoice_number.value == "LCG-INV-2026-002"
-    assert candidates.exporter_name.value == "Lahore Cotton Garments (Pvt.) Ltd"
-    assert candidates.buyer_name.value == "Shanghai Sample Trading Co., Ltd"
+    assert candidates.exporter_name.value == "Lahore Cotton Garments (Pvt.) Ltd."
+    assert candidates.buyer_name.value == "Shanghai Sample Trading Co., Ltd."
     assert candidates.invoice_total.value == Decimal("550.00")
     assert len(candidates.line_items) == 1
     assert candidates.line_items[0].pct_code.value == "61091000"
@@ -576,9 +577,9 @@ def test_two_word_label_does_not_leak_its_second_word_as_the_value() -> None:
     )
     exporter = extract_field("exporter_name", text)
     buyer = extract_field("consignee_name", text)
-    assert exporter.value == "Lahore Cotton Garments (Pvt.) Ltd"
+    assert exporter.value == "Lahore Cotton Garments (Pvt.) Ltd."
     assert exporter.value != "Name"
-    assert buyer.value == "Shanghai Sample Trading Co., Ltd"
+    assert buyer.value == "Shanghai Sample Trading Co., Ltd."
     assert buyer.value != "Name"
 
 
@@ -587,8 +588,8 @@ def test_plain_single_word_label_still_extracts_correctly() -> None:
     text = normalise_text(
         "Exporter\nLahore Cotton Garments (Pvt.) Ltd.\nBuyer\nSample Buyer Co.\n"
     )
-    assert extract_field("exporter_name", text).value == "Lahore Cotton Garments (Pvt.) Ltd"
-    assert extract_field("consignee_name", text).value == "Sample Buyer Co"
+    assert extract_field("exporter_name", text).value == "Lahore Cotton Garments (Pvt.) Ltd."
+    assert extract_field("consignee_name", text).value == "Sample Buyer Co."
 
 
 def test_weight_field_rejects_a_bare_row_number_next_to_the_label() -> None:
@@ -636,3 +637,242 @@ def test_trailing_currency_code_is_accepted_same_as_a_leading_one() -> None:
     )
     assert trailing.value == "550.00"
     assert leading.value == "550.00"
+
+
+# --------------------------------------------------------------------------- #
+# Flow 1 fixes: legal suffix punctuation, per-line weights/packages,
+# column boundaries, wrapped headers, and footer/prose filtering.
+# --------------------------------------------------------------------------- #
+def test_normalise_org_preserves_legal_abbreviation_dot_but_strips_prose_dot() -> None:
+    assert (
+        normalise_org("Faisalabad Home Textiles (Pvt.) Ltd.")
+        == "Faisalabad Home Textiles (Pvt.) Ltd."
+    )
+    assert (
+        normalise_org("Hangzhou Home Living Co., Ltd.")
+        == "Hangzhou Home Living Co., Ltd."
+    )
+    assert normalise_org("Acme Exports Inc.") == "Acme Exports Inc."
+    assert (
+        normalise_org("Karachi Address Exporters Ltd")
+        == "Karachi Address Exporters Ltd"
+    )
+    assert normalise_org("Multan, Pakistan.") == "Multan, Pakistan"
+    assert normalise_org("...") is None
+
+
+def test_total_prefixed_weight_labels_resolve_without_gapfill() -> None:
+    text = normalise_text(
+        "PACKING LIST\n"
+        "Total Packages   5 Cartons\n"
+        "Total Net Weight   75.00 KG\n"
+        "Total Gross Weight   80.00 KG\n"
+    )
+    assert extract_field("net_weight", text).value == "75.00"
+    assert extract_field("gross_weight", text).value == "80.00"
+    assert extract_field("number_of_packages", text).value == "5"
+
+
+def test_per_line_weights_and_packages_reconstruct_on_multi_line_tables() -> None:
+    invoice_header = [
+        _word(50, 63, 100, "Line"),
+        _word(74, 102, 100, "Product"),
+        _word(105, 139, 100, "Description"),
+        _word(216, 231, 100, "PCT"),
+        _word(233, 251, 100, "Code"),
+        _word(285, 313, 100, "Quantity"),
+        _word(316, 340, 100, "Unit"),
+        _word(355, 371, 100, "Unit"),
+        _word(373, 397, 100, "Price"),
+        _word(408, 425, 100, "Line"),
+        _word(427, 455, 100, "Total"),
+        _word(462, 476, 100, "Net"),
+        _word(478, 488, 100, "Wt"),
+        _word(490, 508, 100, "(KG)"),
+        _word(515, 535, 100, "Gross"),
+        _word(537, 546, 100, "Wt"),
+        _word(548, 566, 100, "(KG)"),
+    ]
+    invoice_rows = [
+        _word(50, 56, 120, "1"),
+        _word(74, 150, 120, "Cotton knitted T-shirts"),
+        _word(216, 251, 120, "6109.1000"),
+        _word(295, 313, 120, "100"),
+        _word(316, 336, 120, "PCS"),
+        _word(375, 397, 120, "5.50"),
+        _word(425, 455, 120, "550.00"),
+        _word(485, 508, 120, "75.00"),
+        _word(540, 566, 120, "80.00"),
+        _word(50, 56, 136, "2"),
+        _word(74, 125, 136, "Denim fabric"),
+        _word(216, 251, 136, "5209.4200"),
+        _word(295, 313, 136, "500"),
+        _word(316, 336, 136, "MTR"),
+        _word(375, 397, 136, "4.50"),
+        _word(420, 455, 136, "2250.00"),
+        _word(480, 508, 136, "450.00"),
+        _word(535, 566, 136, "460.00"),
+    ]
+    invoice_extraction = extract_document(
+        TEXT_LAYER_INVOICE, page_words=[invoice_header + invoice_rows]
+    )
+    invoice_candidates = to_invoice_candidates(invoice_extraction)
+    assert len(invoice_candidates.line_items) == 2
+    assert invoice_candidates.line_items[0].net_weight.value == Decimal("75.00")
+    assert invoice_candidates.line_items[0].gross_weight.value == Decimal("80.00")
+    assert invoice_candidates.line_items[1].net_weight.value == Decimal("450.00")
+    assert invoice_candidates.line_items[1].gross_weight.value == Decimal("460.00")
+
+    packing_header = [
+        _word(50, 65, 100, "Item"),
+        _word(76, 105, 100, "Product"),
+        _word(107, 143, 100, "Description"),
+        _word(216, 231, 100, "PCT"),
+        _word(233, 251, 100, "Code"),
+        _word(285, 313, 100, "Quantity"),
+        _word(316, 335, 100, "Unit"),
+        _word(347, 389, 100, "Packages"),
+        _word(398, 412, 100, "Net"),
+        _word(414, 424, 100, "Wt"),
+        _word(426, 447, 100, "(KG)"),
+        _word(454, 474, 100, "Gross"),
+        _word(476, 486, 100, "Wt"),
+        _word(488, 510, 100, "(KG)"),
+    ]
+    packing_rows = [
+        _word(50, 56, 120, "1"),
+        _word(76, 152, 120, "Cotton knitted T-shirts"),
+        _word(216, 251, 120, "6109.1000"),
+        _word(295, 313, 120, "100"),
+        _word(316, 335, 120, "PCS"),
+        _word(355, 360, 120, "5"),
+        _word(362, 389, 120, "Cartons"),
+        _word(420, 447, 120, "75.00"),
+        _word(480, 510, 120, "80.00"),
+        _word(50, 56, 136, "2"),
+        _word(76, 125, 136, "Denim fabric"),
+        _word(216, 251, 136, "5209.4200"),
+        _word(295, 313, 136, "500"),
+        _word(316, 335, 136, "MTR"),
+        _word(375, 389, 136, "10"),
+        _word(416, 447, 136, "450.00"),
+        _word(476, 510, 136, "460.00"),
+    ]
+    packing_extraction = extract_document(
+        TEXT_LAYER_PACKING_LIST, page_words=[packing_header + packing_rows]
+    )
+    packing_candidates = to_packing_candidates(packing_extraction)
+    assert len(packing_candidates.items) == 2
+    assert packing_candidates.items[0].package_count.value == 5
+    assert packing_candidates.items[0].net_weight.value == Decimal("75.00")
+    assert packing_candidates.items[0].gross_weight.value == Decimal("80.00")
+    assert packing_candidates.items[1].package_count.value == 10
+    assert packing_candidates.items[1].net_weight.value == Decimal("450.00")
+    assert packing_candidates.items[1].gross_weight.value == Decimal("460.00")
+
+
+def test_wide_product_description_is_not_clipped_by_midpoint_boundary() -> None:
+    header = [
+        _word(50, 64, 100, "Line"),
+        _word(74, 102, 100, "Product"),
+        _word(105, 141, 100, "Description"),
+        _word(216, 231, 100, "PCT"),
+        _word(233, 251, 100, "Code"),
+        _word(285, 313, 100, "Quantity"),
+        _word(316, 331, 100, "Unit"),
+        _word(364, 380, 100, "Unit"),
+        _word(382, 397, 100, "Price"),
+        _word(422, 437, 100, "Line"),
+        _word(440, 455, 100, "Total"),
+    ]
+    row = [
+        _word(50, 55, 120, "1"),
+        _word(74, 115, 120, "Unclassified"),
+        _word(117, 148, 120, "Synthetic"),
+        _word(150, 167, 120, "Fibre"),
+        _word(169, 188, 120, "Blend"),
+        _word(216, 251, 120, "9999.9999"),
+        _word(300, 313, 120, "100"),
+        _word(316, 331, 120, "PCS"),
+        _word(382, 397, 120, "5.50"),
+        _word(432, 455, 120, "550.00"),
+    ]
+    items = reconstruct_line_items([header + row])
+    assert len(items) == 1
+    assert items[0]["description"].value == "Unclassified Synthetic Fibre Blend"
+    assert items[0]["pct_code"].value == "99999999"
+
+
+def test_wrapped_two_line_header_merges_item_and_weight_columns() -> None:
+    upper_header = [
+        _word(34, 52, 95, "Item"),
+        _word(442, 456, 95, "Net"),
+        _word(458, 488, 95, "Weight"),
+        _word(507, 530, 95, "Gross"),
+        _word(532, 560, 95, "Weight"),
+    ]
+    middle_header = [
+        _word(76, 108, 100, "Product"),
+        _word(110, 154, 100, "Description"),
+        _word(212, 228, 100, "PCT"),
+        _word(230, 250, 100, "Code"),
+        _word(278, 312, 100, "Quantity"),
+        _word(329, 345, 100, "Unit"),
+        _word(368, 407, 100, "Packages"),
+    ]
+    lower_header = [
+        _word(34, 50, 105, "Ref."),
+        _word(442, 460, 105, "(KG)"),
+        _word(507, 525, 105, "(KG)"),
+    ]
+    row = [
+        _word(46, 51, 125, "1"),
+        _word(76, 102, 125, "Cotton"),
+        _word(104, 130, 125, "knitted"),
+        _word(132, 162, 125, "T-shirts"),
+        _word(215, 255, 125, "6109.1000"),
+        _word(289, 304, 125, "100"),
+        _word(332, 349, 125, "PCS"),
+        _word(378, 383, 125, "5"),
+        _word(385, 417, 125, "Cartons"),
+        _word(456, 479, 125, "75.00"),
+        _word(521, 544, 125, "80.00"),
+    ]
+    extraction = extract_document(
+        TEXT_LAYER_PACKING_LIST,
+        page_words=[upper_header + middle_header + lower_header + row],
+    )
+    candidates = to_packing_candidates(extraction)
+    assert len(candidates.items) == 1
+    item = candidates.items[0]
+    assert item.product_name.value == "Cotton knitted T-shirts"
+    assert item.pct_code.value == "61091000"
+    assert item.package_count.value == 5
+    assert item.net_weight.value == Decimal("75.00")
+    assert item.gross_weight.value == Decimal("80.00")
+
+
+def test_prose_footer_and_left_aligned_declaration_do_not_create_spurious_items() -> None:
+    page = _packing_table_words()[0]
+    footer_words = [
+        _word(74, 130, 145, "Total Packages"),
+        _word(285, 315, 145, "5 Cartons"),
+        _word(74, 110, 170, "Packing"),
+        _word(112, 145, 170, "method:"),
+        _word(147, 165, 170, "Five"),
+        _word(167, 200, 170, "cartons,"),
+        _word(216, 240, 170, "each"),
+        _word(285, 315, 170, "containing"),
+        _word(74, 110, 185, "testing"),
+        _word(112, 155, 185, "extraction,"),
+        _word(216, 250, 185, "matching,"),
+        _word(285, 305, 185, "OCR"),
+        _word(74, 125, 220, "Declaration:"),
+        _word(285, 315, 220, "100"),
+        _word(159, 210, 260, "SYNTHETIC"),
+        _word(216, 240, 260, "TEST"),
+        _word(285, 315, 260, "DOCUMENT"),
+    ]
+    items = reconstruct_line_items([page + footer_words])
+    assert len(items) == 1
+    assert items[0]["description"].value == "Cotton knitted T-shirts"

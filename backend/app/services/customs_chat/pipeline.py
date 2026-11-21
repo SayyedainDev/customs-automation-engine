@@ -18,6 +18,7 @@ why that distinction matters).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import time
 from uuid import UUID, uuid4
 
@@ -150,6 +151,7 @@ def answer_customs_question(
     conversation_id: UUID | None = None,
     shipment_id: UUID | None = None,
     client: Groq | None = None,
+    on_stage: Callable[[str], None] | None = None,
 ) -> ChatTurnResult:
     started = time.perf_counter()
     settings = get_settings()
@@ -158,8 +160,16 @@ def answer_customs_question(
     def elapsed_ms() -> float:
         return round((time.perf_counter() - started) * 1000, 2)
 
+    stages: list[str] = []
+
+    def emit_stage(stage: str) -> None:
+        if stage not in stages:
+            stages.append(stage)
+            if on_stage is not None:
+                on_stage(stage)
+
     # --- Layer 1: input guard (applies before any routing) -----------------
-    stages: list[str] = ["input_guard"]
+    emit_stage("input_guard")
     if shipment_id is None and conversation_id is not None:
         from app.models.customs_chat import ChatConversation
 
@@ -197,10 +207,11 @@ def answer_customs_question(
     # while persisting the conversation and turns into chat_conversations / chat_turns
     # so GET /conversations/{id} and POST /feedback work seamlessly.
     if shipment_id is not None:
-        stages.extend(["shipment_context_lookup", "shipment_evidence_retrieval"])
+        emit_stage("shipment_context_lookup")
         conversation = history.get_or_create_conversation(
             db, conversation_id, shipment_id=shipment_id
         )
+        emit_stage("shipment_evidence_retrieval")
         shipment_response = answer_shipment_question(
             db, shipment_id, question, conversation.id
         )
@@ -239,7 +250,7 @@ def answer_customs_question(
     conversation = history.get_or_create_conversation(db, conversation_id, shipment_id=None)
 
     # --- Layer 2: scope router -------------------------------------------
-    stages.append("scope_router")
+    emit_stage("scope_router")
     scope_verdict = scope_router.classify_scope(
         question,
         client=client,
@@ -265,7 +276,7 @@ def answer_customs_question(
         )
 
     # --- Query understanding ---------------------------------------------
-    stages.append("query_rewriter")
+    emit_stage("query_rewriter")
     history_text = history.load_history_text(
         db, conversation.id, max_turns=settings.customs_chat_history_turns
     )
@@ -293,15 +304,17 @@ def answer_customs_question(
         standalone_question=understood.standalone_question,
         destination=understood.entities.get("country"),
         client=client,
+        on_match=lambda: emit_stage("checklist_tool"),
     )
     if checklist_call is not None:
-        stages.append("checklist_tool")
+        emit_stage("checklist_tool")
         tool_result, explanation, checklist_citations = checklist_call
         fallback_lead_in = (
             f"Here is the document checklist for {tool_result.product} "
             f"(PCT {tool_result.pct_code}) shipped to {tool_result.destination}."
         )
         lead_in = explanation or fallback_lead_in
+        emit_stage("output_guard")
         checklist_guard = output_guard.check_output(lead_in, mode="GENERAL", evidence_text="", attempt=0)
         if not checklist_guard.ok:
             # The checklist itself (below) is always correct regardless of
@@ -340,10 +353,11 @@ def answer_customs_question(
         understood.standalone_question
     )
     if detected_code:
+        emit_stage("tariff_lookup")
         tariff_call = tariff_lookup_mod.lookup_tariff(db, detected_code)
 
     if tariff_call is not None:
-        stages.append("tariff_lookup")
+        emit_stage("tariff_lookup")
         fact_block = tariff_lookup_mod.describe_for_prompt(tariff_call)
         strong_match = tariff_call.matched and tariff_call.exact and not tariff_call.needs_review
         tariff_citation = Citation(
@@ -364,7 +378,7 @@ def answer_customs_question(
         )
     else:
         # --- Retrieval + evidence banding -----------------------------------
-        stages.append("hybrid_retrieval")
+        emit_stage("hybrid_retrieval")
         evidence = retriever.retrieve_evidence(
             db,
             search_queries=understood.search_queries,
@@ -406,13 +420,13 @@ def answer_customs_question(
     working_evidence = evidence
 
     # --- Generation + Layer 4 guard loop -----------------------------------
-    stages.extend(["answer_generation", "output_guard"])
     draft = None
     provider_unavailable = False
     guard_violations: list[str] = []
     downgraded_by_verifier = False
 
     for attempt in range(MAX_GENERATION_ATTEMPTS):
+        emit_stage("answer_generation")
         try:
             draft = answerer.generate_answer(
                 understood=understood,
@@ -427,6 +441,7 @@ def answer_customs_question(
             draft = None
             break
 
+        emit_stage("output_guard")
         evidence_text = "\n\n".join(working_evidence.passages)
         out_verdict = output_guard.check_output(
             draft.text, mode=mode, evidence_text=evidence_text, attempt=attempt
@@ -439,8 +454,7 @@ def answer_customs_question(
 
         if out_verdict.action == "pass":
             if mode == "GROUNDED" and settings.customs_chat_enable_verifier:
-                if "groundedness_verifier" not in stages:
-                    stages.append("groundedness_verifier")
+                emit_stage("groundedness_verifier")
                 verify_result = verifier.verify_groundedness(
                     answer=draft.text,
                     evidence_text=evidence_text,

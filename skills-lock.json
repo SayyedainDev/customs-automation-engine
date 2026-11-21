@@ -1,0 +1,432 @@
+{
+  "version": 2,
+  "skills": {
+    "align": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "align/SKILL.md",
+      "computedHash": "65c8ec1b2c19151a80318fa51627e1c0c53565d2ca7cfed9b7f4a070453ed6df"
+    },
+    "apply": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "apply/SKILL.md",
+      "computedHash": "d9903f116b12a0bb0370a4660384aa13da2c49d2553819accddf9284ec8a8780"
+    },
+    "audit-adr": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-adr/SKILL.md",
+      "computedHash": "6d8ce1d338d68be1f1920762725581d5477a1ba03db91bc3960a4d3981b7878a"
+    },
+    "audit-assertions": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-assertions/SKILL.md",
+      "computedHash": "5e5e77bdf79c934a73aeda15d94e1e33ec485f2ee15043603cd62445b335771b"
+    },
+    "audit-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-change/SKILL.md",
+      "computedHash": "a3c97acdcd9476402cb8114123ad5140f7994511c23764cac590b8d8634abaaa"
+    },
+    "audit-changeset-coherence": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-changeset-coherence/SKILL.md",
+      "computedHash": "7e69155c151da2b4428b9c29ca28694a0d906ca70aba3176229189c68b8f0003"
+    },
+    "audit-eval-evidence": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-eval-evidence/SKILL.md",
+      "computedHash": "15041d0d9aa96a249cca15fb584d457f63a900be5b0b68ae17695ba4f64cfcfc"
+    },
+    "audit-implementation": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-implementation/SKILL.md",
+      "computedHash": "18609f64103acc4b51f9a7284f09217a5f4034185add295dca3d1f45ad0e91e8"
+    },
+    "audit-pdr": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-pdr/SKILL.md",
+      "computedHash": "334cd0008f0b2df60634fae7d114f18474eec51acbc0f3f12aae9e2ba5718237"
+    },
+    "audit-python-architecture": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "audit-python-architecture/SKILL.md",
+      "computedHash": "3037a15991762205da271de84050b35ca50747076dc52742879c5c1c341e3ad2"
+    },
+    "audit-python-code": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "audit-python-code/SKILL.md",
+      "computedHash": "3a4bad689804177a0d909124d570d73801461f608dfd26c444b15437d364f627"
+    },
+    "audit-python-test": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "audit-python-test/SKILL.md",
+      "computedHash": "07acd9b6159ccb1ebc3041791570f8577442f549395029b078ba64ee5850037a"
+    },
+    "audit-specs": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-specs/SKILL.md",
+      "computedHash": "99713d83ad475bd800f5c30c28fc5cb74f6dfd7c2329e03934c12db255f60530"
+    },
+    "audit-tests": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "audit-tests/SKILL.md",
+      "computedHash": "7436c22ac44f244159e89df4eedeb2c319faf51165768a10f307ae2357ad1bd6"
+    },
+    "author": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "author/SKILL.md",
+      "computedHash": "d58b6dfe4b9bc86ee5ffa9f62a304277d7c9f08d2f52ecc5727f9709679e3484"
+    },
+    "author-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "author-change/SKILL.md",
+      "computedHash": "11b32affe00bea28e2800bb44e4647227e8f0d9396f5e98487fe98eb699cc4e2"
+    },
+    "author-python-architecture": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "author-python-architecture/SKILL.md",
+      "computedHash": "38f7b86498eb824fb419aa518fe72f4cf56ad4eeca65525e2d2674bed4973edd"
+    },
+    "author-python-code": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "author-python-code/SKILL.md",
+      "computedHash": "1b0b10b8e7558fe3a616d8d01fd4c2e3a4b5039ea7d8aa82c3202ab6e9ab0136"
+    },
+    "author-python-test": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "author-python-test/SKILL.md",
+      "computedHash": "0476aafce0cef69a752314761448618a7c841bd8c7301a15979e602524d7ce16"
+    },
+    "bootstrap": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "bootstrap/SKILL.md",
+      "computedHash": "3b6321a892590d54576a662aec949e18c5e389de9eaff0072224c2abaafb46af"
+    },
+    "change-standards": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "change-standards/SKILL.md",
+      "computedHash": "e74ac82c14243ed3b5a4502f2ba3e6450b83750f2713e988b2be46ea2bc1fa76"
+    },
+    "claim-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "claim-change/SKILL.md",
+      "computedHash": "930c413f73d2ff621e242d81e06ea2a7154ceaa818a6384babeef9ee345745a9"
+    },
+    "close-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "close-change/SKILL.md",
+      "computedHash": "17bf169c558b8d988995e92a317c47ed83fdcce1a315316918cd9d6e75493b49"
+    },
+    "commit-changes": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "commit-changes/SKILL.md",
+      "computedHash": "fec2ccab9ec7706d611fa4fc4daf7c9dffdc2cde9541562f7f3748cf0af0a00a"
+    },
+    "confirm-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "confirm-change/SKILL.md",
+      "computedHash": "a213b8807949e62ffb144657d3ce5745f69f9655ff902e39b6c9721cab521fa5"
+    },
+    "contextualize": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "contextualize/SKILL.md",
+      "computedHash": "efd27f668029655b56096173f43a67fb4a2f892ee23b28fa519ad608336a293f"
+    },
+    "decompose": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "decompose/SKILL.md",
+      "computedHash": "bff1d3ac88bb31b578037da34d6b86fb0f9a6f4fd7db66f9239161f5c5a2322e"
+    },
+    "diagnose": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "diagnose/SKILL.md",
+      "computedHash": "9fde8ad3f20c8c33ad10dc383f5f24949161cd3797f9b54a1dd56f19c47d382d"
+    },
+    "execute-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "execute-change/SKILL.md",
+      "computedHash": "e1bbcc533ab1ce59ad10305e44ab8ac06d03d7aff179e3edd9b5a1558e40316a"
+    },
+    "implement-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "implement-change/SKILL.md",
+      "computedHash": "3485d90986961f4954b9154b5f1a9b95500a365d9ca39436de45424a252dd14d"
+    },
+    "init-worktrees": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "init-worktrees/SKILL.md",
+      "computedHash": "adb4883799a21a1ce06a0e02c7d6e552cd3a6e4a096aec00dd571966d53236c2"
+    },
+    "inspect-github-actions": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "inspect-github-actions/SKILL.md",
+      "computedHash": "79f0eb5ecdd93d8a6cb3c3125a4ee48014aeeb54683a324b26720f2fe7996949"
+    },
+    "interview": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "interview/SKILL.md",
+      "computedHash": "0beeff4d2f910fb8441798d4f64ee85d52d19c6f71ddb366241912aef5aed161"
+    },
+    "manage-github-pr": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "manage-github-pr/SKILL.md",
+      "computedHash": "6e7b15be5f3eda7cbb9050f3a784f1435be2a514cf51f2e48b41cc69c61d0260"
+    },
+    "manage-pr": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "manage-pr/SKILL.md",
+      "computedHash": "99f48c1894bf5cf661781104df36ede793d7ac741d4dfb3efd2a25799f5db2f0"
+    },
+    "merge": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "merge/SKILL.md",
+      "computedHash": "5107f8e9be5b25dfa82a2eba445a576f232308ac222eaafcc8c951069b6a4e88"
+    },
+    "merging-standards": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "merging-standards/SKILL.md",
+      "computedHash": "d34fffbfdee872e7a88ca6d5da52e9c3cb4ec348f254551eea593707706f6d01"
+    },
+    "migrate-3-to-4": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "migrate-3-to-4/SKILL.md",
+      "computedHash": "417bee7c9b542543a4fe759169540dc651ffd3086ff4f100ee41ca361183d86e"
+    },
+    "open-pr": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "open-pr/SKILL.md",
+      "computedHash": "f329ec875be14b3e40c5870bdc026fb5125e23a6b2ca93e4d799698c912a3be7"
+    },
+    "project-run-journal": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "project-run-journal/SKILL.md",
+      "computedHash": "d846361402193409e3cc3cdc3171cd82b9e6fdda3b63ed23af74d8e8e2ade2bc"
+    },
+    "python-architecture-standards": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "python-architecture-standards/SKILL.md",
+      "computedHash": "3561d98feb13044d5188027599cc804adec9231194260ad7e011074120a0a68a"
+    },
+    "python-code-standards": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "python-code-standards/SKILL.md",
+      "computedHash": "7fad9108f44208a51ca54efc291994d29984d3f7a504f3e0f3634e46a47fec72"
+    },
+    "python-plugin": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "python-plugin/SKILL.md",
+      "computedHash": "8ff9034a45b831067ee98a4c4b621da89b7a59a60d0c0d04705057b03c2e0c74"
+    },
+    "python-test-standards": {
+      "source": "outcomeeng/python",
+      "commit": "7a47b3a105cbe1f0412d09b8c43dedcd21986654",
+      "sourceType": "github",
+      "skillPath": "python-test-standards/SKILL.md",
+      "computedHash": "77208bb294014dbb85e560ebc1597d9a85f48763a1aaf53df696fbce4de4cd1d"
+    },
+    "refactor": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "refactor/SKILL.md",
+      "computedHash": "1806aba73f273c25f8795815df6b5b2fb012545a336b0006a49a89e0754d1247"
+    },
+    "refocus": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "refocus/SKILL.md",
+      "computedHash": "3763e44d3da2279b617a2adf944db988ddded988552767d7f1ac45e4126e1776"
+    },
+    "release-change": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "release-change/SKILL.md",
+      "computedHash": "db0830406e306b55b789e85c9daa3b2586503d36ab8f201db579edda0600ab3e"
+    },
+    "report-changes": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "report-changes/SKILL.md",
+      "computedHash": "ef11662f8ca59458d3c23e564028d3a22c096a0eb4cc01ab03a36751d859d62b"
+    },
+    "review-changes": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "review-changes/SKILL.md",
+      "computedHash": "6eb7945bfd7314e7359a93aaacb4e0ac38404506ac7b8c590514a40e545bd8f6"
+    },
+    "scope-changeset": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "scope-changeset/SKILL.md",
+      "computedHash": "db9aff81f8975dd239fc5c7427a8343021b2b7c1948b148b54131e6a2967c53e"
+    },
+    "select-artifacts": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "select-artifacts/SKILL.md",
+      "computedHash": "7b84586c4e14a333c7a4d0d44447f4d4458de7da62b38a7db31f7d35ce67b51b"
+    },
+    "slice": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "slice/SKILL.md",
+      "computedHash": "33c70f9b14dc791fee5c4afd53409889437b45d155638896c6b75e0e1861db8c"
+    },
+    "spec-tree-plugin": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "spec-tree-plugin/SKILL.md",
+      "computedHash": "f8c758b95a6581c94b320f4699c9500de09b329125b453dbc2069c7b9ff3e490"
+    },
+    "sync-base": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "sync-base/SKILL.md",
+      "computedHash": "6bc20296c76a59a9405a27a95794a7934e1f0ec7196c28e2930858495fad1504"
+    },
+    "task-tracking-standards": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "task-tracking-standards/SKILL.md",
+      "computedHash": "1cf4c729e0dd33da42e2ba902da5d9f5575f6013ae0dff2903313408f8957238"
+    },
+    "test": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "test/SKILL.md",
+      "computedHash": "9e9b5784706796b967bd86d123f33a851b59f2424095255e9f386f65f31ca1b0"
+    },
+    "test-evidence-standards": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "test-evidence-standards/SKILL.md",
+      "computedHash": "515f23a6e383d4ac4af71b976ef4f1d436beb1fc6139b7bcc0e87cba46dc421b"
+    },
+    "understand": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "understand/SKILL.md",
+      "computedHash": "3948ab667a93dec39e15e1ab0a7c66c082eff4dae0bc3826082aed138e6db6a7"
+    },
+    "update-instruction-block": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "update-instruction-block/SKILL.md",
+      "computedHash": "8b04f9f79373f89c405afc83799ea33754ccd0240740cabf616900d190dfc142"
+    },
+    "verify": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "verify/SKILL.md",
+      "computedHash": "5fc468b679a7a43df397a8017d1eae5a50d4d57efa2b0dade282f66491ce7f9d"
+    },
+    "wait-for-load": {
+      "source": "outcomeeng/spec-tree",
+      "commit": "4c73d6768fdb0c1e171df442bba7248753232e03",
+      "sourceType": "github",
+      "skillPath": "wait-for-load/SKILL.md",
+      "computedHash": "bb78a88248b07939246fdc02219e6525496f0dc00db58123ff5ae47865d66377"
+    }
+  }
+}

@@ -2777,6 +2777,44 @@ textarea:focus {
   color: #344054;
 }
 
+.missing-doc-panel {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.missing-doc-panel__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.missing-doc-panel__field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #344054;
+}
+
+.missing-doc-panel__error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.missing-doc-panel__progress {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #344054;
+}
+
 .human-review-list li {
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -3068,4 +3106,253 @@ textarea:focus {
   border: none;
   text-align: left;
   cursor: pointer;
+}
+
+.chat-stage-progress {
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.chat-stage-progress__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.chat-stage-progress__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.chat-stage-progress__item--done {
+  color: var(--success);
+}
+
+.chat-stage-progress__item--active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.chat-stage-trace {
+  margin-top: 0.55rem;
+}
+
+.chat-stage-trace__list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+/* --- Side-by-side PDF provenance viewer & bounding-box highlights ------ */
+
+.review-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.15fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .review-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.correction-panel__option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.button--compact {
+  padding: 0.28rem 0.6rem;
+  font-size: 0.78rem;
+}
+
+.pdf-viewer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.pdf-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.pdf-viewer__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.pdf-viewer__filename {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.pdf-viewer__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pdf-viewer__pager {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pdf-viewer__page-label {
+  font-size: 0.78rem;
+  color: var(--muted-strong);
+  padding: 0 0.25rem;
+}
+
+.pdf-viewer__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pdf-viewer__tab {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-subtle);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.pdf-viewer__tab--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-selected);
+  font-weight: 600;
+}
+
+.pdf-viewer__status {
+  margin: 0;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-viewer__error {
+  margin: 0.6rem 0.8rem;
+  font-size: 0.84rem;
+  color: var(--danger);
+}
+
+.pdf-viewer__viewport {
+  max-height: 620px;
+  overflow: auto;
+  background: #f3f5f8;
+  padding: 0.6rem;
+}
+
+.pdf-viewer__stage {
+  position: relative;
+  margin: 0 auto;
+  line-height: 0;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.12);
+}
+
+.pdf-viewer__image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pdf-viewer__box {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.pdf-viewer__box--primary {
+  border: 2px solid #d97706;
+  background: rgba(251, 191, 36, 0.28);
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.35);
+}
+
+.pdf-viewer__box--secondary {
+  border: 1.5px dashed #2563eb;
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.metadata-item__inspect {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.metadata-item__inspect:hover {
+  text-decoration: underline;
+}
+
+/* --- Flow 5: Duty breakdown & Pre-Submission Audit Dossier export ------- */
+
+.dossier-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dossier-actions__error {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.duty-summary-grid {
+  margin-top: 0.75rem;
+}
+
+.duty-estimate-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.duty-table-wrap {
+  margin-top: 0.6rem;
 }

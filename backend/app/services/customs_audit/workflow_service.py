@@ -36,16 +36,6 @@ from app.services.shipment_search.vector_store import index_shipment_summary
 
 logger = logging.getLogger(__name__)
 
-#: Advertised in the HumanAction enum (and validated structurally, so a
-#: client cannot bypass them with an arbitrary string) but not implemented in
-#: this prototype - document replacement requires a real upload workflow.
-#: Rejected here, before the graph is ever invoked, rather than silently
-#: "completing" a workflow that never actually attached a new document or
-#: reprocessed anything.
-_UNSUPPORTED_ACTIONS = frozenset(
-    {HumanAction.PROVIDE_MISSING_DOCUMENT.value, HumanAction.REQUEST_REPROCESSING.value}
-)
-
 
 class WorkflowNotFoundError(Exception):
     pass
@@ -153,14 +143,6 @@ class CustomsAuditService:
                         f"provided document {doc_uuid} was not found in uploaded documents; "
                         "upload the document first before submitting provide_missing_document"
                     )
-        elif validated.action.value in _UNSUPPORTED_ACTIONS:
-            raise WorkflowStateError(
-                f"the '{validated.action.value}' action is not implemented in this "
-                "prototype (document replacement requires a real upload workflow); "
-                "use confirm_extracted_value, correct_extracted_value, "
-                "provide_missing_document (with an uploaded document ID), "
-                "accept_manual_review or reject_submission"
-            )
         state = await self._invoke(
             Command(resume=validated.model_dump(mode="json")), workflow.thread_id
         )
@@ -262,6 +244,7 @@ class CustomsAuditService:
             "plain_language_question": live.get("plain_language_question"),
             "disputed_field_details": live.get("disputed_field_details", []),
             "affected_check_ids": live.get("affected_check_ids", []),
+            "missing_documents": live.get("missing_documents", []),
         }
 
     def get_events(self, db: Session, workflow_id: UUID) -> list[dict[str, Any]]:
@@ -309,7 +292,7 @@ class CustomsAuditService:
         # The authoritative checkpointed state carries every prior node output,
         # so the user-facing report can be built even while paused for review.
         report_state = getattr(snapshot, "values", None) or state
-        user_report = build_audit_report(report_state)
+        user_report = build_audit_report(report_state, db=db)
 
         if interrupt_payload is not None:
             deterministic = report_state.get("deterministic_compliance_result") or {}
