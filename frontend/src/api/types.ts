@@ -599,3 +599,29 @@ export interface ChatStreamEvent {
   event: "stage" | "meta" | "token" | "sources" | "tool_result" | "done" | "error";
   data: Record<string, unknown>;
 }
+
+export interface DemoSampleDescriptor {
+  key: string;
+  title: string;
+  summary: string;
+  expected_outcome: string;
+  shipment_date: string;
+  supporting_document_types: string[];
+}
+
+export interface DemoSampleListResponse {
+  samples: DemoSampleDescriptor[];
+}
+
+export interface LoadedDemoSupportingDocument {
+  document_type: string;
+  document: DocumentUploadResponse;
+}
+
+export interface DemoSampleLoadResponse {
+  sample: DemoSampleDescriptor;
+  commercial_invoice: DocumentUploadResponse;
+  packing_list: DocumentUploadResponse;
+  supporting_documents: LoadedDemoSupportingDocument[];
+  shipment_date: string;
+}

@@ -53,10 +53,18 @@ export function OverviewPage() {
         title="Customs review workspace"
         description="Upload export documents, verify extracted shipment data, and run evidence-backed compliance checks."
         action={
-          <Link className="button button--primary" to="/review">
-            Start document review
-            <ArrowRight aria-hidden="true" size={16} />
-          </Link>
+          <div className="button-row">
+            <Link
+              className="button button--secondary"
+              to="/review?sample=clean_cotton_tshirts"
+            >
+              Try sample shipment
+            </Link>
+            <Link className="button button--primary" to="/review">
+              Start document review
+              <ArrowRight aria-hidden="true" size={16} />
+            </Link>
+          </div>
         }
       />
 
@@ -125,7 +133,7 @@ export function OverviewPage() {
         <div className="panel__header">
           <div>
             <h2 id="recent-documents">Recent documents</h2>
-            <p>Uploads retained in this browser for the class demonstration.</p>
+            <p>Documents uploaded during this browser session.</p>
           </div>
           {documents.length ? (
             <Link className="text-link" to="/review">

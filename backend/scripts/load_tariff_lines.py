@@ -35,9 +35,24 @@ DEFAULT_JSON = (
 
 
 def load_rows(session: Session, rows: list[dict]) -> int:
-    codes = [row["hs_code"] for row in rows]
-    session.execute(delete(TariffLine).where(TariffLine.hs_code.in_(codes)))
+    # Deduplicate by hs_code (preferring confirmed rows over needs_review rows)
+    # so duplicate headings in parsed tariff artifacts never violate the UNIQUE
+    # hs_code constraint.
+    deduped: dict[str, dict] = {}
     for row in rows:
+        code = row["hs_code"]
+        existing = deduped.get(code)
+        if existing is None or (
+            bool(existing.get("needs_review", False))
+            and not bool(row.get("needs_review", False))
+        ):
+            deduped[code] = row
+    unique_rows = list(deduped.values())
+    codes = list(deduped.keys())
+    for start in range(0, len(codes), 500):
+        batch = codes[start : start + 500]
+        session.execute(delete(TariffLine).where(TariffLine.hs_code.in_(batch)))
+    for row in unique_rows:
         needs_review = bool(row.get("needs_review", False))
         customs_duty_pct = row.get("customs_duty_pct")
         if not needs_review and customs_duty_pct is not None:
@@ -87,7 +102,7 @@ def load_rows(session: Session, rows: list[dict]) -> int:
             )
         )
     session.commit()
-    return len(rows)
+    return len(unique_rows)
 
 
 def main() -> int:

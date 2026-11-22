@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # The Docker image enables this after building the Vite application. It is
     # off by default so backend-only development and tests keep the JSON root.
     serve_frontend: bool = False
+    # Enables one-click sample shipment loading from bundled synthetic_factory
+    # fixtures for interactive demos and local evaluation.
+    enable_demo_samples: bool = True
 
     database_url: str | None = None
     upload_dir: Path = Path("uploads/documents")

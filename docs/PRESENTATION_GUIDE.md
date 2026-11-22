@@ -1,50 +1,25 @@
-# CACE — Presentation Guide & System Walkthrough
+# CACE — Architecture Walkthrough & Live Demo Guide
 
-This document is written for you to present from and to build your own mental
-model of the system. It covers, in order: whether the project is ready to
-present, the order to present it in, what to say about each part, the
-limitations to state up front, and a from-scratch explanation of LangGraph and
-RAG using this project as the example — with ASCII diagrams throughout.
+This guide walks through the CACE system architecture, live demonstration order,
+explicit scope boundaries, and how the LangGraph audit workflow and Hybrid RAG
+retrieval stack operate end to end.
 
 ---
 
-## 0. Readiness verdict
+## 0. Verification Status
 
-**Yes — ready to present, with stated limitations.**
-
-Evidence, checked immediately before writing this document:
+Latest verified release baseline (`v1.0.0`):
 
 | Check | Result |
-|---|---|
-| Backend test suite | **951 passed, 0 failed** |
-| Type checking (`mypy`) | **0 errors across 219 files** |
-| Frontend build (`tsc` + `vite`) | **succeeds** |
-| Git status | clean, in sync with `origin/main` (commit `c232e6c`) |
+| --- | --- |
+| Backend & Spec Tree test suite (`pytest`) | **1,483+ passed, 0 failed** (offline CI mode) |
+| Static type checking (`mypy`) | **0 errors** across `backend/app`, `backend/cace_testing`, `spx` |
+| Linting (`ruff`) & Spec Tree (`spx`) | **All checks passed** |
+| Frontend (`vitest` + `tsc --noEmit && vite build`) | **Passes cleanly** |
 
-Nothing is broken. The verdict below is "ready with limitations," not "ready,
-full stop" — the limitations section (§2) is not optional to mention. A
-capstone reviewer will trust you more for stating them yourself than for
-having them discovered.
-
-### Cleanup performed just now
-
-You asked to remove unnecessary files. Removed, none of it tracked by git:
-
-- **3 stale verification worktrees** (`backend/scratch/cace-clean-check{,2,3}`
-  and a matching one under `/tmp`) — full duplicate checkouts left over from
-  earlier isolated test runs, ~740 MB total, already superseded by the current
-  `main`.
-- **6 deployment debug scripts** at the repo root (`scratch/railway_db.py`,
-  `remote_db.py`, `run_migration.py`, `verify_migration.py`, `query_db.py`,
-  `test_production_api.py`) — one-off scripts used while debugging the Railway
-  deployment, reading credentials from environment variables at runtime (none
-  hardcoded), no longer needed now that migrations run automatically before
-  startup.
-
-Nothing that was part of the actual application, its tests, its migrations, or
-its documentation was touched. `.venv/`, `node_modules/`, and the cache
-directories are normal, gitignored build artifacts — left alone because you
-need them to run the project.
+State the explicit boundaries up front (§2): CACE is a deterministic pre-submission
+audit engine covering 17 validated Pakistan textile PCT codes, not an official
+FBR/PSW clearance authority.
 
 ---
 
