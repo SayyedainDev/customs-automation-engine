@@ -7,6 +7,7 @@ from app.api.routes import compliance
 from app.api.routes import compliance_explain
 from app.api.routes import customs_audit
 from app.api.routes import customs_chat
+from app.api.routes import demo
 from app.api.routes import documents
 from app.api.routes import health
 from app.api.routes import multi_line_shipment
@@ -67,6 +68,7 @@ app.include_router(customs_audit.router)
 app.include_router(shipment_search.router)
 app.include_router(assistant.router)
 app.include_router(customs_chat.router)
+app.include_router(demo.router)
 
 
 @app.get("/")

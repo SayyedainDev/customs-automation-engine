@@ -41,6 +41,7 @@ COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/scripts/__init__.py ./scripts/__init__.py
 COPY backend/scripts/apply_migrations.py ./scripts/apply_migrations.py
+COPY backend/scripts/bootstrap_runtime_data.py ./scripts/bootstrap_runtime_data.py
 COPY backend/scripts/ingest_regulatory_documents.py \
     ./scripts/ingest_regulatory_documents.py
 COPY backend/scripts/build_regulatory_vector_index.py \
@@ -49,6 +50,8 @@ COPY backend/scripts/parse_tariff_pdf.py \
     ./scripts/parse_tariff_pdf.py
 COPY backend/scripts/load_tariff_lines.py \
     ./scripts/load_tariff_lines.py
+COPY synthetic_factory/clean_cotton_tshirts /app/synthetic_factory/clean_cotton_tshirts
+COPY synthetic_factory/error_quantity_mismatch /app/synthetic_factory/error_quantity_mismatch
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 # Runtime compliance rules plus the three curated sources needed if the
 # regulatory ingestion service is run. The rest of the 161 MB source archive
@@ -82,4 +85,4 @@ USER customs
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m app.core.init_db && python -m scripts.apply_migrations && exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m app.core.init_db && python -m scripts.apply_migrations && python -m scripts.bootstrap_runtime_data && exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -4,8 +4,9 @@ import {
   MessageSquare,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AgentAuditResult } from "../components/AgentAuditResult";
 import { ComplianceReviewResult } from "../components/ComplianceReviewResult";
@@ -19,6 +20,8 @@ export function NewReviewPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryWorkflowId =
     searchParams.get("workflowId") ?? searchParams.get("workflow_id");
+  const querySampleKey = searchParams.get("sample");
+  const autoLoadedSampleRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (
@@ -29,6 +32,18 @@ export function NewReviewPage() {
       void review.loadExistingWorkflow(queryWorkflowId);
     }
   }, [queryWorkflowId, review]);
+
+  useEffect(() => {
+    if (
+      querySampleKey &&
+      autoLoadedSampleRef.current !== querySampleKey &&
+      !review.reviewBusy &&
+      !review.compliance
+    ) {
+      autoLoadedSampleRef.current = querySampleKey;
+      void review.loadDemoSample(querySampleKey);
+    }
+  }, [querySampleKey, review]);
 
   const activeShipmentChatId =
     review.workflow?.workflow_id ??
@@ -74,6 +89,43 @@ export function NewReviewPage() {
           message={review.error}
           onDismiss={review.dismissError}
         />
+      ) : null}
+
+      {!review.compliance && !review.workflow ? (
+        <section className="panel" aria-labelledby="sample-shipments-heading">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Quick demo</p>
+              <h2 id="sample-shipments-heading">Load a built-in sample shipment</h2>
+              <p>
+                Explore PDF provenance highlighting, cascading FY2026–27 duty math,
+                and the LangGraph audit workflow immediately with curated export
+                PDFs.
+              </p>
+            </div>
+            <Sparkles aria-hidden="true" size={20} />
+          </div>
+          <div className="panel__body">
+            <div className="button-row">
+              <button
+                className="button button--primary"
+                type="button"
+                disabled={review.reviewBusy}
+                onClick={() => void review.loadDemoSample("clean_cotton_tshirts")}
+              >
+                Clean Textile Export (PASS)
+              </button>
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={review.reviewBusy}
+                onClick={() => void review.loadDemoSample("error_quantity_mismatch")}
+              >
+                Quantity Mismatch (HITL Audit)
+              </button>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       <DocumentReviewForm review={review} />

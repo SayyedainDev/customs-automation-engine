@@ -1,8 +1,8 @@
 # CACE — Customs & Automated Compliance Engine
 
 [![CI](https://github.com/SayyedainDev/customs-automation-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/SayyedainDev/customs-automation-engine/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/Tests-1%2C483_passing-brightgreen)](.github/workflows/ci.yml)
-[![Typecheck](https://img.shields.io/badge/mypy-0_errors_(193_files)-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/Tests-1%2C490_passing-brightgreen)](.github/workflows/ci.yml)
+[![Typecheck](https://img.shields.io/badge/mypy-0_errors_(194_files)-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)
@@ -21,11 +21,11 @@ Pakistan textile exporters routinely face shipment holds from cross-document qua
 
 | Dimension | Measured Result | Evidence |
 | --- | --- | --- |
-| **Automated Verification** | **1,483 passed**, 0 failed (unit, integration, Hypothesis property, 16 `spx` Spec Tree suites) | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
-| **Static Quality Gates** | **0 `mypy` errors** across 193 Python files; `ruff` clean; strict `tsc --noEmit && vite build` | [`pyproject.toml`](pyproject.toml) |
+| **Automated Verification** | **1,490 passed**, 0 failed (1,485 backend/Spec Tree `pytest` + 5 `vitest` UI tests) | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| **Static Quality Gates** | **0 `mypy` errors** across 194 Python files; `ruff` clean; strict `tsc --noEmit && vite build` | [`pyproject.toml`](pyproject.toml) |
 | **Hybrid Extraction Efficiency** | **96.9%** (`31/32`) digital PDFs resolved locally at **0 tokens** (`0.004s` median); **87.8% token reduction** vs LLM-only (`7,187 → 874`) with **0** HTTP 429 failures | [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | **Authoritative AI Safety** | Non-LLM compliance verdicts, Unicode NFKC/zero-width prompt-injection guards, SRO citation validation, immutable audit revisions, SHA-256 hash-chained audit ledger | [`SECURITY.md`](SECURITY.md), [`spx/15-authoritative-safety.pdr.md`](spx/15-authoritative-safety.pdr.md) |
-| **Zero-Key Reproducibility** | Runs full API, console, Docker stack, and entire 1,483-test CI suite with **zero paid API keys** (`GROQ_API_KEY` optional; degraded fallbacks explicitly labelled) | [`docker-compose.yml`](docker-compose.yml) |
+| **Zero-Key Reproducibility** | One-command Docker Compose auto-seeds **7,591 tariff lines** & **6,870 regulatory vectors**, plus built-in 1-click sample shipments and zero-key CI (`GROQ_API_KEY` optional) | [`docker-compose.yml`](docker-compose.yml), [`bootstrap_runtime_data.py`](backend/scripts/bootstrap_runtime_data.py) |
 
 ---
 
@@ -140,7 +140,7 @@ python backend/scripts/benchmark_extraction.py --verify-offline
 
 ## Quick Start & 60-Second API Try-It
 
-### Option A — Docker Compose (Recommended: PostgreSQL 16 + FastAPI + Built Console)
+### Option A — Docker Compose (Recommended: Auto-Seeded PostgreSQL 16 + FastAPI + Built Console)
 
 ```bash
 git clone https://github.com/SayyedainDev/customs-automation-engine.git
@@ -148,7 +148,16 @@ cd customs-automation-engine
 docker compose up --build
 ```
 
+On cold start, [`bootstrap_runtime_data.py`](backend/scripts/bootstrap_runtime_data.py) idempotently seeds **7,591 FY2025–26 Pakistan Customs Tariff lines**, ingests all **10 regulatory sources**, and builds the **6,870-chunk dense vector index** automatically (skipping in `<1s` on subsequent restarts).
+
 Open **`http://localhost:8000/app/`** (Operations Console) or **`http://localhost:8000/docs`** (Interactive OpenAPI docs). Every HTTP response carries `X-Request-ID` and `X-Process-Time-Ms` headers.
+
+### 2-Minute Reviewer Demo (Zero PDFs Needed)
+
+1. Open **`http://localhost:8000/app/review`** (or click **Try sample shipment** on the Overview page).
+2. Click **Clean Textile Export (PASS)** to load bundled invoice, packing list, Form-E, and Certificate of Origin PDFs — inspect the `PASSED` compliance checks, **FY2026–27 `Decimal` cascading duty breakdown**, and **PDF provenance bounding-box viewer**.
+3. Click **Start another review** → **Quantity Mismatch (HITL Audit)** → **Run agent audit** to watch the 16-node **LangGraph** workflow pause on a durable human-in-the-loop interrupt, accept a field correction, append immutable Revision 2, and export a JSON/PDF audit dossier.
+4. Visit **`http://localhost:8000/app/prepare`** or **`http://localhost:8000/app/ask`** to explore pre-submission checklists and guarded Customs Chat grounded in the auto-indexed regulatory corpus.
 
 ### Option B — Local Development (Zero API Keys Required)
 
@@ -185,7 +194,7 @@ curl -s -X POST http://localhost:8000/api/v1/compliance/calculate-duties \
 
 ### Offline Verification Suite (Matches GitHub Actions CI)
 
-Run the full 1,483-test suite, static typecheck, linter, Spec Tree validation, and frontend build without downloading Hugging Face models or needing external credentials:
+Run all 1,490 automated tests (backend, Spec Tree, and frontend Vitest), static typecheck, linter, Spec Tree validation, and frontend production build without downloading Hugging Face models or needing external credentials:
 
 ```bash
 REGULATORY_ENABLE_REAL_MODELS=false LANGGRAPH_CHECKPOINT_BACKEND=memory pytest -c pyproject.toml
@@ -194,6 +203,7 @@ mypy --config-file pyproject.toml backend/app
 mypy --config-file pyproject.toml backend/cace_testing spx
 npx --yes @outcomeeng/spx@0.9.0 config validate
 npx --yes @outcomeeng/spx@0.9.0 validation markdown spx/
+npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
@@ -211,6 +221,7 @@ npm --prefix frontend run build
 - `customs_audit` — LangGraph HITL workflows, human corrections, and JSON/PDF dossier exports
 - `shipment_search` — L2-normalized semantic lookup across finalized shipments
 - `assistant` & `customs_chat` — Export preparation, shipment document Q&A, and multi-turn guarded Customs Chat
+- `demo` — Built-in 1-click sample shipment loader (`GET /api/v1/demo/samples`, `POST /api/v1/demo/samples/{key}/load`, toggleable via `CUSTOMS_ENABLE_DEMO_SAMPLES`)
 
 ### MCP Server Tools ([`backend/app/mcp_server.py`](backend/app/mcp_server.py))
 - `lookup_pakistan_tariff`
@@ -248,7 +259,7 @@ customs-automation-engine/
 │   └── PULL_REQUEST_TEMPLATE.md # PR safety & verification checklist
 ├── backend/
 │   ├── app/
-│   │   ├── api/routes/          # 13 FastAPI route modules
+│   │   ├── api/routes/          # 14 FastAPI route modules (incl. demo sample loader)
 │   │   ├── core/                # Config, database session & exceptions
 │   │   ├── models/              # SQLAlchemy 2.0 ORM models (14 tables)
 │   │   ├── schemas/             # Pydantic v2 contracts
@@ -257,13 +268,13 @@ customs-automation-engine/
 │   │   └── mcp_server.py        # 4 MCP customs & duty tools
 │   ├── cace_testing/            # Shared Spec Tree test harnesses & Hypothesis generators
 │   ├── migrations/              # Numbered SQL migrations (001–015)
-│   ├── scripts/                 # benchmark_extraction.py, tariff loader, RAG index builders
+│   ├── scripts/                 # bootstrap_runtime_data.py, benchmark_extraction.py, tariff/RAG builders
 │   ├── tests/                   # Backend unit & integration test suites
 │   ├── .env.example             # Complete environment configuration reference
-│   ├── Dockerfile               # Multi-stage Node 22 + Python 3.11 + Tesseract image
+│   ├── Dockerfile               # Multi-stage Node 22 + Python 3.11 + Tesseract + auto-bootstrap image
 │   ├── requirements.txt         # Runtime dependencies
 │   └── requirements-dev.txt     # Test, Hypothesis, ruff & mypy tooling
-├── frontend/                    # cace-operations-console (React 18 / Vite 6 / TS 5.7)
+├── frontend/                    # cace-operations-console (React 18 / Vite 6 / TS 5.7 / Vitest)
 ├── regulatory_data/             # Active textile PCT rules, curated guidance & official PDFs
 ├── spx/                         # Outcome Engineering Spec Tree (21 nodes, 2 decisions, 16 suites)
 ├── docs/                        # Architecture, benchmark, project map & walkthrough guides

@@ -1,8 +1,10 @@
-# Capstone reports
+# Evaluation & Verification Reports
 
-This directory keeps the human-readable evidence used to review the capstone.
-Raw provider responses, quota probes, machine-specific paths, and generated JSON
-payloads are intentionally ignored by Git.
+This directory preserves human-readable engineering evidence covering
+extraction accuracy, legal provenance, hybrid RAG retrieval, and LangGraph
+multi-agent workflow verification. Raw provider responses, quota probes,
+machine-specific paths, and generated JSON payloads are intentionally ignored
+by Git.
 
 ## Start here
 
@@ -11,7 +13,7 @@ payloads are intentionally ignored by Git.
 - `synthetic_factory_accuracy_improvements.md` — records the live baseline,
   defects found, fixes, and verification limits.
 - `real_document_validation_report.md` — clearly separates synthetic validation
-  from real-exporter-document validation that has not yet been completed.
+  from real-exporter-document validation.
 - `retrieval_evaluation_report.md` — regulatory retrieval metrics.
 - `langgraph_multi_agent_implementation_report.md` — workflow, consensus,
   human-review, persistence, and safety design.
@@ -27,6 +29,6 @@ payloads are intentionally ignored by Git.
 - `synthetic_factory_baseline.md`
 - `synthetic_factory_defect_register.md`
 
-These reports describe a five-PCT bootcamp prototype and a cutoff-dated
-regulatory snapshot. They are engineering evidence, not a certification of
-legal or production readiness.
+These reports document historical evaluation milestones and cutoff-dated
+regulatory snapshots. They serve as engineering evidence, not certification of
+official legal or production customs clearance.

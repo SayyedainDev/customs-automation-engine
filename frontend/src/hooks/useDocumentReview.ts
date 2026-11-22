@@ -560,7 +560,7 @@ export function useDocumentReview() {
 
     await submitWorkflowReviewPayload({
       action,
-      reviewer_reference: "cace-class-demo-reviewer",
+      reviewer_reference: "cace-operations-reviewer",
       reason:
         action === "accept_manual_review"
           ? "Reviewed the surfaced findings and accepted the manual-review outcome."
@@ -588,7 +588,7 @@ export function useDocumentReview() {
       field_path: fieldPath,
       original_value: originalValue,
       corrected_value: correctedValue,
-      reviewer_reference: "cace-class-demo-reviewer",
+      reviewer_reference: "cace-operations-reviewer",
       reason,
       review_note:
         action === "confirm_extracted_value"
@@ -633,7 +633,7 @@ export function useDocumentReview() {
         action: "provide_missing_document",
         provided_document_ids: [uploaded.document_id],
         source: documentType,
-        reviewer_reference: "cace-class-demo-reviewer",
+        reviewer_reference: "cace-operations-reviewer",
         reason:
           trimmedNote ||
           "Provided missing supporting document in the operations console.",
@@ -670,7 +670,7 @@ export function useDocumentReview() {
     await submitWorkflowReviewPayload({
       action: "request_reprocessing",
       provided_document_ids: [],
-      reviewer_reference: "cace-class-demo-reviewer",
+      reviewer_reference: "cace-operations-reviewer",
       reason:
         trimmedReason ||
         "Requested fresh extraction and OCR reprocessing in the operations console.",
@@ -755,6 +755,107 @@ export function useDocumentReview() {
     [loadWorkflowAssets],
   );
 
+  const loadDemoSample = useCallback(
+    async (sampleKey: string) => {
+      if (reviewBusy) return;
+      setError(null);
+      setAgentError(null);
+      activeReviewRevisionRef.current = null;
+      setCompliance(null);
+      setWorkflow(null);
+      setWorkflowRevisionId(null);
+      setReviewTask(null);
+      setEvents([]);
+      setInvoiceFile(null);
+      setPackingFile(null);
+      setSupportingSlots([]);
+
+      try {
+        setPhase("extracting");
+        const loaded = await api.loadDemoSample(sampleKey);
+        setInvoiceUpload(loaded.commercial_invoice);
+        setPackingUpload(loaded.packing_list);
+        setInvoiceProgress(100);
+        setPackingProgress(100);
+        setShipmentDate(loaded.shipment_date);
+        setLetterOfCreditDate("");
+
+        const now = new Date().toISOString();
+        sessionRef.current.addDocument({
+          id: loaded.commercial_invoice.document_id,
+          name: loaded.commercial_invoice.original_filename,
+          role: "commercial_invoice",
+          sizeBytes: loaded.commercial_invoice.size_bytes,
+          uploadedAt: now,
+          status: loaded.commercial_invoice.status,
+        });
+        sessionRef.current.addDocument({
+          id: loaded.packing_list.document_id,
+          name: loaded.packing_list.original_filename,
+          role: "packing_list",
+          sizeBytes: loaded.packing_list.size_bytes,
+          uploadedAt: now,
+          status: loaded.packing_list.status,
+        });
+
+        const supportingDocuments = loaded.supporting_documents.map((item) => {
+          sessionRef.current.addDocument({
+            id: item.document.document_id,
+            name: item.document.original_filename,
+            role: "supporting_document",
+            sizeBytes: item.document.size_bytes,
+            uploadedAt: now,
+            status: item.document.status,
+          });
+          return {
+            document_type: item.document_type,
+            document_id: item.document.document_id,
+          };
+        });
+
+        const reviewRevisionId = crypto.randomUUID();
+        const payload: MultiLineShipmentRequest = {
+          review_revision_id: reviewRevisionId,
+          commercial_invoice_document_id: loaded.commercial_invoice.document_id,
+          packing_list_document_id: loaded.packing_list.document_id,
+          shipment_date: loaded.shipment_date,
+          letter_of_credit_date: null,
+          additional_uploaded_document_types: [],
+          supporting_documents: supportingDocuments,
+        };
+
+        activeReviewRevisionRef.current = reviewRevisionId;
+        setRequestPayload(payload);
+        setPhase("checking");
+        const result = await api.checkMultiLine(payload);
+        if (
+          result.review_revision_id !== reviewRevisionId ||
+          activeReviewRevisionRef.current !== reviewRevisionId
+        ) {
+          throw new Error(
+            "The compliance response belongs to an older document selection. Run the review again.",
+          );
+        }
+        setCompliance(result);
+        sessionRef.current.markCompliance(
+          [
+            loaded.commercial_invoice.document_id,
+            loaded.packing_list.document_id,
+            ...supportingDocuments.map((doc) => doc.document_id),
+          ],
+          result.overall_status,
+        );
+        setPhase("complete");
+      } catch (requestError) {
+        activeReviewRevisionRef.current = null;
+        setRequestPayload(null);
+        setError(readableError(requestError));
+        setPhase("idle");
+      }
+    },
+    [reviewBusy],
+  );
+
   const workflowIsCurrent = Boolean(
     compliance &&
       workflow &&
@@ -792,6 +893,7 @@ export function useDocumentReview() {
     setShipmentDate,
     setLetterOfCreditDate,
     runCompliance,
+    loadDemoSample,
     startAgentAudit,
     loadExistingWorkflow,
     submitDecision,

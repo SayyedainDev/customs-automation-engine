@@ -5,6 +5,8 @@ import type {
   ChatMessageRequest,
   ChatMessageResponse,
   ChatStreamEvent,
+  DemoSampleListResponse,
+  DemoSampleLoadResponse,
   DocumentExtractionResponse,
   DocumentMetadata,
   DocumentPagePreviewResponse,
@@ -452,4 +454,12 @@ export const api = {
 
   getCustomsChatCoverage: () =>
     request<ChatCoverageResponse>("/api/v1/customs-chat/coverage"),
+
+  listDemoSamples: () =>
+    request<DemoSampleListResponse>("/api/v1/demo/samples"),
+
+  loadDemoSample: (sampleKey: string) =>
+    request<DemoSampleLoadResponse>(`/api/v1/demo/samples/${sampleKey}/load`, {
+      method: "POST",
+    }),
 };
