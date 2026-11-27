@@ -112,6 +112,77 @@ export interface ComplianceResult {
   executable_rule_checks?: ComplianceCheck[];
 }
 
+export interface LineDutyEstimate {
+  hs_code: string;
+  currency?: string | null;
+  rate_source: string;
+  tariff_year?: string | null;
+  source_page?: number | null;
+  breakdown: Record<string, string>;
+}
+
+export interface DutyEstimationSummary {
+  total_assessed_value: string;
+  total_customs_duty: string;
+  total_additional_customs_duty: string;
+  total_regulatory_duty: string;
+  total_sales_tax: string;
+  total_value_addition_tax: string;
+  total_advance_income_tax: string;
+  total_duties_and_taxes: string;
+  total_landed_cost: string;
+  effective_rate_pct: string;
+  lines_estimated: number;
+  total_lines: number;
+  currency?: string | null;
+  basis_note: string;
+}
+
+export interface RemediationStep {
+  priority: number;
+  owner:
+    | "exporter_in_house"
+    | "bank_or_psw"
+    | "issuing_authority"
+    | "compliance_reviewer";
+  category:
+    | "document_discrepancy"
+    | "arithmetic_error"
+    | "regulatory_blocker"
+    | "external_document"
+    | "manual_confirmation";
+  title: string;
+  action: string;
+  score_impact: number;
+}
+
+export interface ClearanceReadinessSummary {
+  readiness_score: number;
+  readiness_band:
+    | "ready_for_filing"
+    | "awaiting_external_documents"
+    | "needs_human_confirmation"
+    | "blocked_document_defect";
+  port_hold_risk: "low" | "medium" | "high";
+  headline: string;
+  in_house_fixes_count: number;
+  external_documents_count: number;
+  manual_confirmations_count: number;
+  remediation_steps: RemediationStep[];
+}
+
+export interface PipelineExecutionTelemetry {
+  extraction_mode: string;
+  processing_time_ms: number;
+  documents_processed: number;
+  cache_hits: number;
+  fields_from_deterministic: number;
+  fields_from_llm: number;
+  llm_calls: number;
+  tokens_used: number;
+  estimated_tokens_saved: number;
+}
+
 export interface ShipmentItemResult {
   item_reference: string;
   product_name: string | null;
@@ -123,6 +194,7 @@ export interface ShipmentItemResult {
   item_checks: CrossDocumentCheck[];
   compliance: ComplianceResult | null;
   fields_requiring_manual_review: string[];
+  duty_estimate?: LineDutyEstimate | null;
 }
 
 export interface OutstandingDocument {
@@ -170,6 +242,9 @@ export interface MultiLineShipmentResponse {
   /** Verdict on the two uploaded documents alone. */
   document_review_status: ComplianceStatus;
   outstanding_documents: OutstandingDocument[];
+  clearance_readiness?: ClearanceReadinessSummary | null;
+  duty_estimation_summary?: DutyEstimationSummary | null;
+  pipeline_telemetry?: PipelineExecutionTelemetry | null;
 }
 
 export interface MultiLineShipmentRequest {

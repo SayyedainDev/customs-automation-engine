@@ -25,6 +25,7 @@ from app.services.compliance.document_requirements import (
     collect_outstanding_documents,
     is_outstanding_document_check,
 )
+from app.services.compliance.readiness import compute_clearance_readiness
 from app.services.multi_line.field_paths import InvalidFieldPathError, parse_field_path
 
 # --------------------------------------------------------------------------- #
@@ -891,9 +892,25 @@ def build_audit_report(
     currency = str(raw_currency) if raw_currency else None
     line_items = _line_items(extraction, db=db, currency=currency)
     duty_summary = _duty_estimation_summary(line_items, currency=currency)
+    uploaded_doc_result = _uploaded_document_result(
+        extraction, all_checks, overall_status=result_status
+    )
+    existing_readiness = extraction.get("clearance_readiness")
+    if isinstance(existing_readiness, dict) and "readiness_score" in existing_readiness:
+        readiness_dict = existing_readiness
+    else:
+        readiness_dict = compute_clearance_readiness(
+            overall_status=result_status,
+            document_review_status=uploaded_doc_result.lower(),
+            checks=all_checks,
+            outstanding_documents=collect_outstanding_documents(all_checks),
+            supporting_documents=extraction.get("supporting_documents") or [],
+            fields_requiring_manual_review=extraction.get("fields_requiring_manual_review") or [],
+        ).model_dump(mode="json")
     return {
         "overall_result": result_label,
         "overall_reason": reason,
+        "clearance_readiness": readiness_dict,
         "executive_summary": _executive_summary(all_checks, result_label, reason),
         "regulatory_evidence": _regulatory_evidence_rows(
             all_checks, regulatory_evidence_by_check, regulatory_evidence_status_by_check
@@ -906,9 +923,7 @@ def build_audit_report(
         "audit_metadata": _audit_metadata(state),
         # The two questions kept apart: were the uploaded documents sound, and
         # what paperwork is still owed before submission.
-        "uploaded_document_result": _uploaded_document_result(
-            extraction, all_checks, overall_status=result_status
-        ),
+        "uploaded_document_result": uploaded_doc_result,
         "documents_to_obtain": _documents_to_obtain(all_checks),
         "supporting_documents": _supporting_documents(extraction),
         "shipment_summary": _shipment_summary(invoice, packing, state),

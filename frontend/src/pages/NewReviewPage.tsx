@@ -119,6 +119,14 @@ export function NewReviewPage() {
                 className="button button--secondary"
                 type="button"
                 disabled={review.reviewBusy}
+                onClick={() => void review.loadDemoSample("missing_documents_hitl")}
+              >
+                Pending Form-E &amp; COO (HITL Upload)
+              </button>
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={review.reviewBusy}
                 onClick={() => void review.loadDemoSample("error_quantity_mismatch")}
               >
                 Quantity Mismatch (HITL Audit)

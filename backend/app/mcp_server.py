@@ -128,9 +128,15 @@ def get_textile_export_checklist(
         call = checklist_tool.maybe_run_checklist_tool(
             db, standalone_question=question, destination=destination, client=None
         )
-    if call is None:
-        return {"matched": False, "reason": "No single supported textile product matched."}
-    tool_result, _, citations = call
+        if call is not None:
+            tool_result, _, citations = call
+        else:
+            direct = checklist_tool.lookup_product_checklist(
+                db, product_or_code=question, destination=destination
+            )
+            if direct is None:
+                return {"matched": False, "reason": "No single supported textile product matched."}
+            tool_result, citations = direct
     return {
         "matched": True,
         "pct_code": tool_result.pct_code,

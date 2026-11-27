@@ -160,3 +160,58 @@ def maybe_run_checklist_tool(
 
     log_stage("checklist_tool", pct_code=pct_code, required=len(required), conditional=len(conditional))
     return tool_result, explanation, citations
+
+
+def lookup_product_checklist(
+    db: Session,
+    *,
+    product_or_code: str,
+    destination: str | None = None,
+) -> tuple[ChecklistTool, tuple[Citation, ...]] | None:
+    """Resolve a supported textile product name or 8-digit PCT code directly.
+
+    Used by explicit tool surfaces (such as the MCP server) where the caller has
+    already chosen the checklist tool and may pass ``"cotton t-shirts"`` or
+    ``"6109.1000"`` without conversational ``"what documents..."`` phrasing.
+    """
+    raw = (product_or_code or "").strip()
+    if not raw:
+        return None
+
+    pct_code: str | None = None
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 8 and digits in SUPPORTED_PCT_PRODUCTS:
+        pct_code = digits
+    else:
+        pct_match = re.search(r"(?<!\d)(\d{4})[.\s-]?(\d{4})(?!\d)", raw)
+        if pct_match:
+            candidate = f"{pct_match.group(1)}{pct_match.group(2)}"
+            if candidate in SUPPORTED_PCT_PRODUCTS:
+                pct_code = candidate
+        if pct_code is None:
+            resolution = resolve_product(raw)
+            if resolution is not None and resolution.is_resolved and resolution.pct_code:
+                pct_code = resolution.pct_code
+
+    if pct_code is None:
+        return None
+    product = SUPPORTED_PCT_PRODUCTS.get(pct_code)
+    if not product:
+        return None
+
+    country = (destination or "").strip() or _DEFAULT_DESTINATION
+    guidance = generate_pre_submission_guidance(
+        db, product=product, pct_code=pct_code, destination=country
+    )
+    required, conditional = _split_documents(guidance)
+    citations = _extract_citations(guidance)
+    return (
+        ChecklistTool(
+            pct_code=pct_code,
+            product=product,
+            destination=country,
+            required_documents=required,
+            conditional_documents=conditional,
+        ),
+        citations,
+    )
