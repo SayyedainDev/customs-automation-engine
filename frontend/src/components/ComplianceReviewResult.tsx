@@ -590,6 +590,29 @@ export function ComplianceReviewResult({
             </div>
           </div>
 
+          {result.pipeline_telemetry ? (
+            <div className="summary-grid" aria-label="Hybrid extraction telemetry">
+              <div className="summary-item">
+                <span>Pipeline execution</span>
+                <strong>{result.pipeline_telemetry.processing_time_ms.toFixed(1)} ms</strong>
+              </div>
+              <div className="summary-item">
+                <span>Deterministic fields</span>
+                <strong>{result.pipeline_telemetry.fields_from_deterministic}</strong>
+              </div>
+              <div className="summary-item">
+                <span>LLM calls / tokens</span>
+                <strong>
+                  {result.pipeline_telemetry.llm_calls} / {result.pipeline_telemetry.tokens_used}
+                </strong>
+              </div>
+              <div className="summary-item">
+                <span>Est. tokens saved</span>
+                <strong>~{result.pipeline_telemetry.estimated_tokens_saved}</strong>
+              </div>
+            </div>
+          ) : null}
+
           <details className="technical-details">
             <summary>Technical details</summary>
             <dl>
@@ -609,6 +632,96 @@ export function ComplianceReviewResult({
           </details>
         </div>
       </section>
+
+      {result.clearance_readiness ? (
+        <section className="panel" aria-labelledby="readiness-heading">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Pre-clearance readiness &amp; hold-risk triage</p>
+              <h2 id="readiness-heading">
+                Readiness score: {result.clearance_readiness.readiness_score}/100
+              </h2>
+              <p>{result.clearance_readiness.headline}</p>
+            </div>
+            <span
+              className={`requirement-tag requirement-tag--${
+                result.clearance_readiness.port_hold_risk === "high"
+                  ? "required"
+                  : "conditional"
+              }`}
+            >
+              Port hold risk: {result.clearance_readiness.port_hold_risk.toUpperCase()}
+            </span>
+          </div>
+          {result.clearance_readiness.remediation_steps.length ? (
+            <div className="panel__body stack">
+              <h3>Prioritized action plan to reach 100/100</h3>
+              <ul className="document-checklist">
+                {result.clearance_readiness.remediation_steps.map((step, idx) => (
+                  <li key={`${step.title}-${idx}`}>
+                    <div className="document-checklist__head">
+                      <strong>
+                        {idx + 1}. {step.title}
+                      </strong>
+                      <span className="supporting-status">
+                        {labelize(step.owner)} · +{step.score_impact} pts
+                      </span>
+                    </div>
+                    <p>{step.action}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {result.duty_estimation_summary ? (
+        <section className="panel" aria-labelledby="duty-summary-heading">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Deterministic Decimal duty engine (FY2026–27)</p>
+              <h2 id="duty-summary-heading">
+                Estimated statutory duties &amp; landed cost
+              </h2>
+              <p>{result.duty_estimation_summary.basis_note}</p>
+            </div>
+          </div>
+          <div className="panel__body">
+            <div className="summary-grid">
+              <div className="summary-item">
+                <span>Assessed value (V)</span>
+                <strong>
+                  {result.duty_estimation_summary.total_assessed_value}{" "}
+                  {result.duty_estimation_summary.currency ?? ""}
+                </strong>
+              </div>
+              <div className="summary-item">
+                <span>Customs + Add. Duty (CD + ACD)</span>
+                <strong>
+                  {result.duty_estimation_summary.total_customs_duty} +{" "}
+                  {result.duty_estimation_summary.total_additional_customs_duty}{" "}
+                  {result.duty_estimation_summary.currency ?? ""}
+                </strong>
+              </div>
+              <div className="summary-item">
+                <span>Total duties &amp; taxes ({result.duty_estimation_summary.effective_rate_pct}%)</span>
+                <strong>
+                  {result.duty_estimation_summary.total_duties_and_taxes}{" "}
+                  {result.duty_estimation_summary.currency ?? ""}
+                </strong>
+              </div>
+              <div className="summary-item">
+                <span>Estimated landed cost</span>
+                <strong>
+                  {result.duty_estimation_summary.total_landed_cost}{" "}
+                  {result.duty_estimation_summary.currency ?? ""}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {supportingExtractionStatuses.length || stillMissing.length ? (
         <section className="panel" aria-labelledby="supporting-documents-heading">

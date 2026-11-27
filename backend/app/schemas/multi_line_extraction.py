@@ -10,6 +10,7 @@ additionally carries an item-level provenance roll-up.
 from datetime import date
 from decimal import Decimal
 from enum import Enum
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -167,6 +168,96 @@ class ItemMatchStrategy(str, Enum):
     PRODUCT_NAME = "product_name"
 
 
+class LineDutyEstimate(BaseModel):
+    """Statutory FY2026-27 Pakistan Customs cascading duty estimate for one line."""
+
+    hs_code: str
+    currency: str | None = None
+    rate_source: str
+    tariff_year: str | None = None
+    source_page: int | None = None
+    breakdown: dict[str, str]
+
+
+class DutyEstimationSummary(BaseModel):
+    """Aggregated shipment-level statutory duty & landed-cost breakdown."""
+
+    total_assessed_value: str
+    total_customs_duty: str
+    total_additional_customs_duty: str
+    total_regulatory_duty: str
+    total_sales_tax: str
+    total_value_addition_tax: str
+    total_advance_income_tax: str
+    total_duties_and_taxes: str
+    total_landed_cost: str
+    effective_rate_pct: str
+    lines_estimated: int
+    total_lines: int
+    currency: str | None = None
+    basis_note: str
+
+
+class PipelineExecutionTelemetry(BaseModel):
+    """Hybrid extraction speed and token-savings telemetry for one review."""
+
+    extraction_mode: str
+    processing_time_ms: float
+    documents_processed: int
+    cache_hits: int = 0
+    fields_from_deterministic: int = 0
+    fields_from_llm: int = 0
+    llm_calls: int = 0
+    tokens_used: int = 0
+    estimated_tokens_saved: int = 0
+
+
+ReadinessBand = Literal[
+    "ready_for_filing",
+    "awaiting_external_documents",
+    "needs_human_confirmation",
+    "blocked_document_defect",
+]
+PortHoldRisk = Literal["low", "medium", "high"]
+ActionOwner = Literal[
+    "exporter_in_house",
+    "bank_or_psw",
+    "issuing_authority",
+    "compliance_reviewer",
+]
+BlockerCategory = Literal[
+    "document_discrepancy",
+    "arithmetic_error",
+    "regulatory_blocker",
+    "external_document",
+    "manual_confirmation",
+]
+
+
+class RemediationStep(BaseModel):
+    """One prioritized, owner-assigned action to reach customs filing readiness."""
+
+    priority: int = Field(ge=1, le=3)
+    owner: ActionOwner
+    category: BlockerCategory
+    title: str
+    action: str
+    score_impact: int = Field(ge=0, le=100)
+
+
+class ClearanceReadinessSummary(BaseModel):
+    """Exporter-facing pre-clearance readiness scorecard and fix plan."""
+
+    readiness_score: int = Field(ge=0, le=100)
+    readiness_band: ReadinessBand
+    port_hold_risk: PortHoldRisk
+    headline: str
+    in_house_fixes_count: int = Field(ge=0)
+    external_documents_count: int = Field(ge=0)
+    manual_confirmations_count: int = Field(ge=0)
+    remediation_steps: list[RemediationStep] = Field(default_factory=list)
+
+
 class ShipmentItemResult(BaseModel):
     item_reference: str
     invoice_item_index: int | None
@@ -183,6 +274,7 @@ class ShipmentItemResult(BaseModel):
     compliance: ComplianceCheckResponse | None
     status: ComplianceCheckStatus
     fields_requiring_manual_review: list[str]
+    duty_estimate: LineDutyEstimate | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -246,3 +338,9 @@ class MultiLineShipmentResponse(BaseModel):
     document_review_status: ComplianceCheckStatus = ComplianceCheckStatus.PASSED
     #: Customs documents the rules require that were not provided.
     outstanding_documents: list[OutstandingDocument] = Field(default_factory=list)
+    #: Deterministic 0-100 pre-clearance readiness score, hold risk, and fix plan.
+    clearance_readiness: ClearanceReadinessSummary | None = None
+    #: Exact Decimal FY2026-27 cascading duty & landed-cost summary across lines.
+    duty_estimation_summary: DutyEstimationSummary | None = None
+    #: Hybrid deterministic-vs-LLM execution speed and token-savings telemetry.
+    pipeline_telemetry: PipelineExecutionTelemetry | None = None

@@ -484,6 +484,12 @@ function CorrectionPanel({
     }
   }
 
+  const allConfirmedDocumentMismatch =
+    details.length > 0 &&
+    details.every(
+      (detail) => detail.correction_basis === "confirmed_document_mismatch",
+    );
+
   return (
     <div className={activeTarget ? "review-split" : undefined}>
       <div className="correction-panel">
@@ -491,6 +497,21 @@ function CorrectionPanel({
           <p className="correction-panel__question">
             {reviewTask.plain_language_question}
           </p>
+        ) : null}
+
+        {allConfirmedDocumentMismatch ? (
+          <div className="notice notice--warning" role="note">
+            <AlertTriangle aria-hidden="true" size={16} />
+            <div>
+              <strong>Confirmed source-document conflict (fail-closed gate)</strong>
+              <p>
+                Both PDFs were read cleanly at high confidence and state
+                conflicting figures. CACE blocks silent in-place overwrites on
+                confirmed digital documents — reject the submission or upload an
+                amended PDF to clear this discrepancy.
+              </p>
+            </div>
+          </div>
         ) : null}
 
         <div className="correction-panel__options">

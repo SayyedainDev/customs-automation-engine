@@ -1,8 +1,8 @@
 # CACE — Customs & Automated Compliance Engine
 
 [![CI](https://github.com/SayyedainDev/customs-automation-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/SayyedainDev/customs-automation-engine/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/Tests-1%2C490_passing-brightgreen)](.github/workflows/ci.yml)
-[![Typecheck](https://img.shields.io/badge/mypy-0_errors_(194_files)-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/Tests-1%2C495_passing-brightgreen)](.github/workflows/ci.yml)
+[![Typecheck](https://img.shields.io/badge/mypy-0_errors_(195_files)-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)
@@ -21,8 +21,8 @@ Pakistan textile exporters routinely face shipment holds from cross-document qua
 
 | Dimension | Measured Result | Evidence |
 | --- | --- | --- |
-| **Automated Verification** | **1,490 passed**, 0 failed (1,485 backend/Spec Tree `pytest` + 5 `vitest` UI tests) | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
-| **Static Quality Gates** | **0 `mypy` errors** across 194 Python files; `ruff` clean; strict `tsc --noEmit && vite build` | [`pyproject.toml`](pyproject.toml) |
+| **Automated Verification** | **1,495 passed**, 0 failed (1,489 backend/Spec Tree `pytest` + 6 `vitest` UI tests) | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| **Static Quality Gates** | **0 `mypy` errors** across 195 Python files; `ruff` clean; strict `tsc --noEmit && vite build` | [`pyproject.toml`](pyproject.toml) |
 | **Hybrid Extraction Efficiency** | **96.9%** (`31/32`) digital PDFs resolved locally at **0 tokens** (`0.004s` median); **87.8% token reduction** vs LLM-only (`7,187 → 874`) with **0** HTTP 429 failures | [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | **Authoritative AI Safety** | Non-LLM compliance verdicts, Unicode NFKC/zero-width prompt-injection guards, SRO citation validation, immutable audit revisions, SHA-256 hash-chained audit ledger | [`SECURITY.md`](SECURITY.md), [`spx/15-authoritative-safety.pdr.md`](spx/15-authoritative-safety.pdr.md) |
 | **Zero-Key Reproducibility** | One-command Docker Compose auto-seeds **7,591 tariff lines** & **6,870 regulatory vectors**, plus built-in 1-click sample shipments and zero-key CI (`GROQ_API_KEY` optional) | [`docker-compose.yml`](docker-compose.yml), [`bootstrap_runtime_data.py`](backend/scripts/bootstrap_runtime_data.py) |
@@ -131,7 +131,7 @@ python backend/scripts/benchmark_extraction.py --verify-offline
 
 1. **Document Ingestion, Page Previews & Provenance**: Bounded PDF uploads, PyMuPDF + Tesseract OCR (`PSM 4`), rendered PNG page previews ([`page_preview.py`](backend/app/services/extraction/page_preview.py)), and bounding-box highlighting in [`PdfProvenanceViewer.tsx`](frontend/src/components/PdfProvenanceViewer.tsx).
 2. **Hybrid Primary & Supporting Document Extraction**: Coordinate/regex extractors ([`patterns.py`](backend/app/services/extraction/patterns.py), [`regex_extractor.py`](backend/app/services/extraction/regex_extractor.py)) with bounded Groq gap-fill across commercial invoices, packing lists, Form-E/PSW declarations, Certificates of Origin, L/Cs, and SBP deposit proofs ([`hybrid_orchestrator.py`](backend/app/services/extraction/hybrid_orchestrator.py), [`supporting_document_hybrid.py`](backend/app/services/extraction/supporting_document_hybrid.py)).
-3. **FY2026–27 `Decimal` Duty & Multi-Line Compliance**: Cross-document line alignment, arithmetic reconciliation, 17-PCT executable rules, and statutory cascading duty calculations ([`duty_calculator.py`](backend/app/services/compliance/duty_calculator.py), [`multi_line_shipment_service.py`](backend/app/services/multi_line_shipment_service.py)).
+3. **FY2026–27 `Decimal` Duty, Pre-Clearance Readiness & Multi-Line Compliance**: Cross-document line alignment, arithmetic reconciliation, 17-PCT executable rules, deterministic `0–100` pre-clearance readiness & port hold-risk triage with owner-assigned remediation plans ([`readiness.py`](backend/app/services/compliance/readiness.py)), and statutory cascading duty calculations ([`duty_calculator.py`](backend/app/services/compliance/duty_calculator.py), [`multi_line_shipment_service.py`](backend/app/services/multi_line_shipment_service.py)).
 4. **16-Node LangGraph Audit Workflow & Dossier Export**: Stateful `Broker`/`Auditor` verification, targeted field-correction dependency recomputation ([`dependency_map.py`](backend/app/services/customs_audit/dependency_map.py)), durable PostgreSQL/SQLite checkpoints ([`graph.py`](backend/app/services/customs_audit/graph.py), [`nodes.py`](backend/app/services/customs_audit/nodes.py)), and downloadable JSON/PDF dossiers ([`dossier.py`](backend/app/services/customs_audit/dossier.py)).
 5. **Hybrid Regulatory RAG, Guarded Customs Chat & MCP Server**: Multi-stage RAG retrieval ([`retrieval.py`](backend/app/services/regulatory/retrieval.py)), shipment-scoped document chat ([`shipment_retriever.py`](backend/app/services/assistant/shipment_retriever.py)), guarded Customs Chat with scope routing & groundedness verification ([`pipeline.py`](backend/app/services/customs_chat/pipeline.py)), and 4 MCP tools ([`mcp_server.py`](backend/app/mcp_server.py)).
 6. **React Operations Console**: Vite 6 + React 18 + TypeScript 5.7 console ([`frontend/package.json`](frontend/package.json)) covering compliance reviews ([`NewReviewPage.tsx`](frontend/src/pages/NewReviewPage.tsx)), export preparation ([`PrepareExportPage.tsx`](frontend/src/pages/PrepareExportPage.tsx)), and Customs Chat ([`CustomsChatPage.tsx`](frontend/src/pages/CustomsChatPage.tsx)), mounted directly by FastAPI at `/app` when built.
@@ -155,9 +155,10 @@ Open **`http://localhost:8000/app/`** (Operations Console) or **`http://localhos
 ### 2-Minute Reviewer Demo (Zero PDFs Needed)
 
 1. Open **`http://localhost:8000/app/review`** (or click **Try sample shipment** on the Overview page).
-2. Click **Clean Textile Export (PASS)** to load bundled invoice, packing list, Form-E, and Certificate of Origin PDFs — inspect the `PASSED` compliance checks, **FY2026–27 `Decimal` cascading duty breakdown**, and **PDF provenance bounding-box viewer**.
-3. Click **Start another review** → **Quantity Mismatch (HITL Audit)** → **Run agent audit** to watch the 16-node **LangGraph** workflow pause on a durable human-in-the-loop interrupt, accept a field correction, append immutable Revision 2, and export a JSON/PDF audit dossier.
-4. Visit **`http://localhost:8000/app/prepare`** or **`http://localhost:8000/app/ask`** to explore pre-submission checklists and guarded Customs Chat grounded in the auto-indexed regulatory corpus.
+2. Click **Clean Textile Export (PASS)** to load bundled invoice, packing list, Form-E, and Certificate of Origin PDFs — inspect the **100/100 Pre-Clearance Readiness score**, **FY2026–27 `Decimal` cascading duty breakdown**, **hybrid zero-token telemetry**, and **PDF provenance bounding-box viewer**.
+3. Click **Start another review** → **Pending Form-E & COO (HITL Upload)** → **Run agent audit** to see sound uploaded documents separated from external bank/TDAP paperwork (`70/100`), upload a supporting PDF inline during the durable **LangGraph** interrupt, and watch immutable **Revision 2** recompute.
+4. Click **Start another review** → **Quantity Mismatch (HITL Audit)** → **Run agent audit** to see high port-hold risk triage (`blocked_document_defect`), side-by-side PDF provenance highlighting (`100` vs `99`), CACE's fail-closed document-conflict protection, and JSON/PDF audit dossier export.
+5. Visit **`http://localhost:8000/app/prepare`** or **`http://localhost:8000/app/ask`** to explore pre-submission checklists and guarded Customs Chat grounded in the auto-indexed regulatory corpus.
 
 ### Option B — Local Development (Zero API Keys Required)
 

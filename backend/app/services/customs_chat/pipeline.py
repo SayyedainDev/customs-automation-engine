@@ -315,7 +315,20 @@ def answer_customs_question(
         )
         lead_in = explanation or fallback_lead_in
         emit_stage("output_guard")
-        checklist_guard = output_guard.check_output(lead_in, mode="GENERAL", evidence_text="", attempt=0)
+        checklist_evidence_text = "\n".join(
+            [
+                fallback_lead_in,
+                *(d.display_name for d in tool_result.required_documents),
+                *(d.display_name for d in tool_result.conditional_documents),
+                *(c.excerpt for c in checklist_citations if c.excerpt),
+            ]
+        )
+        checklist_guard = output_guard.check_output(
+            lead_in,
+            mode="GROUNDED",
+            evidence_text=checklist_evidence_text,
+            attempt=0,
+        )
         if not checklist_guard.ok:
             # The checklist itself (below) is always correct regardless of
             # what the explanation says - fall back to the fixed lead-in

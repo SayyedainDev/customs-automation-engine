@@ -85,13 +85,30 @@ _SAMPLES: dict[str, _SampleShipmentSpec] = {
             ),
         ),
     ),
+    "missing_documents_hitl": _SampleShipmentSpec(
+        key="missing_documents_hitl",
+        title="Pending Bank Form-E & COO (HITL Upload)",
+        summary=(
+            "Clean commercial invoice and packing list for PCT 6109.1000 sent "
+            "before attaching Form-E and Certificate of Origin — demonstrates "
+            "sound document triage vs. pending external paperwork and inline "
+            "HITL supporting-document upload."
+        ),
+        expected_outcome="failed",
+        shipment_date="2026-06-29",
+        invoice_path="clean_cotton_tshirts/synthetic_commercial_invoice_text.pdf",
+        invoice_filename="sample_pending_paperwork_invoice.pdf",
+        packing_list_path="clean_cotton_tshirts/synthetic_packing_list_text.pdf",
+        packing_list_filename="sample_pending_paperwork_packing_list.pdf",
+    ),
     "error_quantity_mismatch": _SampleShipmentSpec(
         key="error_quantity_mismatch",
-        title="Quantity Mismatch Export (HITL Audit)",
+        title="Quantity Mismatch Export (Document Conflict Gate)",
         summary=(
-            "Commercial invoice and packing list disagree on item quantity — "
-            "demonstrates deterministic cross-document failure detection, PDF "
-            "provenance highlighting, and LangGraph HITL review."
+            "Commercial invoice (100 pcs) and packing list (99 pcs) disagree — "
+            "demonstrates high port-hold risk triage, PDF provenance "
+            "highlighting, and fail-closed HITL protection against overwriting "
+            "confirmed digital source contradictions."
         ),
         expected_outcome="failed",
         shipment_date="2026-06-16",

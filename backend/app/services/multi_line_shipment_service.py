@@ -15,6 +15,7 @@ document:
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -37,9 +38,11 @@ from app.schemas.compliance import (
     ShipmentComplianceInput,
 )
 from app.schemas.multi_line_extraction import (
+    DutyEstimationSummary,
     InvoiceLineItem,
     InvoiceLineItemCandidate,
     ItemMatchStatus,
+    LineDutyEstimate,
     MultiLineCommercialInvoiceExtraction,
     MultiLineInvoiceCandidates,
     MultiLinePackingListCandidates,
@@ -48,6 +51,7 @@ from app.schemas.multi_line_extraction import (
     MultiLineShipmentResponse,
     PackingListItem,
     PackingListItemCandidate,
+    PipelineExecutionTelemetry,
     ShipmentItemResult,
 )
 from app.schemas.shipment_extraction import (
@@ -63,6 +67,12 @@ from app.services.compliance.document_requirements import (
     is_outstanding_document_check,
     uploaded_document_review_status,
 )
+from app.services.compliance.duty_calculator import (
+    calculate_cascading_customs_taxes,
+    quantize_money,
+    resolve_tariff_rates_for_hs_code,
+)
+from app.services.compliance.readiness import compute_clearance_readiness
 from app.services.compliance.rule_engine import DeterministicComplianceRuleEngine
 from app.services.compliance.rule_loader import (
     load_compliance_rules,
@@ -1053,6 +1063,158 @@ def _item_identity(
     return product, pct
 
 
+def _compute_item_duty_estimate(
+    *,
+    db: Session | None,
+    pct_code: str | None,
+    line_total: Decimal | None,
+    currency: str | None,
+    checks: list[CrossDocumentCheck],
+) -> LineDutyEstimate | None:
+    if line_total is None or line_total <= Decimal("0"):
+        return None
+    if not _check_ok(checks, "item_pct_code_match"):
+        return None
+    resolved = resolve_tariff_rates_for_hs_code(db, pct_code)
+    if resolved is None:
+        return None
+    breakdown = calculate_cascading_customs_taxes(
+        assessed_value=line_total,
+        customs_duty_pct=resolved.customs_duty_pct,
+        additional_customs_duty_pct=resolved.additional_customs_duty_pct,
+        regulatory_duty_pct=resolved.regulatory_duty_pct,
+        sales_tax_pct=resolved.sales_tax_pct,
+        advance_income_tax_pct=resolved.advance_income_tax_pct,
+    )
+    return LineDutyEstimate(
+        hs_code=resolved.hs_code,
+        currency=currency,
+        rate_source=resolved.rate_source,
+        tariff_year=resolved.tariff_year,
+        source_page=resolved.source_page,
+        breakdown=breakdown.to_dict(),
+    )
+
+
+def _aggregate_duty_summary(
+    items: list[ShipmentItemResult],
+    *,
+    currency: str | None,
+) -> DutyEstimationSummary | None:
+    totals: dict[str, Decimal] = {
+        "assessed_value": Decimal("0.00"),
+        "customs_duty": Decimal("0.00"),
+        "additional_customs_duty": Decimal("0.00"),
+        "regulatory_duty": Decimal("0.00"),
+        "sales_tax": Decimal("0.00"),
+        "value_addition_tax": Decimal("0.00"),
+        "advance_income_tax": Decimal("0.00"),
+        "total_duties_and_taxes": Decimal("0.00"),
+        "total_landed_cost": Decimal("0.00"),
+    }
+    lines_estimated = 0
+    for item in items:
+        if item.duty_estimate is None:
+            continue
+        bd = item.duty_estimate.breakdown
+        lines_estimated += 1
+        for key in totals:
+            totals[key] = quantize_money(totals[key] + Decimal(str(bd.get(key, "0.00"))))
+
+    if lines_estimated == 0:
+        return None
+
+    assessed = totals["assessed_value"]
+    eff_rate = (
+        quantize_money((totals["total_duties_and_taxes"] / assessed) * Decimal("100"))
+        if assessed > Decimal("0")
+        else Decimal("0.00")
+    )
+    return DutyEstimationSummary(
+        total_assessed_value=f"{totals['assessed_value']:.2f}",
+        total_customs_duty=f"{totals['customs_duty']:.2f}",
+        total_additional_customs_duty=f"{totals['additional_customs_duty']:.2f}",
+        total_regulatory_duty=f"{totals['regulatory_duty']:.2f}",
+        total_sales_tax=f"{totals['sales_tax']:.2f}",
+        total_value_addition_tax=f"{totals['value_addition_tax']:.2f}",
+        total_advance_income_tax=f"{totals['advance_income_tax']:.2f}",
+        total_duties_and_taxes=f"{totals['total_duties_and_taxes']:.2f}",
+        total_landed_cost=f"{totals['total_landed_cost']:.2f}",
+        effective_rate_pct=f"{eff_rate:.2f}",
+        lines_estimated=lines_estimated,
+        total_lines=len(items),
+        currency=currency,
+        basis_note=(
+            "Estimated under Pakistan FY2026-27 statutory cascading rates "
+            "(CD, S.R.O. 1063(I)/2026 ACD, RD, ST 18%, VAT 3%, Sec. 148 AIT 5.5%) "
+            "using invoice line value as assessed base for landed-cost reference."
+        ),
+    )
+
+
+_BENCHMARK_SINGLE_SHOT_TOKENS_PER_DOC = 450
+
+
+def _read_stored_telemetry(
+    db: Session, document_id: UUID, document_type: str
+) -> tuple[dict[str, Any] | None, datetime | None]:
+    doc = db.get(DocumentUploadRecord, document_id)
+    if doc is None:
+        return None, None
+    sdata = doc.structured_data if isinstance(doc.structured_data, dict) else {}
+    slot = sdata.get(_PHASE_2C_CACHE_SLOTS[document_type])
+    tel = slot.get("telemetry") if isinstance(slot, dict) else None
+    return (tel if isinstance(tel, dict) else None), doc.structured_extracted_at
+
+
+def _build_pipeline_telemetry(
+    db: Session,
+    *,
+    invoice_doc_id: UUID,
+    packing_doc_id: UUID,
+    inv_before_ts: datetime | None,
+    pkg_before_ts: datetime | None,
+    supporting_count: int,
+    elapsed_ms: float,
+) -> PipelineExecutionTelemetry:
+    inv_tel, inv_after_ts = _read_stored_telemetry(db, invoice_doc_id, "commercial_invoice")
+    pkg_tel, pkg_after_ts = _read_stored_telemetry(db, packing_doc_id, "packing_list")
+    inv_hit = inv_before_ts is not None and inv_after_ts == inv_before_ts
+    pkg_hit = pkg_before_ts is not None and pkg_after_ts == pkg_before_ts
+    cache_hits = int(inv_hit) + int(pkg_hit)
+
+    fields_det = 0
+    fields_llm = 0
+    llm_calls = 0
+    tokens_used = 0
+    for tel, is_hit in ((inv_tel, inv_hit), (pkg_tel, pkg_hit)):
+        if not tel:
+            continue
+        fields_det += int(tel.get("fields_from_regex", 0) or 0) + int(
+            tel.get("line_items_from_table", 0) or 0
+        )
+        fields_llm += int(tel.get("fields_from_llm", 0) or 0)
+        if not is_hit:
+            llm_calls += int(tel.get("llm_calls", 0) or 0)
+            tokens_used += int(tel.get("total_tokens", 0) or 0)
+
+    docs_processed = 2 + supporting_count
+    baseline_tokens = docs_processed * _BENCHMARK_SINGLE_SHOT_TOKENS_PER_DOC
+    mode = get_settings().extraction_mode
+    saved = max(0, baseline_tokens - tokens_used) if mode == "hybrid" or cache_hits > 0 else 0
+    return PipelineExecutionTelemetry(
+        extraction_mode=mode,
+        processing_time_ms=round(elapsed_ms, 2),
+        documents_processed=docs_processed,
+        cache_hits=cache_hits,
+        fields_from_deterministic=fields_det,
+        fields_from_llm=fields_llm,
+        llm_calls=llm_calls,
+        tokens_used=tokens_used,
+        estimated_tokens_saved=saved,
+    )
+
+
 def _build_item_result(
     *,
     request: MultiLineShipmentRequest,
@@ -1060,10 +1222,12 @@ def _build_item_result(
     match: ItemMatch,
     engine: DeterministicComplianceRuleEngine,
     present_document_types: set[str] | None = None,
+    db: Session | None = None,
 ) -> ShipmentItemResult:
     invoice_item = match.invoice_item
     packing_item = match.packing_item
     product, pct = _item_identity(invoice_item, packing_item)
+    duty_estimate: LineDutyEstimate | None = None
 
     if match.status == ItemMatchStatus.MATCHED:
         if invoice_item is None or packing_item is None:
@@ -1078,6 +1242,13 @@ def _build_item_result(
         )
         compliance = engine.check(shipment_input)
         status = _item_status(item_checks, compliance, invoice_item, packing_item)
+        duty_estimate = _compute_item_duty_estimate(
+            db=db,
+            pct_code=pct,
+            line_total=invoice_item.line_total.value,
+            currency=invoice.currency.value,
+            checks=item_checks,
+        )
     else:
         # An unmatched item is never guessed into compliance; it is surfaced
         # for manual review with the reason it could not be paired.
@@ -1116,6 +1287,7 @@ def _build_item_result(
         compliance=compliance,
         status=status,
         fields_requiring_manual_review=_item_manual_fields(invoice_item, packing_item),
+        duty_estimate=duty_estimate,
     )
 
 
@@ -1404,12 +1576,24 @@ def recheck_multi_line_shipment_from_correction(
 
     all_checks = _all_shipment_checks(items, [*shipment_checks, *supporting_checks])
     outstanding = collect_outstanding_documents(all_checks)
+    doc_review_status = _uploaded_document_review_status(items, all_checks, manual_fields)
+    readiness = compute_clearance_readiness(
+        overall_status=overall_status,
+        document_review_status=doc_review_status,
+        checks=all_checks,
+        outstanding_documents=outstanding,
+        supporting_documents=supporting_results,
+        fields_requiring_manual_review=manual_fields,
+    )
+    duty_summary = _aggregate_duty_summary(items, currency=invoice.currency.value)
 
     response = MultiLineShipmentResponse(
         review_revision_id=request.review_revision_id,
         supporting_documents=supporting_results,
-        document_review_status=_uploaded_document_review_status(items, all_checks, manual_fields),
+        document_review_status=doc_review_status,
         outstanding_documents=outstanding,
+        clearance_readiness=readiness,
+        duty_estimation_summary=duty_summary,
         overall_status=overall_status,
         is_compliant=overall_status == ComplianceCheckStatus.PASSED,
         rule_data_version=load_compliance_rules().rule_data_version,
@@ -1441,6 +1625,14 @@ def extract_match_and_check_multi_line_shipment(
         raise ShipmentExtractionInputError(
             "The invoice and packing list must use different document IDs."
         )
+
+    started_at = time.perf_counter()
+    _, inv_before_ts = _read_stored_telemetry(
+        db, request.commercial_invoice_document_id, "commercial_invoice"
+    )
+    _, pkg_before_ts = _read_stored_telemetry(
+        db, request.packing_list_document_id, "packing_list"
+    )
 
     invoice, invoice_reviews = _extract_invoice(
         db, request.commercial_invoice_document_id
@@ -1489,6 +1681,7 @@ def extract_match_and_check_multi_line_shipment(
             match=match,
             engine=engine,
             present_document_types=documents_present,
+            db=db,
         )
         for match in matches
     ]
@@ -1506,6 +1699,18 @@ def extract_match_and_check_multi_line_shipment(
 
     all_checks = _all_shipment_checks(items, [*shipment_checks, *supporting_checks])
     outstanding = collect_outstanding_documents(all_checks)
+    doc_review_status = _uploaded_document_review_status(
+        items, all_checks, manual_fields
+    )
+    readiness = compute_clearance_readiness(
+        overall_status=overall_status,
+        document_review_status=doc_review_status,
+        checks=all_checks,
+        outstanding_documents=outstanding,
+        supporting_documents=supporting_results,
+        fields_requiring_manual_review=manual_fields,
+    )
+    duty_summary = _aggregate_duty_summary(items, currency=invoice.currency.value)
 
     # ----------------------------------------------------------------------- #
     # Index extracted documents for Assistant Chat
@@ -1532,13 +1737,25 @@ def extract_match_and_check_multi_line_shipment(
         documents=docs_to_index
     )
 
+    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+    pipeline_telemetry = _build_pipeline_telemetry(
+        db,
+        invoice_doc_id=request.commercial_invoice_document_id,
+        packing_doc_id=request.packing_list_document_id,
+        inv_before_ts=inv_before_ts,
+        pkg_before_ts=pkg_before_ts,
+        supporting_count=sum(1 for s in supporting_results if s.uploaded),
+        elapsed_ms=elapsed_ms,
+    )
+
     return MultiLineShipmentResponse(
         review_revision_id=request.review_revision_id,
         supporting_documents=supporting_results,
-        document_review_status=_uploaded_document_review_status(
-            items, all_checks, manual_fields
-        ),
+        document_review_status=doc_review_status,
         outstanding_documents=outstanding,
+        clearance_readiness=readiness,
+        duty_estimation_summary=duty_summary,
+        pipeline_telemetry=pipeline_telemetry,
         overall_status=overall_status,
         is_compliant=overall_status == ComplianceCheckStatus.PASSED,
         rule_data_version=load_compliance_rules().rule_data_version,

@@ -57,6 +57,7 @@ def build_audit_dossier_payload(
             or workflow_status.get("deterministic_status"),
             "overall_reason": report.get("overall_reason"),
             "uploaded_document_result": report.get("uploaded_document_result"),
+            "clearance_readiness": report.get("clearance_readiness"),
             "executive_summary": report.get("executive_summary"),
             "explanation": explanation,
             "explanation_source": explanation_source,
@@ -127,6 +128,15 @@ def render_audit_dossier_pdf(dossier: dict[str, Any]) -> bytes:
     wf_id = str(wf.get("workflow_id") or "")
     short_id = wf_id[:8] if wf_id else "audit"
     overall_result = str(verdict.get("overall_result") or wf.get("status") or "UNKNOWN")
+    readiness = verdict.get("clearance_readiness")
+    readiness_badge_html = ""
+    if isinstance(readiness, dict) and readiness.get("readiness_score") is not None:
+        r_score = readiness.get("readiness_score")
+        r_risk = str(readiness.get("port_hold_risk") or "").upper()
+        readiness_badge_html = (
+            f" &nbsp;|&nbsp; Readiness: <strong>{_e(r_score)}/100</strong>"
+            f" (Hold Risk: <strong>{_e(r_risk)}</strong>)"
+        )
 
     line_rows_html = ""
     for row in line_items:
@@ -282,7 +292,7 @@ def render_audit_dossier_pdf(dossier: dict[str, Any]) -> bytes:
 <body>
   <div class="banner">
     <h1>CACE Pre-Submission Customs Audit Dossier</h1>
-    <p><span class="badge">VERDICT: {_e(overall_result)}</span> &nbsp; Workflow: <code>{_e(wf_id)}</code></p>
+    <p><span class="badge">VERDICT: {_e(overall_result)}</span> &nbsp; Workflow: <code>{_e(wf_id)}</code>{readiness_badge_html}</p>
     <p>Rule Data Version: {_e(wf.get('rule_data_version'))} &nbsp;|&nbsp; Vector Index: {_e(wf.get('vector_index_version'))} &nbsp;|&nbsp; Generated: {_e(dossier.get('generated_at'))}</p>
   </div>
 
